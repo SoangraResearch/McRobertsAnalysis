@@ -11,6 +11,7 @@ Importing libraries, functions and data
 
 # Commented out IPython magic to ensure Python compatibility.
 import sys
+import os
 sys.path.append(r"gait_functions") #add the folders for the gait and non-linear functions
 sys.path.append(r"non-linear functions")
 
@@ -27,14 +28,11 @@ from scipy.signal import resample
 import csv
 import matplotlib.pyplot as plt
 
+from Non_GUI.Ayush_Files.gait_functions.walking import find_walking
+from Non_GUI.Ayush_Files.gait_functions.hs_to_detection import get_hs_to_wavelet # function to detect heal strike and toe off from the walking data
+from Non_GUI.Ayush_Files.gait_functions.hs_to_detection import gait_parameters  # function to calculate gait parameters from heal strike and toe off
 
-from walking import find_walking # this function returns cadence form which step count and walking periods are found
-from hs_to_detection import get_hs_to_wavelet # function to detect heal strike and toe off from the walking data
-from hs_to_detection import gait_parameters  # function to calculate gait parameters from heal strike and toe off
-
-
-
-filename = r"C:\Users\mikey\Desktop\Gait+non-linear ananlysis\Gait+non-linear ananlysis\50step.csv" #"C:\Users\Ayush Dubey\Downloads\2024-05-0500.27.21.csv" #csv file of acclerometer in units of 'g'
+filename = os.path.normpath(os.path.join(os.path.dirname(__file__), '..', 'Non_GUI', 'Ayush_Files', '50step.csv')) #"C:\Users\Ayush Dubey\Downloads\2024-05-0500.27.21.csv" #csv file of acclerometer in units of 'g'
 accleration = pd.read_csv(filename)
 R_acc = accleration['TgF'] - 1 #resultant acceleration adjusted with gravity
 fs = 500 # sampling frequency of sensor
@@ -135,16 +133,16 @@ df.to_csv('dfccc.csv', index=False)
 
 """Non Linear Analysis of Walking"""
 
-from ami_stergio import AMI_Stergiou
-from fnn import FNN
-from ent_Ap import Ent_Ap
-from ent_symbolic import Ent_Symbolic
-from entMSPlus import Ent_MS_Plus
-from entPermu import Ent_Permu
-from lye_R import LyE_R
-from lye_W import LyE_W
-from rqa import RQA
-from ent_Samp import Ent_Samp
+from Non_GUI.Ayush_Files.non_linear_functions.ami_stergio import AMI_Stergiou
+from Non_GUI.Ayush_Files.non_linear_functions.fnn import FNN
+from Non_GUI.Ayush_Files.non_linear_functions.ent_Ap import Ent_Ap
+from Non_GUI.Ayush_Files.non_linear_functions.ent_symbolic import Ent_Symbolic
+from Non_GUI.Ayush_Files.non_linear_functions.entMSPlus import Ent_MS_Plus
+from Non_GUI.Ayush_Files.non_linear_functions.entPermu import Ent_Permu
+from Non_GUI.Ayush_Files.non_linear_functions.lye_R import LyE_R
+from Non_GUI.Ayush_Files.non_linear_functions.lye_W import LyE_W
+from Non_GUI.Ayush_Files.non_linear_functions.rqa import RQA
+from Non_GUI.Ayush_Files.non_linear_functions.ent_Samp import Ent_Samp
 
 # identify walking
 import numpy as np
@@ -154,9 +152,9 @@ import csv
 import matplotlib.pyplot as plt
 
 
-from walking import find_walking # this function returns cadence form which step count and walking periods are found
-from hs_to_detection import get_hs_to_wavelet # function to detect heal strike and toe off from the walking data
-from hs_to_detection import  gait_parameters  # function to calculate gait parameters from heal strike and toe off
+from Non_GUI.Ayush_Files.gait_functions.walking import find_walking # this function returns cadence form which step count and walking periods are found
+from Non_GUI.Ayush_Files.gait_functions.hs_to_detection import get_hs_to_wavelet # function to detect heal strike and toe off from the walking data
+from Non_GUI.Ayush_Files.gait_functions.hs_to_detection import  gait_parameters  # function to calculate gait parameters from heal strike and toe off
 
 #filename = r"C:\Users\Ayush Dubey\Desktop\50step.csv" #"C:\Users\Ayush Dubey\Downloads\2024-05-0500.27.21.csv" #csv file of acclerometer in units of 'g'
 accleration = pd.read_csv(filename)
