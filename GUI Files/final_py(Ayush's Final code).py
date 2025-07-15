@@ -64,7 +64,7 @@ step_freq = (1.4,2.3) #step frequency range (in Hz or steps per second)
 fs_HS_TO = 100 #sampling frequency needed by the function
 turning = 0
 plot_figure = 1 # 1 for plotting the figure
-save_fig_name = "Test"
+save_fig_name = "Test2"
 
 """Cad is cadence for each 1 second of signal  """
 
