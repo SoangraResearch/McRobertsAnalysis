@@ -1,4 +1,5 @@
 function MyData = soangraMoonResample( ourData )
+    
 %SOANGRAMOON Summary of this function goes here
 %   
 % % % USES findnearest.m function
@@ -10,7 +11,7 @@ function MyData = soangraMoonResample( ourData )
 % % % % % % % %                         'stopTime',fileInfo.stop.mtime,'modality',[1,1,0],'verbose',10);
 % % % % % % % % 
 
-% conversionGYR=[ourData.GYR(:,1) ourData.GYR(:,2:4)*0.07];
+conversionGYR=[ourData.GYR(:,1) ourData.GYR(:,2:4)*0.07];
 
 acc = ourData.ACC;
 gyr = conversionGYR;

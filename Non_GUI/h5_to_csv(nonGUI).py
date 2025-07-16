@@ -40,18 +40,20 @@ def export_data(file_path, start_time_str, stop_time_str, output_path, format='C
         print("⚠️ No data found in the selected time range.")
         return
 
-    extracted = pd.DataFrame(dataset[:, indices]).iloc[0:4]
+    extracted = pd.DataFrame(dataset[:, indices]).iloc[0:4] #TODO: figure out TgF data
     df = extracted.T
     df.columns = ['Time', 'Ax', 'Ay', 'Az']
 
-    display(df.head())  # Show first few rows in notebook
+    # Show first few rows in notebook
+    print (df.head()) # FOR: .py files
+    #display(df.head()) #FOR: .ipynb files
 
     save_dataframe(df, output_path, format=format)
 
 # ====== JUPYTER CELL CONFIG ======
 # Set your variables here:
-file_path = "your_file.h5"  # <-- set your .h5 file path
-output_path = "output.csv"  # <-- set your desired output file name
+file_path = "C:/Users/ahala/OneDrive/Desktop/SoangraResearch/McRobertsAnalysis/Data/H5_Files/TestData.h5"  # <-- set your .h5 file path # TODO: use relative filepath
+output_path = "C:/Users/ahala/OneDrive/Desktop/SoangraResearch/McRobertsAnalysis/Data/CSV_Files_Raw/TestData.csv"  # <-- set your desired output file name # TODO: use relative filepath
 
 # After loading, we’ll show the available time range
 dataset, time_array = load_h5_file(file_path)

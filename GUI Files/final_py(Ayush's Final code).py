@@ -32,7 +32,7 @@ from Non_GUI.Ayush_Files.gait_functions.walking import find_walking
 from Non_GUI.Ayush_Files.gait_functions.hs_to_detection import get_hs_to_wavelet # function to detect heal strike and toe off from the walking data
 from Non_GUI.Ayush_Files.gait_functions.hs_to_detection import gait_parameters  # function to calculate gait parameters from heal strike and toe off
 
-filename = os.path.normpath(os.path.join(os.path.dirname(__file__), '..', 'Non_GUI', 'Ayush_Files', '50step.csv')) #"C:\Users\Ayush Dubey\Downloads\2024-05-0500.27.21.csv" #csv file of acclerometer in units of 'g'
+filename = os.path.normpath(os.path.join(os.path.dirname(__file__), '..', 'Data', 'CSV_Files_Raw', 'TestData.csv')) #"C:\Users\Ayush Dubey\Downloads\2024-05-0500.27.21.csv" #csv file of acclerometer in units of 'g'
 accleration = pd.read_csv(filename)
 R_acc = accleration['TgF'] - 1 #resultant acceleration adjusted with gravity
 fs = 500 # sampling frequency of sensor
