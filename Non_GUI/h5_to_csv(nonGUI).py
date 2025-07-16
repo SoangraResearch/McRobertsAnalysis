@@ -40,7 +40,7 @@ def export_data(file_path, start_time_str, stop_time_str, output_path, format='C
         print("⚠️ No data found in the selected time range.")
         return
 
-    extracted = pd.DataFrame(dataset[:, indices]).iloc[0:4] #TODO: figure out TgF data
+    extracted = pd.DataFrame(dataset[:, indices]).iloc[0:4]
     df = extracted.T
     df.columns = ['Time', 'Ax', 'Ay', 'Az']
 

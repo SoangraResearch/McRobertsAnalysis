@@ -32,8 +32,10 @@ from Non_GUI.Ayush_Files.gait_functions.walking import find_walking
 from Non_GUI.Ayush_Files.gait_functions.hs_to_detection import get_hs_to_wavelet # function to detect heal strike and toe off from the walking data
 from Non_GUI.Ayush_Files.gait_functions.hs_to_detection import gait_parameters  # function to calculate gait parameters from heal strike and toe off
 
-filename = os.path.normpath(os.path.join(os.path.dirname(__file__), '..', 'Data', 'CSV_Files_Raw', 'TestData.csv')) #"C:\Users\Ayush Dubey\Downloads\2024-05-0500.27.21.csv" #csv file of acclerometer in units of 'g'
+filename = os.path.normpath(os.path.join(os.path.dirname(__file__), '..', 'Non_GUI', 'Ayush_Files', '50step.csv')) #50Steps file
+#filename = os.path.normpath(os.path.join(os.path.dirname(__file__), '..', 'Data', 'CSV_Files_Raw', 'TestData.csv')) #"C:\Users\Ayush Dubey\Downloads\2024-05-0500.27.21.csv" #csv file of acclerometer in units of 'g'
 accleration = pd.read_csv(filename)
+#accleration['TgF'] = np.sqrt(accleration['Ax']**2+accleration['Ay']**2+accleration['Az']**2)
 R_acc = accleration['TgF'] - 1 #resultant acceleration adjusted with gravity
 fs = 500 # sampling frequency of sensor
 vm = np.array(R_acc) #converting to numpy array
@@ -64,7 +66,7 @@ step_freq = (1.4,2.3) #step frequency range (in Hz or steps per second)
 fs_HS_TO = 100 #sampling frequency needed by the function
 turning = 0
 plot_figure = 1 # 1 for plotting the figure
-save_fig_name = "Test2"
+save_fig_name = "50Step_Image"
 
 """Cad is cadence for each 1 second of signal  """
 
@@ -103,6 +105,7 @@ print(change_indices)
 print(walking)
 
 az = accleration['gFz'] # acceleration in the anterior posterior directtion
+#az = accleration['Az']
 num_samples = int(len(az) * fs_HS_TO / fs)  # Calculate the number of samples in the resampled signal
 # Resample the signal
 resampled_az = resample(az, num_samples)
@@ -129,7 +132,7 @@ for i in range(len(walking)):
 
 """Save the data frame"""
 
-df.to_csv('dfccc.csv', index=False)
+df.to_csv('Data/Output/50Steps_Linear.csv', index=False)
 
 """Non Linear Analysis of Walking"""
 
@@ -158,6 +161,7 @@ from Non_GUI.Ayush_Files.gait_functions.hs_to_detection import  gait_parameters 
 
 #filename = r"C:\Users\Ayush Dubey\Desktop\50step.csv" #"C:\Users\Ayush Dubey\Downloads\2024-05-0500.27.21.csv" #csv file of acclerometer in units of 'g'
 accleration = pd.read_csv(filename)
+#accleration['TgF'] = np.sqrt(accleration['Ax']**2+accleration['Ay']**2+accleration['Az']**2)
 R_acc = accleration['TgF'] - 1 #resultant acceleration adjusted with gravity
 fs = 500 # sampling frequency of sensor
 vm = np.array(R_acc) #converting to numpy array
@@ -331,5 +335,5 @@ for i in range(len(walking)):
 
     df2 = pd.concat([df2, new_row], ignore_index=True)
 
-df2.to_csv('df222222.csv', index=False)
+df2.to_csv('Data/Output/50Steps_NonLinear.csv.csv', index=False)
 
