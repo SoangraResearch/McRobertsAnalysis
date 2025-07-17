@@ -278,6 +278,7 @@ def identify_peaks_in_cwt(freqs_interp: np.ndarray, coefs_interp: np.ndarray,
         dp[:, i] = peak_vec
 
     return dp
+
 def find_walking(vm_bout: np.ndarray, fs: int = 10, min_amp: float = 0.3,
                  step_freq: tuple = (1.4, 2.3), alpha: float = 0.6,
                  beta: float = 2.5, min_t: int = 3,
@@ -312,8 +313,6 @@ def find_walking(vm_bout: np.ndarray, fs: int = 10, min_amp: float = 0.3,
     Returns:
         Ndarray with identified number of steps per second
     """
-
-  
 
     # define wavelet function used in method
     wavelet = ('gmw', {'beta': 90, 'gamma': 3})
@@ -351,8 +350,6 @@ def find_walking(vm_bout: np.ndarray, fs: int = 10, min_amp: float = 0.3,
         elif min_t > 1:
             cont_peaks = find_continuous_dominant_peaks(valid_peaks,min_t, delta)
             e = np.sum(cont_peaks,1)
-
-       
 
         # summarize the results
         cad = np.zeros(valid_peaks.shape[1])

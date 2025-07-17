@@ -1,7 +1,7 @@
 % read in data from omx file and convert it h5 format
 clear;
 clc;
-addpath('../DynaportCompany_Codes_new');
+addpath('./DynaportCompany_Codes_new');
 
 for i = 3:3
     si = num2str(i);
