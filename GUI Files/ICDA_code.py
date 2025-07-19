@@ -32,7 +32,7 @@ def sd_algo_amc(accV, fs):
     # resample using same method from earlier translation
     accV40 = resamp_interp(accV, fs, algorithm_target_fs)
 
-    Num = loadmat("/Users/minhaohuang/Desktop/Grad Assistant/Mobilise-D-TVS-Recommended-Algorithms/ICDA/Library/FIR-2-3Hz-40.mat")['Num'].flatten()
+    Num = loadmat("C:/Users/ahala/OneDrive/Desktop/SoangraResearch/McRobertsAnalysis/Mobilise-D-TVS-Recommended-Algorithms-master/ICDA/Library/FIR-2-3Hz-40.mat")['Num'].flatten()
 
     len_padd = 10000 * len(Num)
     accV40_zp = np.pad(accV40, pad_width=len_padd, mode='wrap')
@@ -79,7 +79,7 @@ def step_detection(imu_acc, GS, fs, plot_results=False):
         return []
 
     if plot_results:
-        Num = loadmat("/Users/minhaohuang/Desktop/Grad Assistant/Mobilise-D-TVS-Recommended-Algorithms/ICDA/Library/FIR-2-3Hz-40.mat")['Num'].flatten()  
+        Num = loadmat("C:/Users/ahala/OneDrive/Desktop/SoangraResearch/McRobertsAnalysis/Mobilise-D-TVS-Recommended-Algorithms-master/ICDA/Library/FIR-2-3Hz-40.mat")['Num'].flatten()  
 
         fs_algo = 40
         IC_all_sig = np.concatenate([np.array(g['IC']) for g in GS if 'IC' in g and len(g['IC']) > 0])
