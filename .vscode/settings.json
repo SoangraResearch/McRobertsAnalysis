@@ -1,5 +1,9 @@
 {
   "terminal.integrated.env.windows": {
     "PYTHONPATH": "${workspaceFolder}"
-  }
+  },
+  "python.analysis.extraPaths": [
+    "./Non_GUI/Ayush_Files/gait_functions",
+    "./Non_GUI/Ayush_Files/non_linear_functions"
+  ]
 }
