@@ -1,7 +1,11 @@
 import sys
 import os
+import atexit
 import time
 import matplotlib.pyplot as plt
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
+from matplotlib.figure import Figure
+from datetime import datetime
 from oct2py import Oct2Py
 
 def process_omx_file(filepath: str):
@@ -11,14 +15,26 @@ def process_omx_file(filepath: str):
 
     #Initializing Oct2Py
     oc = Oct2Py()
+    atexit.register(oc.exit)
 
     #Adding necessary filepath
     oc.addpath('../DynaportCompany_Codes_new/source')
 
+    #Getting filename
+    filename = os.path.basename(filepath)
+
     info = _read_file_info(oc, filepath)
     data = _read_acceleration_data(oc, filepath, info)
-    return data
 
+    start_time_str = info['start']['str']
+    stop_time_str = info['stop']['str']
+
+    return data, filename, formatDateTime(start_time_str), formatDateTime(stop_time_str)
+
+def formatDateTime(old_datetime):
+    new_datetime = datetime.strptime(old_datetime, '%d-%b-%Y %H:%M:%S')
+    new_datetime_formatted = new_datetime.strftime('%Y-%m-%d %H:%M:%S')
+    return new_datetime_formatted
 
 def _read_file_info(oc, filepath):
     print(f"Reading info from: {filepath}")
@@ -53,21 +69,19 @@ def _read_acceleration_data(oc, filepath, info):
     )
     toc = time.perf_counter()
     print(f"Read data in {toc - tic:0.4f} seconds")
-    toc = time.perf_counter()
-    print(f"Read data in {toc - tic:.4f} seconds")
     return data
 
-data = process_omx_file(r"C:\Users\ahala\OneDrive\Desktop\SoangraResearch\McRobertsAnalysis\Data\OMX_Files\TestData.OMX")
+#data = process_omx_file(r"C:\Users\ahala\OneDrive\Desktop\SoangraResearch\McRobertsAnalysis\Data\OMX_Files\TestData.OMX")
 
 #Plotting the data
-x = data['ACC'][:, 0]
-y_columns = data['ACC'][:, 1:4]
+#x = data['ACC'][:, 0]
+#y_columns = data['ACC'][:, 1:4]
 
-plt.figure(figsize=(10, 6))
-plt.plot(x, y_columns)
-plt.title('Plot of data1 ACC')
-plt.xlabel('Index')
-plt.ylabel('Value')
-plt.show()
+#plt.figure(figsize=(10, 6))
+#plt.plot(x, y_columns)
+#plt.title('Plot of data1 ACC')
+#plt.xlabel('Index')
+#plt.ylabel('Value')
+#plt.show()
 
 #TODO: convert to CSV
