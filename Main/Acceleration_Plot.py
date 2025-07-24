@@ -1,4 +1,5 @@
 import tkinter as tk
+import matplotlib.dates as mdates
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
@@ -14,29 +15,43 @@ class PlotOMX:
 
         # Container for canvas and button
         self.container = tk.Frame(self.parent)
-        self.container.pack(fill="both", expand=True)
+        self.container.pack(fill="both", expand=False)
 
         # Setup figure and axes
-        self.fig = Figure(figsize=(10, 6), dpi=100)
+        self.fig = Figure(figsize=(10, 3.5), dpi=100)
         self.ax = self.fig.add_subplot(111)
 
-        x = self.data['ACC'][:, 0]
+        # Convert Unix timestamps to Matplotlib dates
+        x_unix = self.data['ACC'][:, 0]
+        x_mpl = mdates.epoch2num(x_unix)  # ✅ Correct conversion
         y_columns = self.data['ACC'][:, 1:4]
-        self.lines = self.ax.plot(x, y_columns)
+
+        # Plot data
+        self.lines = self.ax.plot(x_mpl, y_columns)
+
+        # Format x-axis ticks as datetime strings
+        self.ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d %H:%M:%S'))
+        self.fig.autofmt_xdate()
+
+        # Labeling and layout
         self.ax.legend(self.lines, ['Ax', 'Ay', 'Az'], loc='center left', bbox_to_anchor=(1, 0.5))
         self.fig.subplots_adjust(right=0.8)
         self.ax.set_title(f'Plot of {self.filename} Acceleration')
-        self.ax.set_xlabel('Index')
+        self.ax.set_xlabel('Time')
         self.ax.set_ylabel('Value')
 
-        self.initial_xlim = [x[0], x[-1]]
+        self.fig.tight_layout()
+
+        # Store initial x/y limits
+        self.x_datetime = x_mpl  # Use the correct format here
+        self.initial_xlim = [x_mpl[0], x_mpl[-1]]
         self.y_limits = self.ax.get_ylim()
 
         # Embed canvas
         self.canvas = FigureCanvasTkAgg(self.fig, master=self.container)
         self.canvas.draw()
         self.canvas_widget = self.canvas.get_tk_widget()
-        self.canvas_widget.pack(fill="both", expand=True)
+        self.canvas_widget.pack(fill="both", expand=False)
 
         # Pan tracking
         self.pan_start = {"x": None}
@@ -109,4 +124,3 @@ class PlotOMX:
             self.ax.set_xlim(new_x_min, new_x_max)
             self.ax.set_ylim(self.y_limits)
             self.canvas.draw_idle()
-

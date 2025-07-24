@@ -24,4 +24,4 @@ Make a note of where Octave is installed.
     To set it permanently, add the same line to your shell config file (e.g. ~/.zshrc or ~/.bash_profile):
 
 ## Program Instructions
-    - 
+    - Run GUI_Main and add the desired OMX file
