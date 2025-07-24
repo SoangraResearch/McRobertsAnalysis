@@ -26,15 +26,7 @@ def process_omx_file(filepath: str):
     info = _read_file_info(oc, filepath)
     data = _read_acceleration_data(oc, filepath, info)
 
-    start_time_str = info['start']['str']
-    stop_time_str = info['stop']['str']
-
-    return data, filename, formatDateTime(start_time_str), formatDateTime(stop_time_str)
-
-def formatDateTime(old_datetime):
-    new_datetime = datetime.strptime(old_datetime, '%d-%b-%Y %H:%M:%S')
-    new_datetime_formatted = new_datetime.strftime('%Y-%m-%d %H:%M:%S')
-    return new_datetime_formatted
+    return data, filename
 
 def _read_file_info(oc, filepath):
     print(f"Reading info from: {filepath}")

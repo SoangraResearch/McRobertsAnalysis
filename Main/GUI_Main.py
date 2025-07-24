@@ -40,8 +40,14 @@ def update_time_vars():
 
 def on_time_var_changed(*args):
     if acceleration_plot is not None:
-        start_dt = datetime.datetime.strptime(start_time_var.get(), '%Y-%m-%d %H:%M:%S')
-        stop_dt = datetime.datetime.strptime(stop_time_var.get(), '%Y-%m-%d %H:%M:%S')
+        start_val = start_time_var.get()
+        stop_val = stop_time_var.get()
+
+        if not start_val or not stop_val:
+            return
+
+        start_dt = datetime.datetime.strptime(start_val, '%Y-%m-%d %H:%M:%S')
+        stop_dt = datetime.datetime.strptime(stop_val, '%Y-%m-%d %H:%M:%S')
         
         start_num = mdates.date2num(start_dt)
         stop_num = mdates.date2num(stop_dt)
@@ -57,17 +63,15 @@ def load_file():
     
     selected_file = file_path
 
-    data, filename, file_start_time, file_stop_time = process_omx_file(selected_file)
-
-    # Update non-editable display
-    file_start_time_var.set(file_start_time)
-    file_stop_time_var.set(file_stop_time)
-
-    # Set defaults for editable fields
-    start_time_var.set(file_start_time)
-    stop_time_var.set(file_stop_time)
+    data, filename = process_omx_file(selected_file)
 
     acceleration_plot = PlotOMX(data, filename, plot_frame)
+    update_time_vars()
+
+    start_dt, stop_dt = acceleration_plot.get_current_bounds()
+    file_start_time_var.set(start_dt.strftime('%Y-%m-%d %H:%M:%S'))
+    file_stop_time_var.set(stop_dt.strftime('%Y-%m-%d %H:%M:%S'))
+
     acceleration_plot.register_view_change_callback(update_time_vars)
 
     #TODO: csv exporting
