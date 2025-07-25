@@ -5,7 +5,7 @@ import time
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 from matplotlib.figure import Figure
-from datetime import datetime
+from datetime import datetime, timedelta
 from oct2py import Oct2Py
 
 def process_omx_file(filepath: str):
@@ -21,12 +21,17 @@ def process_omx_file(filepath: str):
     oc.addpath('../DynaportCompany_Codes_new/source')
 
     #Getting filename
-    filename = os.path.basename(filepath)
+    filename = os.path.splitext(os.path.basename(filepath))[0]
 
     info = _read_file_info(oc, filepath)
     data = _read_acceleration_data(oc, filepath, info)
 
     return data, filename
+
+def matlab_datenum_to_datetime(datenum):
+        days = int(datenum)
+        frac = datenum % 1
+        return datetime.fromordinal(days - 366) + timedelta(days=frac)
 
 def _read_file_info(oc, filepath):
     print(f"Reading info from: {filepath}")

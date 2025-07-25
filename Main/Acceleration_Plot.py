@@ -4,6 +4,7 @@ import matplotlib.dates as mdates
 from datetime import datetime, timedelta
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from OMX_To_CSV import matlab_datenum_to_datetime
 
 
 class PlotOMX:
@@ -26,7 +27,7 @@ class PlotOMX:
         self.ax = self.fig.add_subplot(111)
 
         # Convert timestamps to Matplotlib dates
-        x_mpl = [self._matlab_datenum_to_datetime(d) for d in self.data['ACC'][:, 0]]
+        x_mpl = [matlab_datenum_to_datetime(d) for d in self.data['ACC'][:, 0]]
         y_columns = self.data['ACC'][:, 1:4]
 
         # Plot data
@@ -88,6 +89,10 @@ class PlotOMX:
         self._update_edge_labels()
         self._notify_view_change()
 
+    def get_raw_bounds(self):
+        x_min, x_max = self.ax.get_xlim()
+        return x_min, x_max
+
     def get_current_bounds(self):
         x_min, x_max = self.ax.get_xlim()
         return mdates.num2date(x_min), mdates.num2date(x_max)
@@ -114,11 +119,9 @@ class PlotOMX:
 
         self.edge_labels = [self.ax.text(0, -0.08, left_label, transform=self.ax.transAxes, ha='left', va='top', fontsize=8), self.ax.text(1, -0.08, right_label, transform=self.ax.transAxes, ha='right', va='top', fontsize=8)]
         self.canvas.draw_idle()
-
-    def _matlab_datenum_to_datetime(self, datenum):
-        days = int(datenum)
-        frac = datenum % 1
-        return datetime.fromordinal(days - 366) + timedelta(days=frac)
+    
+    def _matplotlib_num_to_matlab_datenum(mpl_num):
+        return mpl_num + 366
 
     def _clamp_xlim(self, new_min, new_max):
         range_width = new_max - new_min
