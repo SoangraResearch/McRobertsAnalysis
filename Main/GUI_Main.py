@@ -20,12 +20,15 @@ root.geometry("1000x600")
 
 tab_control = ttk.Notebook(root)
 tab1 = tk.Frame(tab_control)
-tab_control.add(tab1, text="Select Data") #First Tab
+tab2 = tk.Frame(tab_control)
+tab_control.add(tab1, text="Select Data")
+tab_control.add(tab2, text="Mobilise-D")
 
 tab_control.pack(expand=1, fill='both')
 
 plot_frame = None
 acceleration_plot = None
+exported_csv_path = "None"
 start_time_var = tk.StringVar()
 stop_time_var = tk.StringVar()
 file_start_time_var = tk.StringVar()
@@ -33,7 +36,7 @@ file_stop_time_var = tk.StringVar()
 label_var = tk.StringVar()
 export_format_var = tk.StringVar()
 
-# -------------------------Methods---------------------------------
+# -------------------------Tab 1 Methods---------------------------------
 def update_time_vars():
     if acceleration_plot is not None:
         start_dt, stop_dt = acceleration_plot.get_current_bounds()
@@ -119,6 +122,7 @@ def load_time_entries():
     stop_time_var.trace_add("write", on_time_var_changed)
 
 def export_csv():
+    global exported_csv_path
     safe_start = start_time_var.get().replace(":", "-").replace(" ", "_")
     safe_stop = stop_time_var.get().replace(":", "-").replace(" ", "_")
 
@@ -150,7 +154,21 @@ def export_csv():
             messagebox.showinfo("Success", f"File saved to:\n{output_path}")
     except Exception as e:
         messagebox.showerror("Error", f"Failed to save file: {e}")
-        return False   
+        return False
+    
+    exported_csv_path = output_path
+    update_MobiliseD_file_loaded_label(exported_csv_path)
+    
+# -------------------------Tab 2 Methods---------------------------------
+def update_MobiliseD_file_loaded_label(filepath):
+    file_label = tk.Label(tab2, text="File loaded: " + filepath)
+
+def load_csv_for_Mobilise_d(file = None):
+    #TODO: manually load file
+    print("test")
+
+    
+
 
 # -------------------------Tab 1 Select Data---------------------------------
 
@@ -169,6 +187,12 @@ button_frame.pack(pady=10)
 
 Export_Button = tk.Button(button_frame, text="Export To CSV", command=export_csv)
 Export_Button.pack()
+
+# -------------------------Tab 2 Mobilise D---------------------------------
+tk.Button(tab2, text="Upload CSV/JSON File", command=None).pack(pady=10)
+
+MobiliseD_file_label = tk.Label(tab2, text="File loaded: " + exported_csv_path)
+MobiliseD_file_label.pack()
 
 # -------------------------Running the GUI---------------------------------
 root.mainloop()
