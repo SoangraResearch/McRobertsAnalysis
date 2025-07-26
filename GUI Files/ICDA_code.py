@@ -5,6 +5,7 @@ from scipy.io import loadmat
 from GSDB_code import resamp_interp
 import pywt
 import numpy as np
+import matplotlib.pyplot as plt
 
 def remove_drift_40hz(x):
     return filtfilt([1, -1], [1, -0.9748], x)
