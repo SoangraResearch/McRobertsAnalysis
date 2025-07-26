@@ -125,19 +125,25 @@ def load_time_entries():
     start_time_var.trace_add("write", on_time_var_changed)
     stop_time_var.trace_add("write", on_time_var_changed)
 
-def export_csv():
-    global mobiliseD_file
+def create_tab1_export_folder():
+    global new_filename, export_folder
     safe_start = start_time_var.get().replace(":", "-").replace(" ", "_")
     safe_stop = stop_time_var.get().replace(":", "-").replace(" ", "_")
 
-    export_folder = os.path.join(os.getcwd(), "../Data/Output/" + filename)
+    new_filename = filename + "_from_" + safe_start + "_to_" + safe_stop
+
+    export_folder = os.path.join(os.getcwd(), "../Data/Output/" + filename + "/" + new_filename)
     os.makedirs(export_folder, exist_ok=True)
+
+def export_csv():
+    global mobiliseD_file, new_filename, export_folder, mobiliseD_directory_path
+    create_tab1_export_folder()
 
     output_path=filedialog.asksaveasfilename(
         defaultextension=".csv",
         filetypes=[("CSV files", "*.csv")],
         initialdir=export_folder,
-        initialfile=filename + "_from_" + safe_start + "_to_" + safe_stop + ".csv",
+        initialfile=new_filename,
         title="Save CSV File"
     )
 
@@ -161,19 +167,41 @@ def export_csv():
         return False
     
     mobiliseD_file = output_path
-    mobilised_path_var.set(f"File loaded: {mobiliseD_file}")
-    
+    mobiliseD_directory_path = export_folder
+    mobilised_path_var.set(f"File loaded: {new_filename}")
+
+def export_acceleration_plot():
+    create_tab1_export_folder()
+
+    #TODO: plot export
+    output_path=filedialog.asksaveasfilename(
+        defaultextension=".png",
+        filetypes=[("PNG Image", "*.png"), ("PDF File", "*.pdf"), ("SVG File", "*.svg")],
+        initialdir=export_folder,
+        initialfile=new_filename,
+        title="Save Acceleration Plot"
+    )
+
+    if output_path:
+        try:
+            acceleration_plot.fig.savefig(output_path, dpi=300)
+            messagebox.showinfo("Success", f"File saved to:\n{output_path}")
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to save file: {e}")
+        
 # -------------------------Tab 2 Methods---------------------------------
 def load_mobiliseD_file():
-    global mobiliseD_file
+    global mobiliseD_file, mobiliseD_directory_path
     file_path = filedialog.askopenfilename(filetypes=[("CSV/JSON files", "*.csv *.json")])
     if not file_path:
         return
+    mobiliseD_directory_path = os.path.dirname(file_path)
+    mobiliseD_filename = os.path.splitext(os.path.basename(file_path))[0]
     try:
         if file_path.endswith(".csv"):
             messagebox.showinfo("Loaded", f"Loaded file:\n{file_path}")
             mobiliseD_file = file_path
-            mobilised_path_var.set(f"File loaded: {mobiliseD_file}")
+            mobilised_path_var.set(f"File loaded: {mobiliseD_filename}")
         else:
             raise ValueError("Unsupported file format")
     except Exception as e:
@@ -213,8 +241,15 @@ def process_GSD():
         messagebox.showinfo("GSD Result", f"Gait sequences found: {len(gsd_result)}")
     except Exception as e:
         messagebox.showerror("Error", str(e))
+
+def create_tab2_export_folder():
+    global new_filename, export_folder
+
+    export_folder = os.path.join(os.getcwd(), "../Data/Output/" + filename + "/" + new_filename)
+    os.makedirs(export_folder, exist_ok=True)
     
-    #TODO: plot steps
+def save_GSD_results():
+    print("test")
     #TODO: save data
 
 # -------------------------Tab 1 Select Data---------------------------------
@@ -233,10 +268,12 @@ button_frame = tk.Frame(tab1)
 button_frame.pack(pady=10)
 
 Export_Button = tk.Button(button_frame, text="Export To CSV", command=export_csv)
-Export_Button.pack()
+Export_Button.pack(side="left", padx=5)
 
+Export_Button = tk.Button(button_frame, text="Export Plot", command=export_acceleration_plot)
+Export_Button.pack(side="left", padx=5)
 # -------------------------Tab 2 Mobilise D---------------------------------
-tk.Button(tab2, text="Upload CSV File", command=load_mobiliseD_file).pack(pady=10)
+tk.Button(tab2, text="Load CSV File", command=load_mobiliseD_file).pack(pady=10)
 
 mobilised_path_var = tk.StringVar(value="File loaded: (none)")
 MobiliseD_file_label = tk.Label(tab2, textvariable=mobilised_path_var)
@@ -267,7 +304,7 @@ button_frame = tk.Frame(tab2)
 button_frame.pack(pady=5)
 
 # Add buttons side by side
-tk.Button(button_frame, text="Save GSD Result", command=None).pack(side="left", padx=5)
+tk.Button(button_frame, text="Save GSD Result", command=save_GSD_results).pack(side="left", padx=5)
 tk.Button(button_frame, text="Save GSD plot", command=None).pack(side="left", padx=5)
 tk.Button(button_frame, text="Save Step Counts", command=None).pack(side="left", padx=5)
 tk.Button(button_frame, text="Save Steps plot", command=None).pack(side="left", padx=5)

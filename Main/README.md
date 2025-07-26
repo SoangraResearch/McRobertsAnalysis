@@ -25,3 +25,5 @@ Make a note of where Octave is installed.
 
 ## Program Instructions
     - Run GUI_Main and add the desired OMX file
+    - Zoom in and pan on the plot or manually type in the desired time range.
+    - Once the desired time range is selected, hit export CSV to save the results in CSV format.

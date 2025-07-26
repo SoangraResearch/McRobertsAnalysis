@@ -18,7 +18,7 @@ def plot_GSDA(gait_bool, v_acc, plot_frame):
 
     ax.plot(v_acc, label='Vertical Acc')
     ax.plot(gait_bool * np.max(v_acc), label='Detected Gait')
-    ax.set_xlabel('samples')
+    ax.set_xlabel('Samples')
     ax.set_ylabel('Value')
     ax.set_title("Gait Sequence Detection (GSDA)")
     ax.legend()
@@ -41,7 +41,7 @@ def plot_GSDB(sig_det_actv, walk_label, plot_frame):
 
     ax.plot(sig_det_actv, label='filtered accNorm')
     ax.plot(walk_label, 'r', linewidth=2, label='Walking')
-    ax.set_xlabel('samples (100Hz)')
+    ax.set_xlabel('Samples (100Hz)')
     ax.set_title("Gait Sequence Detection (GSDB)")
     ax.legend()
     fig.tight_layout()
