@@ -29,7 +29,7 @@ def plot_GSDA(gait_bool, v_acc, plot_frame):
     canvas.draw()
     canvas.get_tk_widget().pack(fill='both', expand=True)
 
-    #return fig, canvas, ax
+    return fig
 
 def plot_GSDB(sig_det_actv, walk_label, plot_frame):
     for w in plot_frame.winfo_children():
@@ -51,7 +51,7 @@ def plot_GSDB(sig_det_actv, walk_label, plot_frame):
     canvas.draw()
     canvas.get_tk_widget().pack(fill='both', expand=True)
 
-    #return fig, canvas, ax
+    return fig
 
 def plot_steps(GS, fs, acc_v, plot_frame):
     current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -88,6 +88,8 @@ def plot_steps(GS, fs, acc_v, plot_frame):
     canvas = FigureCanvasTkAgg(fig, master=plot_frame)
     canvas.draw()
     canvas.get_tk_widget().pack(fill='both', expand=True)
+
+    return fig
 
 def _remove_drift_40hz(x):
     return filtfilt([1, -1], [1, -0.9748], x)

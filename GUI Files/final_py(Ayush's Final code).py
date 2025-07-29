@@ -36,7 +36,7 @@ filename = os.path.normpath(os.path.join(os.path.dirname(__file__), '..', 'Non_G
 #filename = os.path.normpath(os.path.join(os.path.dirname(__file__), '..', 'Data', 'CSV_Files_Raw', 'TestData.csv')) #"C:\Users\Ayush Dubey\Downloads\2024-05-0500.27.21.csv" #csv file of acclerometer in units of 'g'
 accleration = pd.read_csv(filename)
 #accleration['TgF'] = np.sqrt(accleration['Ax']**2+accleration['Ay']**2+accleration['Az']**2)
-#R_acc = accleration['TgF'] - 1 #resultant acceleration adjusted with gravity
+R_acc = accleration['TgF'] - 1 #resultant acceleration adjusted with gravity
 fs = 500 # sampling frequency of sensor
 vm = np.array(R_acc) #converting to numpy array
 
@@ -121,8 +121,8 @@ print(change_indices)
 print("walking: ")
 print(walking)
 
-#az = accleration['gFz'] # acceleration in the anterior posterior directtion
-az = accleration['Az']
+az = accleration['gFz'] # acceleration in the anterior posterior directtion
+#az = accleration['Az']
 num_samples = int(len(az) * fs_HS_TO / fs)  # Calculate the number of samples in the resampled signal
 # Resample the signal
 resampled_az = resample(az, num_samples)
@@ -178,7 +178,7 @@ from Non_GUI.Ayush_Files.gait_functions.hs_to_detection import  gait_parameters 
 
 #filename = r"C:\Users\Ayush Dubey\Desktop\50step.csv" #"C:\Users\Ayush Dubey\Downloads\2024-05-0500.27.21.csv" #csv file of acclerometer in units of 'g'
 accleration = pd.read_csv(filename)
-accleration['TgF'] = np.sqrt(accleration['Ax']**2+accleration['Ay']**2+accleration['Az']**2)
+#accleration['TgF'] = np.sqrt(accleration['Ax']**2+accleration['Ay']**2+accleration['Az']**2)
 R_acc = accleration['TgF'] - 1 #resultant acceleration adjusted with gravity
 fs = 500 # sampling frequency of sensor
 vm = np.array(R_acc) #converting to numpy array
