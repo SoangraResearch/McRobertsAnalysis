@@ -32,10 +32,11 @@ from Non_GUI.Ayush_Files.gait_functions.walking import find_walking
 from Non_GUI.Ayush_Files.gait_functions.hs_to_detection import get_hs_to_wavelet # function to detect heal strike and toe off from the walking data
 from Non_GUI.Ayush_Files.gait_functions.hs_to_detection import gait_parameters  # function to calculate gait parameters from heal strike and toe off
 
-filename = os.path.normpath(os.path.join(os.path.dirname(__file__), '..', 'Non_GUI', 'Ayush_Files', '50step.csv')) #50Steps file
+#filename = os.path.normpath(os.path.join(os.path.dirname(__file__), '..', 'Non_GUI', 'Ayush_Files', '50step.csv')) #50Steps file
 #filename = os.path.normpath(os.path.join(os.path.dirname(__file__), '..', 'Data', 'Output', 'TestData', 'TestData_from_2025-06-19_21-12-10_to_2025-06-19_21-42-00', 'TestData_from_2025-06-19_21-12-10_to_2025-06-19_21-42-00.csv')) #"C:\Users\Ayush Dubey\Downloads\2024-05-0500.27.21.csv" #csv file of acclerometer in units of 'g'
+filename = 'C:/Users/ahala/OneDrive/Desktop/SoangraResearch/McRobertsAnalysis/Data/CSV_Files_Raw/TestData.csv'
 accleration = pd.read_csv(filename)
-#accleration['TgF'] = np.sqrt(accleration['Ax']**2+accleration['Ay']**2+accleration['Az']**2)
+accleration['TgF'] = np.sqrt(accleration['Ax']**2+accleration['Ay']**2+accleration['Az']**2)
 R_acc = accleration['TgF'] - 1 #resultant acceleration adjusted with gravity
 fs = 500 # sampling frequency of sensor
 vm = np.array(R_acc) #converting to numpy array
@@ -66,7 +67,7 @@ print("vm_bout: ")
 print(vm_bout)
 
 # parameters for find walking function
-min_amp = 0.3 # amplitude threshold (in g )
+min_amp = 0.03 # amplitude threshold (in g )
 T = 3 # minimum walking duration (in seconds)
 delta = 20 #maximum difference between consecutive peaks (in multiplication of 0.05Hz)
 alpha = 1.6 #maximum ratio between dominant peak below and within step frequency range
@@ -121,8 +122,8 @@ print(change_indices)
 print("walking: ")
 print(walking)
 
-az = accleration['gFz'] # acceleration in the anterior posterior directtion
-#az = accleration['Az']
+#az = accleration['gFz'] # acceleration in the anterior posterior directtion
+az = accleration['Az']
 num_samples = int(len(az) * fs_HS_TO / fs)  # Calculate the number of samples in the resampled signal
 # Resample the signal
 resampled_az = resample(az, num_samples)
