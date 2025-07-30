@@ -10,7 +10,7 @@ from Main.ICDA_code import step_detection
 from Main.OMX_To_CSV import process_omx_file, matlab_datenum_to_datetime
 from Main.Acceleration_Plot import PlotOMX
 from Main.GSD_plots import plot_GSDA, plot_GSDB, plot_steps
-from Main.Ayush_Analysis import linear_analysis
+from Main.Ayush_Analysis import linear_analysis, nonlinear_analysis, linear_plot
 
 #setting directory properly
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
@@ -379,11 +379,99 @@ def load_ayush_code_file():
         messagebox.showerror("Load Error", str(e))
 
 def ayush_analyze_data():
-    linear_analysis(ayush_code_file)
+    global linear_df, nonlinear_df, linear_plot
+    linear_df, time_vector, acc_ap_pp, acc_wave_detrended, acc_wave_2, hs_times, hs_selected_idx, to_times, to_selected_idx, invalid_hs_idx, invalid_hs_times = linear_analysis(ayush_code_file)
+    #nonlinear_df = nonlinear_analysis(ayush_code_file)
+    #linear_plot(time_vector, acc_ap_pp, acc_wave_detrended, acc_wave_2, hs_times, hs_selected_idx, to_times, to_selected_idx, invalid_hs_idx, invalid_hs_times)
+
     #TODO: linear analysis
     #TODO: nonlinear analysis
     #TODO: plot?
 
+def create_tab3_export_folder():
+    global export_folder, ayush_code_directory_path
+
+    export_folder = ayush_code_directory_path
+    os.makedirs(export_folder, exist_ok=True)
+
+def save_linear_analysis(open_prompt_window):
+    create_tab3_export_folder()
+    try:
+        if linear_df is None:
+            messagebox.showerror("Error", "No linear analysis to save.")
+            return
+        if open_prompt_window:
+            output_path=filedialog.asksaveasfilename(
+                defaultextension=".csv",
+                filetypes=[("CSV files", "*.csv")],
+                initialdir=export_folder,
+                initialfile=ayush_code_filename + "_linear_analysis",
+                title="Save linear analysis"
+            )
+            if not output_path:
+                return False
+        else:
+            output_path = os.path.join(export_folder, ayush_code_filename + "_linear_analysis.csv")
+            linear_df.to_csv(output_path, index=False)
+            messagebox.showinfo("Saved", f"linear analysis saved to: {output_path}")
+    except Exception as e:
+        messagebox.showerror("Save Error", str(e))
+
+def save_nonlinear_analysis(open_prompt_window):
+    create_tab3_export_folder()
+    try:
+        if nonlinear_df is None:
+            messagebox.showerror("Error", "No nonlinear analysis to save.")
+            return
+        if open_prompt_window:
+            output_path=filedialog.asksaveasfilename(
+                defaultextension=".csv",
+                filetypes=[("CSV files", "*.csv")],
+                initialdir=export_folder,
+                initialfile=ayush_code_filename + "_nonlinear_analysis",
+                title="Save nonlinear analysis"
+            )
+            if not output_path:
+                return False
+        else:
+            output_path = os.path.join(export_folder, ayush_code_filename + "_nonlinear_analysis.csv")
+            nonlinear_df.to_csv(output_path, index=False)
+            messagebox.showinfo("Saved", f"nonlinear analysis saved to: {output_path}")
+    except Exception as e:
+        messagebox.showerror("Save Error", str(e))
+
+def save_linear_analysis_plot(open_prompt_window):
+    create_tab3_export_folder()
+    try:
+        #TODO: replace with linear analysis plot
+        if steps_plot is None:
+            messagebox.showerror("Error", "No linear analysis plot to save.")
+            return
+        if open_prompt_window:
+            output_path=filedialog.asksaveasfilename(
+                defaultextension=".png",
+                filetypes=[("PNG Image", "*.png"), ("PDF File", "*.pdf"), ("SVG File", "*.svg")],
+                initialdir=export_folder,
+                initialfile=ayush_code_filename + "_linear_analysis",
+                title="Save linear analysis plot"
+            )
+            if not output_path:
+                return False
+        else:
+            output_path = os.path.join(export_folder, ayush_code_filename + "_linear_analysis.png")
+        steps_plot.savefig(output_path, dpi=300)
+        messagebox.showinfo("Saved", f"linear analysis plot saved to: {output_path}")
+    except Exception as e:
+        messagebox.showerror("Save Error", str(e))
+
+def save_all_ayush_code():
+    try:
+        save_linear_analysis(False)
+        save_nonlinear_analysis(False)
+        save_linear_analysis_plot(False)
+    except Exception as e:
+        messagebox.showerror("Save Error", str(e))
+              
 # -------------------------Tab 1 Select Data---------------------------------
 
 load_file_button = tk.Button(tab1, text="Load OMX File", command=load_file)
@@ -454,6 +542,20 @@ ayush_code_file_label = tk.Label(tab3, textvariable=ayush_code_path_var)
 ayush_code_file_label.pack()
 
 tk.Button(tab3, text="Analyze Data", command=ayush_analyze_data).pack(pady=20)
+
+plot_frame_ayush_code = tk.Frame(tab3, height=300)
+plot_frame_ayush_code.pack(fill="both", expand=True)
+
+# Create a frame to hold the buttons horizontally
+button_frame = tk.Frame(tab3)
+button_frame.pack(pady=5)
+
+# Add buttons side by side
+tk.Button(button_frame, text="Save Linear Analysis", command=lambda: save_linear_analysis(True)).pack(side="left", padx=5)
+tk.Button(button_frame, text="Save Non-Lineal Analysis", command=lambda: save_nonlinear_analysis(True)).pack(side="left", padx=5)
+tk.Button(button_frame, text="Save Linear Analysis Plot", command=lambda: save_linear_analysis_plot(True)).pack(side="left", padx=5)
+
+tk.Button(tab3, text="Save All", command=save_all_ayush_code).pack(pady=5)
 
 # -------------------------Running the GUI---------------------------------
 root.mainloop()

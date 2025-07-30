@@ -320,8 +320,12 @@ def find_walking(vm_bout: np.ndarray, fs: int = 10, min_amp: float = 0.3,
     # calculate peak-to-peak
     pp = get_pp(vm_bout, fs)
 
+    print("pp: ", pp)
+
     # assume the entire bout is of high-intensity
     valid = np.ones(len(pp), dtype=bool)
+
+    print("valid: ", valid)
 
     # exclude low-intensity periods
     valid[pp < min_amp] = False
