@@ -34,13 +34,6 @@ def matlab_datenum_to_datetime(datenum):
         frac = datenum % 1
         return datetime.fromordinal(days - 366) + timedelta(days=frac)
 
-def matlab_datenum_to_seconds(datenum_series):
-    days = np.floor(datenum_series).astype(int)
-    frac = datenum_series % 1
-    datetimes = [datetime.fromordinal(d - 366) + timedelta(days=f) for d, f in zip(days, frac)]
-    start_time = datetimes[0]
-    return np.array([(dt - start_time).total_seconds() for dt in datetimes])
-
 def _read_file_info(oc, filepath):
     print(f"Reading info from: {filepath}")
     tic = time.perf_counter()

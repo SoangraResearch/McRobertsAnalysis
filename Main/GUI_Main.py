@@ -382,7 +382,7 @@ def load_ayush_code_file():
 def ayush_analyze_data():
     global linear_df, nonlinear_df, linear_plot
     linear_df, linear_plots = linear_analysis(ayush_code_file, plot_frame_ayush_code)
-    #nonlinear_df = nonlinear_analysis(ayush_code_file)
+    nonlinear_df = nonlinear_analysis(ayush_code_file)
     
     #TODO: nonlinear analysis
 
