@@ -6,7 +6,7 @@ from scipy.signal import filtfilt
 from scipy.io import loadmat
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
-from Main.GSDB_code import resamp_interp
+from GSDB_code import resamp_interp
 
 def plot_GSDA(gait_bool, v_acc, plot_frame):
     for w in plot_frame.winfo_children():

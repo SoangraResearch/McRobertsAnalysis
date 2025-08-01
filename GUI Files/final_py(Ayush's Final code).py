@@ -66,6 +66,8 @@ vm_bout = vm_resample[:num_elements_to_use]
 print("vm_bout: ")
 print(vm_bout)
 
+print("RMS of vm_bout:", np.sqrt(np.mean(vm_bout**2)))
+
 # parameters for find walking function
 min_amp = 0.03 # amplitude threshold (in g )
 T = 3 # minimum walking duration (in seconds)

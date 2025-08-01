@@ -6,11 +6,11 @@ import numpy as np
 from datetime import timedelta, datetime
 from tkinter import filedialog, messagebox, ttk
 import matplotlib.dates as mdates
-from Main.ICDA_code import step_detection
-from Main.OMX_To_CSV import process_omx_file, matlab_datenum_to_datetime
-from Main.Acceleration_Plot import PlotOMX
-from Main.GSD_plots import plot_GSDA, plot_GSDB, plot_steps
-from Main.Ayush_Analysis import linear_analysis, nonlinear_analysis, linear_plot
+from ICDA_code import step_detection
+from OMX_To_CSV import process_omx_file, matlab_datenum_to_datetime
+from Acceleration_Plot import PlotOMX
+from GSD_plots import plot_GSDA, plot_GSDB, plot_steps
+from Ayush_Analysis import linear_analysis, nonlinear_analysis, linear_plot
 
 #setting directory properly
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
@@ -140,7 +140,7 @@ def create_tab1_export_folder():
     os.makedirs(export_folder, exist_ok=True)
 
 def export_csv():
-    global mobiliseD_file, new_filename, export_folder, mobiliseD_directory_path, mobiliseD_filename, ayush_code_directory_path, ayush_code_filename
+    global mobiliseD_file, new_filename, export_folder, mobiliseD_directory_path, mobiliseD_filename, ayush_code_file, ayush_code_directory_path, ayush_code_filename
     create_tab1_export_folder()
 
     output_path=filedialog.asksaveasfilename(
@@ -171,6 +171,7 @@ def export_csv():
         return False
     
     mobiliseD_file = output_path
+    ayush_code_file = output_path
     mobiliseD_filename = new_filename
     ayush_code_filename = new_filename
     mobiliseD_directory_path = export_folder
@@ -232,12 +233,12 @@ def process_GSD():
         fs = 100
         print(label_var_MobiliseD.get())
         if label_var_MobiliseD.get() == "Healthy(GSDA)":
-            from Main.GSDA_code import gsd_iluz
+            from GSDA_code import gsd_iluz
             imu_input = {"LowerBack": {"Acc": acc, "Gyr": np.zeros_like(acc), "Fs": {"Acc": fs}}}
             gsd_result, gait_bool_for_plot, v_acc_for_plot = gsd_iluz(imu_input, time_vector=original_time_array, plot_results=False)
             gsd_plot = plot_GSDA(gait_bool_for_plot, v_acc_for_plot, plot_left_GSD)
         elif label_var_MobiliseD.get() == "Patient(GSDB)":
-            from Main.GSDB_code import gsd_low_back_acc
+            from GSDB_code import gsd_low_back_acc
             gsd_result, sig_det_act_for_plot, walk_label_for_plot = gsd_low_back_acc(acc, fs, plot_results=False, time_vector=original_time_array)
             gsd_plot = plot_GSDB(sig_det_act_for_plot, walk_label_for_plot, plot_left_GSD)
         else:

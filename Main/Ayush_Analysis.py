@@ -2,6 +2,8 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.signal import resample
+from scipy.signal import butter, filtfilt
+from OMX_To_CSV import matlab_datenum_to_seconds
 from Non_GUI.Ayush_Files.gait_functions.walking import find_walking
 from Non_GUI.Ayush_Files.gait_functions.hs_to_detection import get_hs_to_wavelet # function to detect heal strike and toe off from the walking data
 from Non_GUI.Ayush_Files.gait_functions.hs_to_detection import gait_parameters  # function to calculate gait parameters from heal strike and toe off
@@ -18,10 +20,11 @@ from Non_GUI.Ayush_Files.non_linear_functions.rqa import RQA
 from Non_GUI.Ayush_Files.non_linear_functions.ent_Samp import Ent_Samp
 
 def linear_analysis(filename):
-    fs = 500 # sampling frequency of sensor
+    fs = 100
 
     accleration = pd.read_csv(filename)
     print("file " + filename)
+
     accleration['TgF'] = np.sqrt(accleration['Ax']**2+accleration['Ay']**2+accleration['Az']**2)
     R_acc = accleration['TgF'] - 1 #resultant acceleration adjusted with gravity
 
@@ -50,8 +53,10 @@ def linear_analysis(filename):
     print("vm_bout: ")
     print(vm_bout)
 
+    print("RMS of vm_bout:", np.sqrt(np.mean(vm_bout**2)))
+
     # parameters for find walking function
-    min_amp = 0.05 # amplitude threshold (in g ) #TODO: adjust min_amp?
+    min_amp = 0.3 # amplitude threshold (in g ) #TODO: adjust min_amp?
     T = 3 # minimum walking duration (in seconds)
     delta = 20 #maximum difference between consecutive peaks (in multiplication of 0.05Hz)
     alpha = 1.6 #maximum ratio between dominant peak below and within step frequency range
@@ -85,10 +90,19 @@ def linear_analysis(filename):
 
     print("change indices: ")
     print(change_indices)
-    #TODO: count of change_indices should always be even. 1 for start walking, 2nd for end of walking.
 
-    # Preallocate walking array based on the maximum potential size
-    walking = np.zeros((len(change_indices) // 2, 2), dtype=int) # each row denotes the start and end index of walking in 100hz sampling rate signal
+    walking = walking_period_detection(cad, fs_HS_TO)
+
+    if len(walking) == 0:
+        print("No walking periods found. Returning empty results.")
+        empty_df = pd.DataFrame(columns=['walking_index','steps','time', 'start_index', 'end_index', 
+                                 'foot1_hs','foot2_hs','foot1_to','foot2_to',
+                                 'gait_cycle_time_foot1','gait_cycle_time_foot2',
+                                 'dst1_foot1','dst1_foot2','dst2_foot1','dst2_foot2',
+                                 'sst1_foot1','sst1_foot2','sst2_foot1','sst2_foot2',
+                                 'stance_time1_foot1','stance_time1_foot2','stance_time2_foot1','stance_time2_foot2',
+                                 'swing_time1_foot1','swing_time1_foot2','swing_time2_foot1','swing_time2_foot2'])
+        return empty_df, None, None, None, None, None, None, None, None, None, None
 
     # Iterate through change indices and fill the walking array directly
     for i in range(0, len(change_indices), 2):
@@ -150,6 +164,43 @@ def linear_analysis(filename):
 
     #print("invalid hs index: ", invalid_hs_idx)
     return df, time_vector, acc_ap_pp, acc_wave_detrended, acc_wave_2, hs_times, hs_selected_idx, to_times, to_selected_idx, invalid_hs_idx, invalid_hs_times
+
+def walking_period_detection(cad, fs_HS_TO=100):
+    wi = np.where(cad > 0, 1, 0)
+    wi_resampled = np.repeat(wi, fs_HS_TO)
+    
+    if len(wi_resampled) == 0 or np.sum(wi) == 0:
+        return np.array([]).reshape(0, 2)
+    
+    # Find internal transitions only
+    change_indices = np.where(np.diff(wi_resampled) != 0)[0] + 1
+    
+    # Build start and stop indices separately
+    start_indices = []
+    stop_indices = []
+    
+    # Handle start boundary
+    if wi_resampled[0] == 1:
+        start_indices.append(0)
+    
+    # Process internal transitions
+    for idx in change_indices:
+        if wi_resampled[idx] == 1:  # Transition from 0 to 1 (start walking)
+            start_indices.append(idx)
+        else:  # Transition from 1 to 0 (stop walking)
+            stop_indices.append(idx)
+    
+    # Handle end boundary
+    if wi_resampled[-1] == 1:  # Walking continues to end
+        stop_indices.append(len(wi_resampled))
+    
+    # Pairing them up
+    walking_periods = []
+    for i in range(len(start_indices)):
+        if i < len(stop_indices):
+            walking_periods.append([start_indices[i], stop_indices[i]])
+    
+    return np.array(walking_periods) if walking_periods else np.array([]).reshape(0, 2)
 
 def linear_plot(time_vector, acc_ap_pp, acc_wave_detrended, acc_wave_2, hs_times, hs_selected_idx, to_times, to_selected_idx, invalid_hs_idx, invalid_hs_times):
     print("Plotting")
