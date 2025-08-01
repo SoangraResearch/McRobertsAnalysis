@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 from scipy.signal import resample
 from scipy.signal import butter, filtfilt
 from OMX_To_CSV import matlab_datenum_to_seconds
+from Main.Ayush_Analysis_Plot import linear_plot
 from Non_GUI.Ayush_Files.gait_functions.walking import find_walking
 from Non_GUI.Ayush_Files.gait_functions.hs_to_detection import get_hs_to_wavelet # function to detect heal strike and toe off from the walking data
 from Non_GUI.Ayush_Files.gait_functions.hs_to_detection import gait_parameters  # function to calculate gait parameters from heal strike and toe off
@@ -19,7 +20,7 @@ from Non_GUI.Ayush_Files.non_linear_functions.lye_W import LyE_W
 from Non_GUI.Ayush_Files.non_linear_functions.rqa import RQA
 from Non_GUI.Ayush_Files.non_linear_functions.ent_Samp import Ent_Samp
 
-def linear_analysis(filename):
+def linear_analysis(filename, plot_frame):
     fs = 100
 
     accleration = pd.read_csv(filename)
@@ -66,7 +67,7 @@ def linear_analysis(filename):
     # heal strike toe off detection
     fs_HS_TO = 100 #sampling frequency needed by the function
     turning = 0
-    plot_figure = 1 # 1 for plotting the figure
+    plot_figure = 0 # 1 for plotting the figure
     save_fig_name = "TestData_Image"
 
     cad = find_walking(vm_bout, 10, min_amp,step_freq, alpha, beta, T,delta)
@@ -74,24 +75,7 @@ def linear_analysis(filename):
     print("cadence: ")
     print(cad)
 
-    wi = np.where(cad > 0, 1, 0) # cad[i] >0 indicates walking in ith second
-    wi_resampled = np.repeat(wi,fs_HS_TO) # streching the wi vector to match with sampling rate needed in get_hs_to_wavelet function
-
-    # Find indices where wi changes from 0 to 1 and from 1 to 0
-    change_indices = np.where(np.diff(wi_resampled) != 0)[0]
-
-    #EXPERIMENTAL: manually ensuring even number of change_indices
-    change_indices = change_indices.tolist()
-
-    if len(change_indices) % 2 != 0:
-        change_indices.append(len(wi_resampled) - 1)
-
-    change_indices = np.array(change_indices)
-
-    print("change indices: ")
-    print(change_indices)
-
-    walking = walking_period_detection(cad, fs_HS_TO)
+    walking = _walking_period_detection(cad, fs_HS_TO)
 
     if len(walking) == 0:
         print("No walking periods found. Returning empty results.")
@@ -104,17 +88,8 @@ def linear_analysis(filename):
                                  'swing_time1_foot1','swing_time1_foot2','swing_time2_foot1','swing_time2_foot2'])
         return empty_df, None, None, None, None, None, None, None, None, None, None
 
-    # Iterate through change indices and fill the walking array directly
-    for i in range(0, len(change_indices), 2):
-        x0 = change_indices[i]
-        x1 = change_indices[i+1]
-        walking[i//2, 0] = x0 + 1 # +1 is done to get the exact location of index where walking started np.diff function gave the index before the walking started
-        walking[i//2, 1] = x1 # walk ends
-
     # Display the results
     print("Linear Analysis: ")
-    print("change_indices: ")
-    print(change_indices)
     print("walking: ")
     print(walking)
 
@@ -131,6 +106,8 @@ def linear_analysis(filename):
          'swing_time1_foot1','swing_time1_foot2','swing_time2_foot1','swing_time2_foot2'])
     
     print("len of walking: ", len(walking))
+
+    plots = []
 
     for i in range(len(walking)):
         walk_start = walking[i,0]
@@ -149,23 +126,12 @@ def linear_analysis(filename):
         print("to_selected_idx_new")
         print(to_selected_idx_new)
         df = gait_parameters(hs_selected_idx_new,to_selected_idx_new,df,i,walk_start,walk_end,cad,fs,fs_HS_TO)
-        #df = None
+        fig = linear_plot(time_vector, acc_ap_pp, acc_wave_detrended, acc_wave_2, hs_times, hs_selected_idx, to_times, to_selected_idx, invalid_hs_idx, invalid_hs_times, plot_frame, i)
+        plots.append(fig)
 
-    time_vector = None
-    acc_ap_pp = None
-    acc_wave_detrended = None
-    acc_wave_2 = None
-    hs_times = None
-    hs_selected_idx = None
-    to_times = None
-    invalid_hs_times = None
-    invalid_hs_idx = None
-    to_selected_idx = None
+    return df, plots
 
-    #print("invalid hs index: ", invalid_hs_idx)
-    return df, time_vector, acc_ap_pp, acc_wave_detrended, acc_wave_2, hs_times, hs_selected_idx, to_times, to_selected_idx, invalid_hs_idx, invalid_hs_times
-
-def walking_period_detection(cad, fs_HS_TO=100):
+def _walking_period_detection(cad, fs_HS_TO=100):
     wi = np.where(cad > 0, 1, 0)
     wi_resampled = np.repeat(wi, fs_HS_TO)
     
@@ -201,24 +167,6 @@ def walking_period_detection(cad, fs_HS_TO=100):
             walking_periods.append([start_indices[i], stop_indices[i]])
     
     return np.array(walking_periods) if walking_periods else np.array([]).reshape(0, 2)
-
-def linear_plot(time_vector, acc_ap_pp, acc_wave_detrended, acc_wave_2, hs_times, hs_selected_idx, to_times, to_selected_idx, invalid_hs_idx, invalid_hs_times):
-    print("Plotting")
-    plt.figure(0)
-    figure = plt.gcf() # get current figure
-    plt.rcParams["figure.figsize"] = (16,8)
-    plt.rcParams.update({'font.size': 20})
-    plt.plot(time_vector, acc_ap_pp, 'b--', label='acc_ap')
-    plt.plot(time_vector, acc_wave_detrended, color="grey", linestyle="dotted", label='dcwt1')
-    plt.plot(time_vector, acc_wave_2, 'k', label='dcwt2')
-    plt.plot(hs_times, acc_wave_detrended[hs_selected_idx], linestyle='None', color='red', label='HS', marker="*",  markersize=10)
-    plt.plot(to_times, acc_wave_2[to_selected_idx], linestyle='None', color='lime', label='TO', marker="*",  markersize=10)
-    plt.plot(invalid_hs_times, acc_wave_detrended[invalid_hs_idx], linestyle='None', color='orange', label='HS invalid', marker="*",  markersize=10)
-    plt.title("Linear Plot")
-    plt.xlabel('Time [s]')
-    plt.legend(loc="upper right")
-    
-    plt.show()
 
 def nonlinear_analysis(filename):
     fs = 500 # sampling frequency of sensor

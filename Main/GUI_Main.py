@@ -381,13 +381,10 @@ def load_ayush_code_file():
 
 def ayush_analyze_data():
     global linear_df, nonlinear_df, linear_plot
-    linear_df, time_vector, acc_ap_pp, acc_wave_detrended, acc_wave_2, hs_times, hs_selected_idx, to_times, to_selected_idx, invalid_hs_idx, invalid_hs_times = linear_analysis(ayush_code_file)
+    linear_df, linear_plots = linear_analysis(ayush_code_file, plot_frame_ayush_code)
     #nonlinear_df = nonlinear_analysis(ayush_code_file)
-    #linear_plot(time_vector, acc_ap_pp, acc_wave_detrended, acc_wave_2, hs_times, hs_selected_idx, to_times, to_selected_idx, invalid_hs_idx, invalid_hs_times)
-
-    #TODO: linear analysis
+    
     #TODO: nonlinear analysis
-    #TODO: plot?
 
 def create_tab3_export_folder():
     global export_folder, ayush_code_directory_path
