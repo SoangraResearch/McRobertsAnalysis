@@ -181,16 +181,21 @@ def nonlinear_analysis(filename):
     #Resample the signal
     resampled_res_acc = resample(res_acc, num_samples)
 
+    print("resampled_res_acc")
+    print(resampled_res_acc)
+
     df2 = pd.DataFrame(columns=['walking_index','start_index', 'end_index','delay','dimension','Ap_en','Samp_en','Sym_en',
                             'Permu_en','LyEl_R','LyEs_R','Lye_W','REC','DET','MeanL','MaxL',
                             'EntrL','LAM','MeanV','MaxV','EntrV','EntrW','RCMSE','CMSE','MSE','MSE_SCALE1','MSE_SCALE2'])
     
     for i in range(len(walking)):
+        print("iterating through walking. Index: ", i)
         walk_start = walking[i,0]
         walk_end= walking[i,1]
         data = resampled_res_acc[walk_start:walk_end]
         #Calculate delay from Stergiou
         tau, V_ami = AMI_Stergiou(data,35)
+        print("AMI_Stergiou calculated")
         delay = int(tau[0][0])
         #Calculate dimensions from fnn
         # Parameters for fnn function
@@ -199,17 +204,21 @@ def nonlinear_analysis(filename):
         Atol = 2
         speed = 0
         ans = FNN(data, delay, MaxDim, Rtol, Atol, speed)
+        print("FNN calculated")
         dim = ans[1]  #dimension
         # Approximate entropy
         r = 0.2 #tolerance
         AE = Ent_Ap(data, dim, r)
+        print("ENT_AP calculated")
         # Sample Entropy
         m = 2 # - m is generally recommendation as 2
         #  - R is generally recommendation as 0.2
         Samp_Ent = Ent_Samp(data, m, r)
+        print("ENT_Samp calculated")
         #Symbolic Entropy
         L = 2 #assuming
         Sym_En = Ent_Symbolic(data, L)
+        print("ENT_Symbolic calculated")
         # Permutaion Entropy
         '''
         (permEnt, hist) = Ent_Permu20180320(data, m, tau)
@@ -220,15 +229,18 @@ def nonlinear_analysis(filename):
                 hist: number of occurences for each permutation order
         '''
         [permEnt_value,hist_value] = Ent_Permu(data, m, delay)
+        print("ENT_Permu calculated")
         #LyE_Rosenstein
         name = "test"
         slope = [1,2,3,4]
         MeanPeriod = 1
         Plot = True
         (LyEl,LyEs,out) = LyE_R(data,name,fs_HS_TO,delay,m,slope, MeanPeriod, Plot)
+        print("LYE_R calculated")
         #largest lyapunov exponent
         evolve = 2 # assuming
         [out,lye] = LyE_W(data, fs_HS_TO, delay, dim, evolve)
+        print("LYE_W calculated")
         # RQA
         TYPE = 'RQA'
         ZSCORE = 1
@@ -240,6 +252,7 @@ def nonlinear_analysis(filename):
         column = "1"
         nargout =1
         rqa_RESULTS = RQA(data, TYPE ,dim,delay,ZSCORE,NORM,LINELENGTH,SETPARA,SETVALUE,PLOTOPTION, column, nargout)
+        print("RQA calculated")
         REC=rqa_RESULTS[0]['REC']
         DET=rqa_RESULTS[0]['DET']
         MeanL= rqa_RESULTS[0]['MeanL']
@@ -256,6 +269,7 @@ def nonlinear_analysis(filename):
         m=2
 
         result =  Ent_MS_Plus(data,tau, m, r )
+        print("ENT_MS_Plus calculated")
 
         RCMSE =result[0]
         CMSE = result[1]

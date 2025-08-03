@@ -247,6 +247,7 @@ df2 = pd.DataFrame(columns=['walking_index','start_index', 'end_index','delay','
                             'EntrL','LAM','MeanV','MaxV','EntrV','EntrW','RCMSE','CMSE','MSE','MSE_SCALE1','MSE_SCALE2'])
 
 for i in range(len(walking)):
+    print("iterating through waling. Index: ", i)
     walk_start = walking[i,0]
     walk_end= walking[i,1]
     data = resampled_res_acc[walk_start:walk_end]
@@ -361,5 +362,6 @@ for i in range(len(walking)):
 
     df2 = pd.concat([df2, new_row], ignore_index=True)
 
+print("saving nonlinear data")
 df2.to_csv('Data/Output/TestData_NonLinear.csv.csv', index=False)
 
