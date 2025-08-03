@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.signal import resample
 from scipy.signal import butter, filtfilt
-from Main.Ayush_Analysis_Plot import linear_plot
+from Main.Ayush_Analysis_Plot import linear_plot, nonlinear_plot
 from Non_GUI.Ayush_Files.gait_functions.walking import find_walking
 from Non_GUI.Ayush_Files.gait_functions.hs_to_detection import get_hs_to_wavelet # function to detect heal strike and toe off from the walking data
 from Non_GUI.Ayush_Files.gait_functions.hs_to_detection import gait_parameters  # function to calculate gait parameters from heal strike and toe off
@@ -128,7 +128,7 @@ def linear_analysis(filename, plot_frame):
 
     return df, plots
 
-def nonlinear_analysis(filename):
+def nonlinear_analysis(filename, plot_frame):
     fs = 100 # sampling frequency of sensor
 
     accleration = pd.read_csv(filename)
@@ -188,6 +188,8 @@ def nonlinear_analysis(filename):
                             'Permu_en','LyEl_R','LyEs_R','Lye_W','REC','DET','MeanL','MaxL',
                             'EntrL','LAM','MeanV','MaxV','EntrV','EntrW','RCMSE','CMSE','MSE','MSE_SCALE1','MSE_SCALE2'])
     
+    plots = []
+
     for i in range(len(walking)):
         print("iterating through walking. Index: ", i)
         walk_start = walking[i,0]
@@ -234,8 +236,10 @@ def nonlinear_analysis(filename):
         name = "test"
         slope = [1,2,3,4]
         MeanPeriod = 1
-        Plot = True
-        (LyEl,LyEs,out) = LyE_R(data,name,fs_HS_TO,delay,m,slope, MeanPeriod, Plot)
+        Plot = False
+        (LyEl,LyEs,out), time, AveLnDiv, LyES, timeS, lyESline, LyEL, timeL, LyELline = LyE_R(data,name,fs_HS_TO,delay,m,slope, MeanPeriod, Plot)
+        fig = nonlinear_plot(time, AveLnDiv, LyES, timeS, lyESline, LyEL, timeL, LyELline, plot_frame, i)
+        plots.append(fig)
         print("LYE_R calculated")
         #largest lyapunov exponent
         evolve = 2 # assuming
@@ -315,7 +319,7 @@ def nonlinear_analysis(filename):
         df2 = pd.concat([df2, new_row], ignore_index=True)
 
     print("returning non-linear analysis")
-    return df2
+    return df2, plots
 
 def _walking_period_detection(cad, fs_HS_TO=100):
     wi = np.where(cad > 0, 1, 0)

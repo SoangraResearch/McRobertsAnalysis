@@ -10,7 +10,8 @@ from ICDA_code import step_detection
 from OMX_To_CSV import process_omx_file, matlab_datenum_to_datetime
 from Acceleration_Plot import PlotOMX
 from GSD_plots import plot_GSDA, plot_GSDB, plot_steps
-from Ayush_Analysis import linear_analysis, nonlinear_analysis, linear_plot
+from Ayush_Analysis import linear_analysis, nonlinear_analysis
+from Ayush_Analysis_Plot import display_combined_plots
 
 #setting directory properly
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
@@ -380,11 +381,10 @@ def load_ayush_code_file():
         messagebox.showerror("Load Error", str(e))
 
 def ayush_analyze_data():
-    global linear_df, nonlinear_df, linear_plot
+    global linear_df, nonlinear_df, linear_plots, nonlinear_plots
     linear_df, linear_plots = linear_analysis(ayush_code_file, plot_frame_ayush_code)
-    nonlinear_df = nonlinear_analysis(ayush_code_file)
-    
-    #TODO: nonlinear analysis
+    nonlinear_df, nonlinear_plots = nonlinear_analysis(ayush_code_file, plot_frame_ayush_code)
+    display_combined_plots(linear_plots, nonlinear_plots, plot_frame_ayush_code)
 
 def create_tab3_export_folder():
     global export_folder, ayush_code_directory_path
