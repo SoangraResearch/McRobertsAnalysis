@@ -385,6 +385,7 @@ def ayush_analyze_data():
     linear_df, linear_plots = linear_analysis(ayush_code_file, plot_frame_ayush_code)
     nonlinear_df, nonlinear_plots = nonlinear_analysis(ayush_code_file, plot_frame_ayush_code)
     display_combined_plots(linear_plots, nonlinear_plots, plot_frame_ayush_code)
+    load_save_plot_buttons()
 
 def create_tab3_export_folder():
     global export_folder, ayush_code_directory_path
@@ -410,10 +411,17 @@ def save_linear_analysis(open_prompt_window):
                 return False
         else:
             output_path = os.path.join(export_folder, ayush_code_filename + "_linear_analysis.csv")
-            linear_df.to_csv(output_path, index=False)
-            messagebox.showinfo("Saved", f"linear analysis saved to: {output_path}")
+        linear_df.to_csv(output_path, index=False)
+        messagebox.showinfo("Saved", f"linear analysis saved to: {output_path}")
     except Exception as e:
         messagebox.showerror("Save Error", str(e))
+
+def load_save_plot_buttons():
+    save_current_linear_plot = tk.Button(plot_frame_ayush_code, text="Save Linear Plot", command=lambda: save_current_linear_analysis_plot(True), font=("Arial", 8), relief="raised", bd=2)
+    save_current_linear_plot.place(x=15, y=-35, anchor="sw", relx=0, rely=1)
+    
+    save_current_nonlinear_plot = tk.Button(plot_frame_ayush_code, text="Save Nonlinear Plot", command=lambda: save_current_nonlinear_analysis_plot(True), font=("Arial", 8), relief="raised", bd=2)
+    save_current_nonlinear_plot.place(x=-15, y=-35, anchor="se", relx=1, rely=1)
 
 def save_nonlinear_analysis(open_prompt_window):
     create_tab3_export_folder()
@@ -433,16 +441,26 @@ def save_nonlinear_analysis(open_prompt_window):
                 return False
         else:
             output_path = os.path.join(export_folder, ayush_code_filename + "_nonlinear_analysis.csv")
-            nonlinear_df.to_csv(output_path, index=False)
-            messagebox.showinfo("Saved", f"nonlinear analysis saved to: {output_path}")
+        nonlinear_df.to_csv(output_path, index=False)
+        messagebox.showinfo("Saved", f"nonlinear analysis saved to: {output_path}")
     except Exception as e:
         messagebox.showerror("Save Error", str(e))
 
-def save_linear_analysis_plot(open_prompt_window):
-    create_tab3_export_folder()
+def get_current_selected_plot():
     try:
-        #TODO: replace with linear analysis plot
-        if steps_plot is None:
+        if hasattr(plot_frame_ayush_code, 'notebook'):
+            return plot_frame_ayush_code.notebook.index(plot_frame_ayush_code.notebook.select())
+        else:
+            return 0  # Default to first plot if no notebook
+    except Exception as e:
+        print(f"Error getting current tab index: {e}")
+        return 0
+
+def save_current_linear_analysis_plot(open_prompt_window):
+    create_tab3_export_folder()
+    plotnum = get_current_selected_plot()
+    try:
+        if linear_plots is None:
             messagebox.showerror("Error", "No linear analysis plot to save.")
             return
         if open_prompt_window:
@@ -450,15 +468,39 @@ def save_linear_analysis_plot(open_prompt_window):
                 defaultextension=".png",
                 filetypes=[("PNG Image", "*.png"), ("PDF File", "*.pdf"), ("SVG File", "*.svg")],
                 initialdir=export_folder,
-                initialfile=ayush_code_filename + "_linear_analysis",
+                initialfile=ayush_code_filename + "_linear_analysis_plot_" + str(plotnum+ 1),
                 title="Save linear analysis plot"
             )
             if not output_path:
                 return False
         else:
-            output_path = os.path.join(export_folder, ayush_code_filename + "_linear_analysis.png")
-        steps_plot.savefig(output_path, dpi=300)
+            output_path = os.path.join(export_folder, ayush_code_filename + "_linear_analysis_plot_" + str(plotnum + 1) + ".png")
+        linear_plots[plotnum].savefig(output_path, dpi=300)
         messagebox.showinfo("Saved", f"linear analysis plot saved to: {output_path}")
+    except Exception as e:
+        messagebox.showerror("Save Error", str(e))
+
+def save_current_nonlinear_analysis_plot(open_prompt_window):
+    create_tab3_export_folder()
+    plotnum = get_current_selected_plot()
+    try:
+        if nonlinear_plots is None:
+            messagebox.showerror("Error", "No nonlinear analysis plot to save.")
+            return
+        if open_prompt_window:
+            output_path=filedialog.asksaveasfilename(
+                defaultextension=".png",
+                filetypes=[("PNG Image", "*.png"), ("PDF File", "*.pdf"), ("SVG File", "*.svg")],
+                initialdir=export_folder,
+                initialfile=ayush_code_filename + "_nonlinear_analysis_plot_" + str(plotnum + 1),
+                title="Save nonlinear analysis plot"
+            )
+            if not output_path:
+                return False
+        else:
+            output_path = os.path.join(export_folder, ayush_code_filename + "_nonlinear_analysis_plot_" + str(plotnum + 1) + ".png")
+        nonlinear_plots[plotnum].savefig(output_path, dpi=300)
+        messagebox.showinfo("Saved", f"nonlinear analysis plot saved to: {output_path}")
     except Exception as e:
         messagebox.showerror("Save Error", str(e))
 
@@ -466,7 +508,7 @@ def save_all_ayush_code():
     try:
         save_linear_analysis(False)
         save_nonlinear_analysis(False)
-        save_linear_analysis_plot(False)
+        #save_linear_analysis_plot(False)
     except Exception as e:
         messagebox.showerror("Save Error", str(e))
               
@@ -550,8 +592,8 @@ button_frame.pack(pady=5)
 
 # Add buttons side by side
 tk.Button(button_frame, text="Save Linear Analysis", command=lambda: save_linear_analysis(True)).pack(side="left", padx=5)
-tk.Button(button_frame, text="Save Non-Lineal Analysis", command=lambda: save_nonlinear_analysis(True)).pack(side="left", padx=5)
-tk.Button(button_frame, text="Save Linear Analysis Plot", command=lambda: save_linear_analysis_plot(True)).pack(side="left", padx=5)
+tk.Button(button_frame, text="Save Non-Linear Analysis", command=lambda: save_nonlinear_analysis(True)).pack(side="left", padx=5)
+#tk.Button(button_frame, text="Save Linear Analysis Plot", command=lambda: save_linear_analysis_plot(True)).pack(side="left", padx=5)
 
 tk.Button(tab3, text="Save All", command=save_all_ayush_code).pack(pady=5)
 
