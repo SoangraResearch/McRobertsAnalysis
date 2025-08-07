@@ -83,7 +83,7 @@ def linear_analysis(filename, plot_frame):
                                  'sst1_foot1','sst1_foot2','sst2_foot1','sst2_foot2',
                                  'stance_time1_foot1','stance_time1_foot2','stance_time2_foot1','stance_time2_foot2',
                                  'swing_time1_foot1','swing_time1_foot2','swing_time2_foot1','swing_time2_foot2'])
-        return empty_df, None, None, None, None, None, None, None, None, None, None
+        return empty_df, []
 
     # Display the results
     print("Linear Analysis: ")
@@ -168,7 +168,7 @@ def nonlinear_analysis(filename, plot_frame):
         empty_df = pd.DataFrame(columns=['walking_index','start_index', 'end_index','delay','dimension','Ap_en','Samp_en','Sym_en',
                                 'Permu_en','LyEl_R','LyEs_R','Lye_W','REC','DET','MeanL','MaxL',
                                 'EntrL','LAM','MeanV','MaxV','EntrV','EntrW','RCMSE','CMSE','MSE','MSE_SCALE1','MSE_SCALE2'])
-        return empty_df
+        return empty_df, []
 
     # Display the results
     print("Nonlinear Analysis: ")
@@ -239,6 +239,7 @@ def nonlinear_analysis(filename, plot_frame):
         Plot = False
         (LyEl,LyEs,out), time, AveLnDiv, LyES, timeS, lyESline, LyEL, timeL, LyELline = LyE_R(data,name,fs_HS_TO,delay,m,slope, MeanPeriod, Plot)
         fig = nonlinear_plot(time, AveLnDiv, LyES, timeS, lyESline, LyEL, timeL, LyELline, plot_frame, i)
+        print("nonlinear plot produced")
         plots.append(fig)
         print("LYE_R calculated")
         #largest lyapunov exponent

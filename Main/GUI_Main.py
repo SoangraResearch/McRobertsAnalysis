@@ -11,7 +11,7 @@ from OMX_To_CSV import process_omx_file, matlab_datenum_to_datetime
 from Acceleration_Plot import PlotOMX
 from GSD_plots import plot_GSDA, plot_GSDB, plot_steps
 from Ayush_Analysis import linear_analysis, nonlinear_analysis
-from Ayush_Analysis_Plot import display_combined_plots
+from Ayush_Analysis_Plot import display_combined_plots, get_current_selected_plot
 
 #setting directory properly
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
@@ -37,6 +37,8 @@ plot_frame_OMX = None
 acceleration_plot = None
 mobiliseD_file = None
 mobiliseD_directory_path = None
+linear_plots = None
+nonlinear_plots = None
 exported_csv_path = "None"
 start_time_var = tk.StringVar()
 stop_time_var = tk.StringVar()
@@ -387,6 +389,26 @@ def ayush_analyze_data():
     display_combined_plots(linear_plots, nonlinear_plots, plot_frame_ayush_code)
     load_save_plot_buttons()
 
+def do_linear_analysis():
+    global linear_df, linear_plots, nonlinear_plots
+    linear_df, linear_plots = linear_analysis(ayush_code_file, plot_frame_ayush_code)
+    load_save_plot_buttons()
+
+    if(nonlinear_plots != None):
+        display_combined_plots(linear_plots, nonlinear_plots, plot_frame_ayush_code)
+
+def do_nonlinear_analysis():
+    global nonlinear_df, nonlinear_plots, linear_plots
+    nonlinear_df, nonlinear_plots = nonlinear_analysis(ayush_code_file, plot_frame_ayush_code)
+    print("nonlinear plots in main gui: " + str(len(nonlinear_plots)))
+    load_save_plot_buttons()
+
+    if(linear_plots != None):
+        print("About to call display_combined_plots() from do_nonlinear_analysis()")
+        print(f"linear_plots: {len(linear_plots) if linear_plots else 0}")
+        print(f"nonlinear_plots: {len(nonlinear_plots) if nonlinear_plots else 0}")
+        plot_frame_ayush_code.after(100, lambda: display_combined_plots(linear_plots, nonlinear_plots, plot_frame_ayush_code))
+
 def create_tab3_export_folder():
     global export_folder, ayush_code_directory_path
 
@@ -417,10 +439,10 @@ def save_linear_analysis(open_prompt_window):
         messagebox.showerror("Save Error", str(e))
 
 def load_save_plot_buttons():
-    save_current_linear_plot = tk.Button(plot_frame_ayush_code, text="Save Linear Plot", command=lambda: save_current_linear_analysis_plot(True), font=("Arial", 8), relief="raised", bd=2)
+    save_current_linear_plot = tk.Button(plot_frame_ayush_code, text="Save Linear Plot", command=lambda: save_current_linear_analysis_plot(True, get_current_selected_plot(plot_frame_ayush_code)), font=("Arial", 8), relief="raised", bd=2)
     save_current_linear_plot.place(x=15, y=-35, anchor="sw", relx=0, rely=1)
     
-    save_current_nonlinear_plot = tk.Button(plot_frame_ayush_code, text="Save Nonlinear Plot", command=lambda: save_current_nonlinear_analysis_plot(True), font=("Arial", 8), relief="raised", bd=2)
+    save_current_nonlinear_plot = tk.Button(plot_frame_ayush_code, text="Save Nonlinear Plot", command=lambda: save_current_nonlinear_analysis_plot(True, get_current_selected_plot(plot_frame_ayush_code)), font=("Arial", 8), relief="raised", bd=2)
     save_current_nonlinear_plot.place(x=-15, y=-35, anchor="se", relx=1, rely=1)
 
 def save_nonlinear_analysis(open_prompt_window):
@@ -446,19 +468,8 @@ def save_nonlinear_analysis(open_prompt_window):
     except Exception as e:
         messagebox.showerror("Save Error", str(e))
 
-def get_current_selected_plot():
-    try:
-        if hasattr(plot_frame_ayush_code, 'notebook'):
-            return plot_frame_ayush_code.notebook.index(plot_frame_ayush_code.notebook.select())
-        else:
-            return 0  # Default to first plot if no notebook
-    except Exception as e:
-        print(f"Error getting current tab index: {e}")
-        return 0
-
-def save_current_linear_analysis_plot(open_prompt_window):
+def save_current_linear_analysis_plot(open_prompt_window, plotnum):
     create_tab3_export_folder()
-    plotnum = get_current_selected_plot()
     try:
         if linear_plots is None:
             messagebox.showerror("Error", "No linear analysis plot to save.")
@@ -480,9 +491,8 @@ def save_current_linear_analysis_plot(open_prompt_window):
     except Exception as e:
         messagebox.showerror("Save Error", str(e))
 
-def save_current_nonlinear_analysis_plot(open_prompt_window):
+def save_current_nonlinear_analysis_plot(open_prompt_window, plotnum):
     create_tab3_export_folder()
-    plotnum = get_current_selected_plot()
     try:
         if nonlinear_plots is None:
             messagebox.showerror("Error", "No nonlinear analysis plot to save.")
@@ -504,11 +514,26 @@ def save_current_nonlinear_analysis_plot(open_prompt_window):
     except Exception as e:
         messagebox.showerror("Save Error", str(e))
 
+def save_all_linear_analysis_plots(open_prompt_window):
+    try:
+        for i in range(len(linear_plots)):
+            save_current_linear_analysis_plot(open_prompt_window, i)
+    except Exception as e:
+        messagebox.showerror("Save Error", str(e))        
+
+def save_all_nonlinear_analysis_plots(open_prompt_window):
+    try:
+        for i in range(len(nonlinear_plots)):
+            save_current_nonlinear_analysis_plot(open_prompt_window, i)
+    except Exception as e:
+        messagebox.showerror("Save Error", str(e))
+
 def save_all_ayush_code():
     try:
         save_linear_analysis(False)
         save_nonlinear_analysis(False)
-        #save_linear_analysis_plot(False)
+        save_all_linear_analysis_plots(False)
+        save_all_nonlinear_analysis_plots(False)
     except Exception as e:
         messagebox.showerror("Save Error", str(e))
               
@@ -581,21 +606,23 @@ ayush_code_path_var = tk.StringVar(value="File loaded: (none)")
 ayush_code_file_label = tk.Label(tab3, textvariable=ayush_code_path_var)
 ayush_code_file_label.pack()
 
-tk.Button(tab3, text="Analyze Data", command=ayush_analyze_data).pack(pady=20)
+analysis_frame = tk.Frame(tab3)
+analysis_frame.pack(pady=5)
+
+tk.Button(analysis_frame, text="Linear Analysis", width=15, command=do_linear_analysis).pack(side="left", padx=10)
+tk.Button(analysis_frame, text="Non-Linear Analysis", width=15, command=do_nonlinear_analysis).pack(side="left", padx=10)
 
 plot_frame_ayush_code = tk.Frame(tab3, height=300)
 plot_frame_ayush_code.pack(fill="both", expand=True)
 
-# Create a frame to hold the buttons horizontally
 button_frame = tk.Frame(tab3)
 button_frame.pack(pady=5)
 
-# Add buttons side by side
 tk.Button(button_frame, text="Save Linear Analysis", command=lambda: save_linear_analysis(True)).pack(side="left", padx=5)
 tk.Button(button_frame, text="Save Non-Linear Analysis", command=lambda: save_nonlinear_analysis(True)).pack(side="left", padx=5)
-#tk.Button(button_frame, text="Save Linear Analysis Plot", command=lambda: save_linear_analysis_plot(True)).pack(side="left", padx=5)
+tk.Button(button_frame, text="Save All Linear Analysis Plots", command=lambda: save_all_linear_analysis_plots(True)).pack(side="left", padx=5)
+tk.Button(button_frame, text="Save All Non-Linear Analysis Plots", command=lambda: save_all_nonlinear_analysis_plots(True)).pack(side="left", padx=5)
 
 tk.Button(tab3, text="Save All", command=save_all_ayush_code).pack(pady=5)
-
 # -------------------------Running the GUI---------------------------------
 root.mainloop()

@@ -30,6 +30,7 @@ Make a note of where Octave is installed.
     - If you have just exported a file to CSV, it should be already loaded in the Mobilise-D and Ayush's Code tabs. If not or you wish to analyze a different file, you can do so manually.
     - In the Mobilise-D tab, after loading your file, select to use either the GSDA algorithm for healthy data or GSDB for patient data.
     - After selecting an algorithm, hit the run GSD detection button to run it. You can then save any or all of the data.
+    - In the Ayush's code tab, after loading a file, you can run either linear analysis or nonlinear analysis, or both (note nonlinear analysis takes a long time.) It will then generate files and potentially multiple plots, which you can save with the various save buttons.
 
 ## Notes
     - All necessary files for GUI_Main are in Main, Mobilise-D-TVS-Recommended-Algorithms-master, or Non_GUI/Ayush_Files
