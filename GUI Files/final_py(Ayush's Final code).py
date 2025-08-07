@@ -32,10 +32,11 @@ from Non_GUI.Ayush_Files.gait_functions.walking import find_walking
 from Non_GUI.Ayush_Files.gait_functions.hs_to_detection import get_hs_to_wavelet # function to detect heal strike and toe off from the walking data
 from Non_GUI.Ayush_Files.gait_functions.hs_to_detection import gait_parameters  # function to calculate gait parameters from heal strike and toe off
 
-#filename = os.path.normpath(os.path.join(os.path.dirname(__file__), '..', 'Non_GUI', 'Ayush_Files', '50step.csv')) #50Steps file
-filename = os.path.normpath(os.path.join(os.path.dirname(__file__), '..', 'Data', 'CSV_Files_Raw', 'TestData.csv')) #"C:\Users\Ayush Dubey\Downloads\2024-05-0500.27.21.csv" #csv file of acclerometer in units of 'g'
+filename = os.path.normpath(os.path.join(os.path.dirname(__file__), '..', 'Non_GUI', 'Ayush_Files', '50step.csv')) #50Steps file
+#filename = os.path.normpath(os.path.join(os.path.dirname(__file__), '..', 'Data', 'Output', 'TestData', 'TestData_from_2025-06-19_21-12-10_to_2025-06-19_21-42-00', 'TestData_from_2025-06-19_21-12-10_to_2025-06-19_21-42-00.csv')) #"C:\Users\Ayush Dubey\Downloads\2024-05-0500.27.21.csv" #csv file of acclerometer in units of 'g'
+#filename = 'C:/Users/ahala/OneDrive/Desktop/SoangraResearch/McRobertsAnalysis/Data/CSV_Files_Raw/TestData.csv'
 accleration = pd.read_csv(filename)
-accleration['TgF'] = np.sqrt(accleration['Ax']**2+accleration['Ay']**2+accleration['Az']**2)
+#accleration['TgF'] = np.sqrt(accleration['Ax']**2+accleration['Ay']**2+accleration['Az']**2)
 R_acc = accleration['TgF'] - 1 #resultant acceleration adjusted with gravity
 fs = 500 # sampling frequency of sensor
 vm = np.array(R_acc) #converting to numpy array
@@ -65,8 +66,10 @@ vm_bout = vm_resample[:num_elements_to_use]
 print("vm_bout: ")
 print(vm_bout)
 
+print("RMS of vm_bout:", np.sqrt(np.mean(vm_bout**2)))
+
 # parameters for find walking function
-min_amp = 0.3 # amplitude threshold (in g )
+min_amp = 0.03 # amplitude threshold (in g )
 T = 3 # minimum walking duration (in seconds)
 delta = 20 #maximum difference between consecutive peaks (in multiplication of 0.05Hz)
 alpha = 1.6 #maximum ratio between dominant peak below and within step frequency range
@@ -121,8 +124,8 @@ print(change_indices)
 print("walking: ")
 print(walking)
 
-#az = accleration['gFz'] # acceleration in the anterior posterior directtion
-az = accleration['Az']
+az = accleration['gFz'] # acceleration in the anterior posterior directtion
+#az = accleration['Az']
 num_samples = int(len(az) * fs_HS_TO / fs)  # Calculate the number of samples in the resampled signal
 # Resample the signal
 resampled_az = resample(az, num_samples)
@@ -140,18 +143,24 @@ for i in range(len(walking)):
     walk = resampled_az[walk_start:walk_end]
 
     # Get heal strike and toe off
-    hs_selected_idx, to_selected_idx, invalid_hs_idx = get_hs_to_wavelet(walk, fs_HS_TO, turning, plot_figure, save_fig_name, wavelet_type_straight="gaus1", wavelet_type_turning="gaus1")
+    hs_selected_idx, to_selected_idx, invalid_hs_idx, time_vector, acc_ap_pp, acc_wave_detrended, acc_wave_2, hs_times, to_times, invalid_hs_times = get_hs_to_wavelet(walk, fs_HS_TO, turning, plot_figure, save_fig_name, wavelet_type_straight="gaus1", wavelet_type_turning="gaus1")
     # converted to float and dividing by 100 to get results in units of second
     hs_selected_idx = (hs_selected_idx.astype(float))/100
     to_selected_idx = (to_selected_idx.astype(float))/100
     # get gait parameters
+    print("getting gait parameters")
+    print("hs_selected_idx")
+    print(hs_selected_idx)
+    print("to_selected_idx")
+    print(to_selected_idx)
     df = gait_parameters(hs_selected_idx,to_selected_idx,df,i,walk_start,walk_end,cad,fs,fs_HS_TO)
 
 """Save the data frame"""
 
-df.to_csv('Data/Output/TestData_Linear.csv', index=False)
+df.to_csv('Data/Output/TestDataTime_Linear.csv', index=False)
 
 """Non Linear Analysis of Walking"""
+print("Starting nonlinear analysis")
 
 from Non_GUI.Ayush_Files.non_linear_functions.ami_stergio import AMI_Stergiou
 from Non_GUI.Ayush_Files.non_linear_functions.fnn import FNN
@@ -178,7 +187,7 @@ from Non_GUI.Ayush_Files.gait_functions.hs_to_detection import  gait_parameters 
 
 #filename = r"C:\Users\Ayush Dubey\Desktop\50step.csv" #"C:\Users\Ayush Dubey\Downloads\2024-05-0500.27.21.csv" #csv file of acclerometer in units of 'g'
 accleration = pd.read_csv(filename)
-accleration['TgF'] = np.sqrt(accleration['Ax']**2+accleration['Ay']**2+accleration['Az']**2)
+#accleration['TgF'] = np.sqrt(accleration['Ax']**2+accleration['Ay']**2+accleration['Az']**2)
 R_acc = accleration['TgF'] - 1 #resultant acceleration adjusted with gravity
 fs = 500 # sampling frequency of sensor
 vm = np.array(R_acc) #converting to numpy array
@@ -238,6 +247,7 @@ df2 = pd.DataFrame(columns=['walking_index','start_index', 'end_index','delay','
                             'EntrL','LAM','MeanV','MaxV','EntrV','EntrW','RCMSE','CMSE','MSE','MSE_SCALE1','MSE_SCALE2'])
 
 for i in range(len(walking)):
+    print("iterating through waling. Index: ", i)
     walk_start = walking[i,0]
     walk_end= walking[i,1]
     data = resampled_res_acc[walk_start:walk_end]
@@ -352,5 +362,6 @@ for i in range(len(walking)):
 
     df2 = pd.concat([df2, new_row], ignore_index=True)
 
+print("saving nonlinear data")
 df2.to_csv('Data/Output/TestData_NonLinear.csv.csv', index=False)
 

@@ -213,6 +213,7 @@ def LyE_R(X,name, Fs,tau,dim,*args):
         s1 = 'Figures/LyE_R/'
         s2 = '_LyE_R.png'
         s = s1 + name + s2
+        plt.show()
         #plt.savefig(s)
     
-    return output_list
+    return output_list, time, AveLnDiv, LyES, timeS, LyESline, LyEL, timeL, LyELline

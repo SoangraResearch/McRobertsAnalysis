@@ -148,6 +148,8 @@ def get_wavelet(wavelet_name):
 
 def get_hs_to_wavelet(acc_ap, fs, turning, plot_figure, save_fig_name, wavelet_type_straight="gaus1", wavelet_type_turning="gaus1"):
 
+    print("running hs_to_detection")
+
     if (turning):
         print('This is a turning dataset, will use %s' % wavelet_type_turning)
     else:
@@ -263,13 +265,15 @@ def get_hs_to_wavelet(acc_ap, fs, turning, plot_figure, save_fig_name, wavelet_t
         plt.title(save_fig_name)
         plt.xlabel('Time [s]')
         plt.legend(loc="upper right")
+
+        plt.show()
         
         if save_fig_name is not None:
             plt.savefig(save_fig_name, dpi = 100)
             plt.close()
         else:
-            plt.show()
+            print("else")
 
-    return hs_selected_idx, to_selected_idx, invalid_hs_idx
+    return hs_selected_idx, to_selected_idx, invalid_hs_idx, time_vector, acc_ap_pp, acc_wave_detrended, acc_wave_2, hs_times, to_times, invalid_hs_times
 
 
