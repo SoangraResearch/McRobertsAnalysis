@@ -68,18 +68,3 @@ def _read_acceleration_data(oc, filepath, info):
     toc = time.perf_counter()
     print(f"Read data in {toc - tic:0.4f} seconds")
     return data
-
-#data = process_omx_file(r"C:\Users\ahala\OneDrive\Desktop\SoangraResearch\McRobertsAnalysis\Data\OMX_Files\TestData.OMX")
-
-#Plotting the data
-#x = data['ACC'][:, 0]
-#y_columns = data['ACC'][:, 1:4]
-
-#plt.figure(figsize=(10, 6))
-#plt.plot(x, y_columns)
-#plt.title('Plot of data1 ACC')
-#plt.xlabel('Index')
-#plt.ylabel('Value')
-#plt.show()
-
-#TODO: convert to CSV
