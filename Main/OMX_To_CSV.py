@@ -49,22 +49,85 @@ def _read_file_info(oc, filepath):
     return info
 
 def _read_acceleration_data(oc, filepath, info):
-    print("Reading acceleration data...")
+    import numpy as np
+    import time
+
+    packet_info = info.packetInfo
+    timestamps = packet_info[:, 1]
+
+
+    last_packet_info = packet_info[-1:, :]
+    try:
+        last_packet_data = oc.feval(
+            'OMX_readFile',
+            filepath,
+            0,
+            last_packet_info,
+            -1,
+            -1,
+            0,
+            0,
+            [1, 1, 0],
+            1,
+            nout=1,
+            struct_to_dict=True
+        )
+        if last_packet_data and 'ACC' in last_packet_data:
+            true_end_time = last_packet_data['ACC'][-1, 0]
+        else:
+            true_end_time = timestamps[-1]
+    except Exception:
+        true_end_time = timestamps[-1]
+
+    total_time_start = timestamps[0]
+    total_time_stop = true_end_time  
+
+    n_chunks = 10
+    total_packets = len(packet_info)
+    chunk_size = total_packets // n_chunks
+
+    acc_chunks = []
     tic = time.perf_counter()
-    data = oc.feval(
-        'OMX_readFile',
-        filepath,
-        0,                        # info
-        info.packetInfo,         # packetInfo
-        -1,                      # startTime
-        -1,                      # stopTime
-        0,                       # verbose
-        0,                       # useC
-        [1, 1, 0],               # modality
-        1,                       # step
-        nout=1,
-        struct_to_dict=False
-    )
+
+    for i in range(n_chunks):
+        start_idx = i * chunk_size
+        end_idx = (i + 1) * chunk_size if i < n_chunks - 1 else total_packets
+
+        chunk_packet_info = packet_info[start_idx:end_idx]
+
+        if len(chunk_packet_info) < 2:
+            continue
+
+        try:
+            data_chunk = oc.feval(
+                'OMX_readFile',
+                filepath,
+                0,
+                chunk_packet_info,
+                -1,
+                -1,
+                0,
+                0,
+                [1, 1, 0],
+                1,
+                nout=1,
+                struct_to_dict=True
+            )
+            if data_chunk and 'ACC' in data_chunk:
+                acc_chunks.append(data_chunk['ACC'])
+        except Exception:
+            pass
+
+        print(f"Reading chunk: {100*(i+1)/n_chunks:.0f}%")
+
     toc = time.perf_counter()
-    print(f"Read data in {toc - tic:0.4f} seconds")
-    return data
+
+    if not acc_chunks:
+        raise ValueError("No acceleration data read from file!")
+
+    combined_acc = np.vstack(acc_chunks)
+
+    # Final debug checks
+    print(f"Read data in {toc - tic:.4f} seconds")
+
+    return {'ACC': combined_acc}

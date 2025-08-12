@@ -15,6 +15,8 @@ class PlotOMX:
         self.parent = parent_widget
         self.view_change_callbacks = []
 
+        print("plotting acceleration plot")
+
         # Clear previous content
         for widget in self.parent.winfo_children():
             widget.destroy()
