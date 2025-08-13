@@ -146,7 +146,7 @@ def export_csv():
     global mobiliseD_file, new_filename, export_folder, mobiliseD_directory_path, mobiliseD_filename, ayush_code_file, ayush_code_directory_path, ayush_code_filename
     create_tab1_export_folder()
 
-    output_path=filedialog.asksaveasfilename(
+    output_path = filedialog.asksaveasfilename(
         defaultextension=".csv",
         filetypes=[("CSV files", "*.csv")],
         initialdir=export_folder,
@@ -160,19 +160,30 @@ def export_csv():
     starttime = datetime.strptime(start_time_var.get(), "%Y-%m-%d %H:%M:%S")
     stoptime = datetime.strptime(stop_time_var.get(), "%Y-%m-%d %H:%M:%S")
 
+    filtered_rows = [row for row in data['ACC'] if starttime <= matlab_datenum_to_datetime(row[0]) <= stoptime]
+    total_rows = len(filtered_rows)
+    if total_rows == 0:
+        messagebox.showinfo("Info", "No data in the specified time range.")
+        return False
+
     try:
         with open(output_path, 'w', newline='') as f:
             writer = csv.writer(f, delimiter=',')
             writer.writerow(['Time', 'Ax', 'Ay', 'Az'])
-            for row in data['ACC']:
-                ts = matlab_datenum_to_datetime(row[0])
-                if starttime <= ts <= stoptime:
-                    writer.writerow(row)
-            messagebox.showinfo("Success", f"File saved to:\n{output_path}")
+
+            last_reported_percent = 0
+            for i, row in enumerate(filtered_rows, start=1):
+                writer.writerow(row)
+                percent_complete = int(i / total_rows * 100)
+                if percent_complete // 10 > last_reported_percent // 10:
+                    last_reported_percent = percent_complete
+                    print(f"{(percent_complete // 10) * 10}% converted...")
+
+        messagebox.showinfo("Success", f"File saved to:\n{output_path}")
     except Exception as e:
         messagebox.showerror("Error", f"Failed to save file: {e}")
         return False
-    
+
     mobiliseD_file = output_path
     ayush_code_file = output_path
     mobiliseD_filename = new_filename

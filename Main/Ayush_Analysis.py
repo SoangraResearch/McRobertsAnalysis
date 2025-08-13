@@ -163,6 +163,17 @@ def nonlinear_analysis(filename, plot_frame):
 
     walking = _walking_period_detection(cad, fs_HS_TO)
 
+    print(f"Walking periods found: {len(walking) if len(walking.shape) > 0 else 0}")
+
+    if len(walking) > 0:
+        for i, period in enumerate(walking):
+            start_sec = period[0] / fs_HS_TO
+            end_sec = period[1] / fs_HS_TO  
+            duration = end_sec - start_sec
+            print(f"  Period {i+1}: {start_sec:.1f}s to {end_sec:.1f}s ({duration:.1f}s duration)")
+    else:
+        print("  No walking periods detected!")
+
     if len(walking) == 0:
         print("No walking periods found. Returning empty results.")
         empty_df = pd.DataFrame(columns=['walking_index','start_index', 'end_index','delay','dimension','Ap_en','Samp_en','Sym_en',
@@ -219,7 +230,10 @@ def nonlinear_analysis(filename, plot_frame):
         print("ENT_Samp calculated")
         #Symbolic Entropy
         L = 2 #assuming
-        Sym_En = Ent_Symbolic(data, L)
+        #normalizing data
+        data_normalized = (data - np.min(data)) / (np.max(data) - np.min(data))
+        data_scaled = (data_normalized * 1.99).astype(int)
+        Sym_En = Ent_Symbolic(data_scaled, L)
         print("ENT_Symbolic calculated")
         # Permutaion Entropy
         '''
@@ -358,3 +372,7 @@ def _walking_period_detection(cad, fs_HS_TO=100):
             walking_periods.append([start_indices[i], stop_indices[i]])
     
     return np.array(walking_periods) if walking_periods else np.array([]).reshape(0, 2)
+
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
