@@ -37,10 +37,7 @@ class PlotOMX:
         all_datetimes = [matlab_datenum_to_datetime(ts) for ts in self.raw_timestamps]
 
         # Precompute all datetime values
-        self.raw_datetimes = np.array([
-            matlab_datenum_to_datetime(ts).replace(tzinfo=None)
-            for ts in self.raw_timestamps
-        ])
+        self.raw_datetimes = self._convert_timestamps_chunked(self.raw_timestamps)
 
         self.max_points = 5000
         self.n_raw = len(self.raw_datetimes)
@@ -342,3 +339,29 @@ class PlotOMX:
         dt = mdates.num2date(matplotlib_date)
         dt_snapped = dt.replace(microsecond=0)
         return mdates.date2num(dt_snapped)
+    
+    def _convert_timestamps_chunked(self, timestamps, chunk_size=10000):
+        total_timestamps = len(timestamps)
+        datetimes = []
+        last_reported_percent = -1
+        
+        print(f"Converting {total_timestamps:,} timestamps...")
+        
+        for i in range(0, total_timestamps, chunk_size):
+            chunk = timestamps[i:i + chunk_size]
+            chunk_datetimes = [
+                matlab_datenum_to_datetime(ts).replace(tzinfo=None) 
+                for ts in chunk
+            ]
+            datetimes.extend(chunk_datetimes)
+            
+            progress_count = min(i + chunk_size, total_timestamps)
+            progress_percent = (progress_count / total_timestamps) * 100
+            
+            current_milestone = int(progress_percent // 10) * 10
+            if current_milestone > last_reported_percent and current_milestone > 0:
+                print(f"{current_milestone}% done")
+                last_reported_percent = current_milestone
+        
+        print("100% done - Timestamp conversion complete!")
+        return np.array(datetimes)

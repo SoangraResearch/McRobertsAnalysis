@@ -30,7 +30,6 @@ def groupfind(L):
     return np.column_stack((starts, ends))
 
 # hilbert_envelop.m file
-
 def hilbert_envelop(y, smooth_window=20, threshold_style=1, duration=20, gr=1):
     y = np.asarray(y).flatten()
     test = y
@@ -104,6 +103,11 @@ def hilbert_envelop(y, smooth_window=20, threshold_style=1, duration=20, gr=1):
     return alarm, env
 
 def find_pulse_trains(x, fs=40):
+    print(f"[DEBUG] find_pulse_trains called with len(x) = {len(x)}")
+    if len(x) < 2:
+        print("[DEBUG] Not enough peaks to form pulse train, returning empty list.")
+        return []
+    
     THD = 3.5 * fs
     walkflag = False
     w = []
@@ -121,28 +125,34 @@ def find_pulse_trains(x, fs=40):
                     THD = 1.5 * fs + (x[i] - walk['start']) / walk['steps']
             else:
                 if walkflag:
-                    walk['end'] = x[i - 1]
+                    walk['end'] = x[i - 1] if i > 0 else x[i]  # Safety check
                     w.append(walk)
                     walkflag = False
                     THD = 3.5 * fs
 
         if walkflag:
-            if x[-1] - x[-2] < THD:
+            print(f"[DEBUG] Closing walk: len(x)={len(x)}, last two values: {x[-2:] if len(x) >= 2 else x}")
+            if len(x) >= 2 and x[-1] - x[-2] < THD:
                 walk['end'] = x[-1]
                 walk['steps'] += 1
             else:
-                walk['end'] = x[-2]
+                walk['end'] = x[-2] if len(x) >= 2 else x[-1]
             w.append(walk)
 
     return w
 
 def convert_w_to_set(w):
+    if len(w) == 0:
+        return np.empty((0, 2), dtype=int)
     s = np.zeros((len(w), 2), dtype=int)
     s[:, 0] = [entry['start'] for entry in w]
     s[:, 1] = [entry['end'] for entry in w]
     return s
 
 def intersect(a, b):
+    if a.size == 0 or b.size == 0:
+        return np.empty((0, 2), dtype=int)
+    
     c = []
     ia, ib = 0, 0
     state = 3
@@ -176,9 +186,13 @@ def intersect(a, b):
                 state = 1
             else:
                 state = 2
-    return np.array(c, dtype=int)
+    
+    return np.array(c, dtype=int) if c else np.empty((0, 2), dtype=int)
 
 def pack_results(periods, peaks):
+    if len(periods) == 0 or len(peaks) == 0:
+        return [], []
+    
     w = []
     midswing = []
 
@@ -219,22 +233,43 @@ def remove_drift_40hz(x):
     return signal.filtfilt([1, -1], [1, -0.9748], x)
 
 def find_min_max(s, thr=None):
+    print(f"[DEBUG] ENTER find_min_max: len(s)={len(s)}, thr={thr}")
+    if len(s) < 3:  # avoid invalid diff/indexing
+        print("[DEBUG] Too few samples, returning empty arrays")
+        return np.array([]), np.array([])
+    
     d = np.diff(s)
+    if len(d) < 2:  # Need at least 2 differences
+        print("[DEBUG] Not enough differences, returning empty arrays")
+        return np.array([]), np.array([])
+    
     f = np.where(d[1:] * d[:-1] <= 0)[0] + 1
-    mi = f[d[f] >= 0]
-    ma = f[d[f] < 0]
+    if len(f) == 0:
+        print("[DEBUG] No extrema found, returning empty arrays")
+        return np.array([]), np.array([])
+    
+    mi = f[d[f] >= 0] if len(f) > 0 else np.array([])
+    ma = f[d[f] < 0] if len(f) > 0 else np.array([])
+    
     if thr is not None:
-        ma = ma[s[ma] > thr]
-        mi = mi[s[mi] < -thr]
+        ma = ma[s[ma] > thr] if len(ma) > 0 else np.array([])
+        mi = mi[s[mi] < -thr] if len(mi) > 0 else np.array([])
+    
+    print(f"[DEBUG] find_min_max -> mi len: {len(mi)}, ma len: {len(ma)}, thr: {thr}")
     return mi, ma
 
 def gsd_low_back_acc(imu_acc, fs, plot_results=False, time_vector = None):
+    print("running gsd_low_back_acc")
     acc = imu_acc
     algorithm_target_fs = 40
     accN = np.linalg.norm(acc, axis=1)
+    print("accN calculated")
+    print(accN)
 
     # resample accN from fs to 40 Hz
     accN40 = resamp_interp(accN, fs, algorithm_target_fs)
+    print("accN40")
+    print(accN40)
 
     accN_filt1 = signal.savgol_filter(accN40, 21, 7)
     accN_filt2 = signal.filtfilt([1, -1], [1, -0.9748], accN_filt1)
@@ -242,15 +277,23 @@ def gsd_low_back_acc(imu_acc, fs, plot_results=False, time_vector = None):
     accN_filt4 = signal.savgol_filter(accN_filt3, 11, 5)
     accN_filt5 = pywt.cwt(accN_filt4, 10, 'gaus2', sampling_period=1/40)[0][0]
 
+    print("accn filtered")
+
     # Smoothing stages
     accN_filt6 = signal.convolve(accN_filt5, signal.windows.gaussian(10, std=2), mode='same') / 10
     accN_filt7 = signal.convolve(accN_filt6, signal.windows.gaussian(10, std=2), mode='same') / 10
     accN_filt8 = signal.convolve(accN_filt7, signal.windows.gaussian(15, std=2), mode='same') / 15
     accN_filt9 = signal.convolve(accN_filt8, signal.windows.gaussian(10, std=2), mode='same') / 10
 
+    print("accN smoothed")
+
     sig_det_actv = accN_filt9
 
     alarm, _ = hilbert_envelop(sig_det_actv, smooth_window=20, threshold_style=1, duration=algorithm_target_fs, gr=0)
+
+    print("alarm")
+    print(alarm)
+    
     walkLowBack = []
     if np.any(alarm):
         idx = groupfind(alarm > 0)
@@ -259,23 +302,43 @@ def gsd_low_back_acc(imu_acc, fs, plot_results=False, time_vector = None):
                 alarm[idx[j, 0]:idx[j, 1]] = 0
             else:
                 walkLowBack.extend(sig_det_actv[idx[j, 0]:idx[j, 1]])
-        walkLowBack = np.array(walkLowBack)
-        pksp, _ = signal.find_peaks(walkLowBack)
-        pksn, _ = signal.find_peaks(-walkLowBack)
-        pks = np.concatenate((walkLowBack[pksp], -walkLowBack[pksn]))
-        th = np.percentile(pks[pks > 0], 5)
-        f = sig_det_actv
+        
+        if len(walkLowBack) > 0:  # Safety check for empty walkLowBack
+            walkLowBack = np.array(walkLowBack)
+            pksp, _ = signal.find_peaks(walkLowBack)
+            pksn, _ = signal.find_peaks(-walkLowBack)
+            
+            # Additional safety checks for empty peak arrays
+            pos_peaks = walkLowBack[pksp] if len(pksp) > 0 else np.array([])
+            neg_peaks = -walkLowBack[pksn] if len(pksn) > 0 else np.array([])
+            pks = np.concatenate((pos_peaks, neg_peaks)) if len(pos_peaks) > 0 or len(neg_peaks) > 0 else np.array([])
+            
+            if len(pks[pks > 0]) > 0:
+                th = np.percentile(pks[pks > 0], 5)
+            else:
+                th = 0.15  # Fallback threshold
+            f = sig_det_actv
+        else:
+            th = 0.15  # Fallback if walkLowBack is empty
+            f = accN_filt4
     else:
         th = 0.15
         f = accN_filt4
 
     min_peaks, max_peaks = find_min_max(f, th)
     
-    t1 = find_pulse_trains(max_peaks)
+    # Safety check: only proceed if we have peaks
+    if len(max_peaks) == 0 and len(min_peaks) == 0:
+        return [], sig_det_actv, np.zeros(len(sig_det_actv), dtype=int)
+    
+    t1 = find_pulse_trains(max_peaks) if len(max_peaks) > 0 else []
     t1 = [t for t in t1 if t['steps'] >= 4]
-    t2 = find_pulse_trains(min_peaks)
+    t2 = find_pulse_trains(min_peaks) if len(min_peaks) > 0 else []
     t2 = [t for t in t2 if t['steps'] >= 4]
-    t_final = intersect(convert_w_to_set(t1), convert_w_to_set(t2))
+    
+    t1_set = convert_w_to_set(t1)
+    t2_set = convert_w_to_set(t2)
+    t_final = intersect(t1_set, t2_set)
 
     if t_final.size == 0:
         w = []
@@ -290,12 +353,16 @@ def gsd_low_back_acc(imu_acc, fs, plot_results=False, time_vector = None):
 
     walk_label = np.zeros(len(sig_det_actv), dtype=int)
     for walk in w_new:
-        walk_label[walk['start']:walk['end']] = 1
+        start_idx = max(0, walk['start'])
+        end_idx = min(len(sig_det_actv), walk['end'] + 1)  # Add 1 for inclusive end
+        walk_label[start_idx:end_idx] = 1
 
     ind_no_wk = groupfind(walk_label == 0)
     for j in range(ind_no_wk.shape[0]):
         if ind_no_wk[j, 1] - ind_no_wk[j, 0] <= 3 * algorithm_target_fs:
-            walk_label[ind_no_wk[j, 0]:ind_no_wk[j, 1]] = 1
+            start_idx = max(0, ind_no_wk[j, 0])
+            end_idx = min(len(walk_label), ind_no_wk[j, 1])
+            walk_label[start_idx:end_idx] = 1
     
     # This section will process and return GSD_Output
     GSD_Output = []
@@ -314,7 +381,7 @@ def gsd_low_back_acc(imu_acc, fs, plot_results=False, time_vector = None):
         plt.plot(sig_det_actv)
         plt.plot(walk_label, 'r', linewidth=2)
         plt.legend(['filtered accNorm', 'Walking'])
-        plt.xlabel('samples (100Hz)')
+        plt.xlabel('samples (40Hz)')
         plt.show()
 
     return GSD_Output, sig_det_actv, walk_label

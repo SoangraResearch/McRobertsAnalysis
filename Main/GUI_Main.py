@@ -1,5 +1,6 @@
 import os
 import csv
+import re
 import tkinter as tk
 import pandas as pd
 import numpy as np
@@ -253,8 +254,12 @@ def process_GSD():
             gsd_plot = plot_GSDA(gait_bool_for_plot, v_acc_for_plot, plot_left_GSD)
         elif label_var_MobiliseD.get() == "Patient(GSDB)":
             from GSDB_code import gsd_low_back_acc
+            print("running GSDB")
             gsd_result, sig_det_act_for_plot, walk_label_for_plot = gsd_low_back_acc(acc, fs, plot_results=False, time_vector=original_time_array)
+            v_acc_for_plot = np.linalg.norm(acc, axis=1)
+            print("GSDB calculated")
             gsd_plot = plot_GSDB(sig_det_act_for_plot, walk_label_for_plot, plot_left_GSD)
+            print("GSDB plotted")
         else:
             gsd_result = -1
         sd_result_df = pd.DataFrame(gsd_result)
@@ -376,7 +381,7 @@ def save_all_GSD():
 
 # -------------------------Tab 3 Methods---------------------------------
 def load_ayush_code_file():
-    global ayush_code_directory_path, ayush_code_filename, ayush_code_file
+    global ayush_code_directory_path, ayush_code_filename, ayush_code_file, linear_df, linear_plots, nonlinear_df, nonlinear_plots
     file_path = filedialog.askopenfilename(filetypes=[("CSV/JSON files", "*.csv *.json")])
     if not file_path:
         return
@@ -388,6 +393,10 @@ def load_ayush_code_file():
             messagebox.showinfo("Loaded", f"Loaded file:\n{file_path}")
             ayush_code_file = file_path
             ayush_code_path_var.set(f"File loaded: {ayush_code_filename}")
+            linear_df = None
+            linear_plots = None
+            nonlinear_df = None
+            nonlinear_plots = []
         else:
             raise ValueError("Unsupported file format")
     except Exception as e:
@@ -416,6 +425,7 @@ def do_nonlinear_analysis():
 
     if(linear_plots != None):
         print("About to call display_combined_plots() from do_nonlinear_analysis()")
+        print(linear_plots)
         print(f"linear_plots: {len(linear_plots) if linear_plots else 0}")
         print(f"nonlinear_plots: {len(nonlinear_plots) if nonlinear_plots else 0}")
         plot_frame_ayush_code.after(100, lambda: display_combined_plots(linear_plots, nonlinear_plots, plot_frame_ayush_code))
@@ -479,26 +489,39 @@ def save_nonlinear_analysis(open_prompt_window):
     except Exception as e:
         messagebox.showerror("Save Error", str(e))
 
+def shorten_filename(filename):
+    filename = re.sub(r'_from_\d{4}-\d{2}-\d{2}_[0-9\-]+_to_\d{4}-\d{2}-\d{2}_[0-9\-]+', '', filename)
+    return filename
+
 def save_current_linear_analysis_plot(open_prompt_window, plotnum):
     create_tab3_export_folder()
     try:
         if linear_plots is None:
             messagebox.showerror("Error", "No linear analysis plot to save.")
             return
+        
         if open_prompt_window:
-            output_path=filedialog.asksaveasfilename(
+            output_path = filedialog.asksaveasfilename(
                 defaultextension=".png",
                 filetypes=[("PNG Image", "*.png"), ("PDF File", "*.pdf"), ("SVG File", "*.svg")],
                 initialdir=export_folder,
-                initialfile=ayush_code_filename + "_linear_analysis_plot_" + str(plotnum+ 1),
+                initialfile=shorten_filename(ayush_code_filename) + "_linear_analysis_plot_" + str(plotnum + 1),
                 title="Save linear analysis plot"
             )
             if not output_path:
                 return False
         else:
-            output_path = os.path.join(export_folder, ayush_code_filename + "_linear_analysis_plot_" + str(plotnum + 1) + ".png")
+            output_path = os.path.join(
+                export_folder,
+                shorten_filename(ayush_code_filename) + "_linear_analysis_plot_" + str(plotnum + 1) + ".png"
+            )
+        
+        print("Full save path length:", len(output_path))
+        print("Full save path:", output_path)
+        
         linear_plots[plotnum].savefig(output_path, dpi=300)
         messagebox.showinfo("Saved", f"linear analysis plot saved to: {output_path}")
+    
     except Exception as e:
         messagebox.showerror("Save Error", str(e))
 
@@ -508,20 +531,26 @@ def save_current_nonlinear_analysis_plot(open_prompt_window, plotnum):
         if nonlinear_plots is None:
             messagebox.showerror("Error", "No nonlinear analysis plot to save.")
             return
+        
         if open_prompt_window:
-            output_path=filedialog.asksaveasfilename(
+            output_path = filedialog.asksaveasfilename(
                 defaultextension=".png",
                 filetypes=[("PNG Image", "*.png"), ("PDF File", "*.pdf"), ("SVG File", "*.svg")],
                 initialdir=export_folder,
-                initialfile=ayush_code_filename + "_nonlinear_analysis_plot_" + str(plotnum + 1),
+                initialfile=shorten_filename(ayush_code_filename) + "_nonlinear_analysis_plot_" + str(plotnum + 1),
                 title="Save nonlinear analysis plot"
             )
             if not output_path:
                 return False
         else:
-            output_path = os.path.join(export_folder, ayush_code_filename + "_nonlinear_analysis_plot_" + str(plotnum + 1) + ".png")
+            output_path = os.path.join(
+                export_folder,
+                shorten_filename(ayush_code_filename) + "_nonlinear_analysis_plot_" + str(plotnum + 1) + ".png"
+            )
+        
         nonlinear_plots[plotnum].savefig(output_path, dpi=300)
         messagebox.showinfo("Saved", f"nonlinear analysis plot saved to: {output_path}")
+    
     except Exception as e:
         messagebox.showerror("Save Error", str(e))
 
