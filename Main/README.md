@@ -32,6 +32,11 @@ Make a note of where Octave is installed.
     - After selecting an algorithm, hit the run GSD detection button to run it. You can then save any or all of the data.
     - In the Ayush's code tab, after loading a file, you can run either linear analysis or nonlinear analysis, or both (note nonlinear analysis takes a long time.) It will then generate files and potentially multiple plots, which you can save with the various save buttons.
 
+## Running analysis for large data in small samples
+    - Sometimes the walking analysis will not work well for small segments (ex: 30s) of data, specifically if that data is stroke patient data.
+    - To correct this and get more accurate data segments, you can cut say a day of data from the original OMX file, then run that day of data through the GSD algorithm. In console, the algorithm will print out a list of segments longer than 30s and will have better accuracy due to the larger range of data available. 
+    - After getting this list, you can go back to the acceleration plot and zoom to one of those segments. Then you can export that and use it in further analysis. Because walking segmentation does not work as well with smaller segments of data, in the analysis tab you can check the box to assume data is walking, and the algorithm will skip the walking segmentation stage, processing all data as walking.
+
 ## Notes
     - All necessary files for GUI_Main are in Main, Mobilise-D-TVS-Recommended-Algorithms-master, or Non_GUI/Ayush_Files
     - By default, all results are stored in Data/Output in subfolders specifically created for the data
