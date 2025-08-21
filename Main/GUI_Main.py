@@ -7,7 +7,7 @@ import numpy as np
 from datetime import timedelta, datetime
 from tkinter import filedialog, messagebox, ttk
 import matplotlib.dates as mdates
-from ICDA_code import step_detection
+from ICDA_code import step_detection, filter_and_print_long_segments
 from OMX_To_CSV import process_omx_file, matlab_datenum_to_datetime
 from Acceleration_Plot import PlotOMX
 from GSD_plots import plot_GSDA, plot_GSDB, plot_steps
@@ -263,7 +263,8 @@ def process_GSD():
         else:
             gsd_result = -1
         sd_result_df = pd.DataFrame(gsd_result)
-        step_result = step_detection(acc, gsd_result, fs, plot_results=False)
+        step_result = step_detection(acc, gsd_result, fs, plot_results=False, original_time_array=original_time_array)
+        long_segments = filter_and_print_long_segments(gsd_result, original_time_array=original_time_array)
         step_result_df = pd.DataFrame(gsd_result)
         steps_plot = plot_steps(gsd_result, fs, v_acc_for_plot, plot_right_GSD)
         messagebox.showinfo("GSD Result", f"Gait sequences found: {len(gsd_result)}")
@@ -404,14 +405,14 @@ def load_ayush_code_file():
 
 def ayush_analyze_data():
     global linear_df, nonlinear_df, linear_plots, nonlinear_plots
-    linear_df, linear_plots = linear_analysis(ayush_code_file, plot_frame_ayush_code)
-    nonlinear_df, nonlinear_plots = nonlinear_analysis(ayush_code_file, plot_frame_ayush_code)
+    linear_df, linear_plots = linear_analysis(ayush_code_file, plot_frame_ayush_code, assume_walking_var.get())
+    nonlinear_df, nonlinear_plots = nonlinear_analysis(ayush_code_file, plot_frame_ayush_code, assume_walking_var.get())
     display_combined_plots(linear_plots, nonlinear_plots, plot_frame_ayush_code)
     load_save_plot_buttons()
 
 def do_linear_analysis():
     global linear_df, linear_plots, nonlinear_plots
-    linear_df, linear_plots = linear_analysis(ayush_code_file, plot_frame_ayush_code)
+    linear_df, linear_plots = linear_analysis(ayush_code_file, plot_frame_ayush_code, assume_walking_var.get())
     load_save_plot_buttons()
 
     if(nonlinear_plots != None):
@@ -419,7 +420,7 @@ def do_linear_analysis():
 
 def do_nonlinear_analysis():
     global nonlinear_df, nonlinear_plots, linear_plots
-    nonlinear_df, nonlinear_plots = nonlinear_analysis(ayush_code_file, plot_frame_ayush_code)
+    nonlinear_df, nonlinear_plots = nonlinear_analysis(ayush_code_file, plot_frame_ayush_code, assume_walking_var.get())
     print("nonlinear plots in main gui: " + str(len(nonlinear_plots)))
     load_save_plot_buttons()
 
@@ -447,13 +448,13 @@ def save_linear_analysis(open_prompt_window):
                 defaultextension=".csv",
                 filetypes=[("CSV files", "*.csv")],
                 initialdir=export_folder,
-                initialfile=ayush_code_filename + "_linear_analysis",
+                initialfile=shorten_filename(ayush_code_filename) + "_linear_analysis",
                 title="Save linear analysis"
             )
             if not output_path:
                 return False
         else:
-            output_path = os.path.join(export_folder, ayush_code_filename + "_linear_analysis.csv")
+            output_path = os.path.join(export_folder, shorten_filename(ayush_code_filename) + "_linear_analysis.csv")
         linear_df.to_csv(output_path, index=False)
         messagebox.showinfo("Saved", f"linear analysis saved to: {output_path}")
     except Exception as e:
@@ -477,13 +478,13 @@ def save_nonlinear_analysis(open_prompt_window):
                 defaultextension=".csv",
                 filetypes=[("CSV files", "*.csv")],
                 initialdir=export_folder,
-                initialfile=ayush_code_filename + "_nonlinear_analysis",
+                initialfile=shorten_filename(ayush_code_filename) + "_nonlinear_analysis",
                 title="Save nonlinear analysis"
             )
             if not output_path:
                 return False
         else:
-            output_path = os.path.join(export_folder, ayush_code_filename + "_nonlinear_analysis.csv")
+            output_path = os.path.join(export_folder, shorten_filename(ayush_code_filename) + "_nonlinear_analysis.csv")
         nonlinear_df.to_csv(output_path, index=False)
         messagebox.showinfo("Saved", f"nonlinear analysis saved to: {output_path}")
     except Exception as e:
@@ -651,6 +652,8 @@ analysis_frame.pack(pady=5)
 
 tk.Button(analysis_frame, text="Linear Analysis", width=15, command=do_linear_analysis).pack(side="left", padx=10)
 tk.Button(analysis_frame, text="Non-Linear Analysis", width=15, command=do_nonlinear_analysis).pack(side="left", padx=10)
+assume_walking_var = tk.BooleanVar(value=False)
+tk.Checkbutton(analysis_frame, text="Assume data is walking", variable=assume_walking_var).pack(side="left", padx=10)
 
 plot_frame_ayush_code = tk.Frame(tab3, height=300)
 plot_frame_ayush_code.pack(fill="both", expand=True)

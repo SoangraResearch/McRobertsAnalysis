@@ -19,7 +19,7 @@ from Non_GUI.Ayush_Files.non_linear_functions.lye_W import LyE_W
 from Non_GUI.Ayush_Files.non_linear_functions.rqa import RQA
 from Non_GUI.Ayush_Files.non_linear_functions.ent_Samp import Ent_Samp
 
-def linear_analysis(filename, plot_frame):
+def linear_analysis(filename, plot_frame, assume_walking=False):
     fs = 100
 
     accleration = pd.read_csv(filename)
@@ -67,12 +67,16 @@ def linear_analysis(filename, plot_frame):
     fs_HS_TO = 100 #sampling frequency needed by the function
     turning = 0
 
-    cad = find_walking(vm_bout, 10, min_amp,step_freq, alpha, beta, T,delta)
-
-    print("cadence: ")
-    print(cad)
-
-    walking = _walking_period_detection(cad, fs_HS_TO)
+    if assume_walking:
+        print("assuming walking")
+        walking = np.array([[0, len(vm) * fs_HS_TO // fs]])
+        cad = np.array([])
+    else:
+        cad = find_walking(vm_bout, 10, min_amp, step_freq, alpha, beta, T, delta)
+        walking = _walking_period_detection(cad, fs_HS_TO)
+        print("cadence: ")
+        print(cad)
+        print(f"Walking periods found: {len(walking) if len(walking.shape) > 0 else 0}")
 
     if len(walking) == 0:
         print("No walking periods found. Returning empty results.")
@@ -128,7 +132,7 @@ def linear_analysis(filename, plot_frame):
 
     return df, plots
 
-def nonlinear_analysis(filename, plot_frame):
+def nonlinear_analysis(filename, plot_frame, assume_walking=False):
     fs = 100 # sampling frequency of sensor
 
     accleration = pd.read_csv(filename)
@@ -156,14 +160,14 @@ def nonlinear_analysis(filename, plot_frame):
 
     fs_HS_TO = 100 #sampling frequency used for gait parameters and non linear analysis
 
-    cad = find_walking(vm_bout, 10, min_amp,step_freq, alpha, beta, T,delta)
-
-    print("cadence: ")
-    print(cad)
-
-    walking = _walking_period_detection(cad, fs_HS_TO)
-
-    print(f"Walking periods found: {len(walking) if len(walking.shape) > 0 else 0}")
+    if assume_walking:
+        walking = np.array([[0, len(vm) * fs_HS_TO // fs]])
+    else:
+        cad = find_walking(vm_bout, 10, min_amp, step_freq, alpha, beta, T, delta)
+        walking = _walking_period_detection(cad, fs_HS_TO)
+        print("cadence: ")
+        print(cad)
+        print(f"Walking periods found: {len(walking) if len(walking.shape) > 0 else 0}")
 
     if len(walking) > 0:
         for i, period in enumerate(walking):

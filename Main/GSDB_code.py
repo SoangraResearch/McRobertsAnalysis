@@ -103,9 +103,7 @@ def hilbert_envelop(y, smooth_window=20, threshold_style=1, duration=20, gr=1):
     return alarm, env
 
 def find_pulse_trains(x, fs=40):
-    print(f"[DEBUG] find_pulse_trains called with len(x) = {len(x)}")
     if len(x) < 2:
-        print("[DEBUG] Not enough peaks to form pulse train, returning empty list.")
         return []
     
     THD = 3.5 * fs
@@ -131,7 +129,6 @@ def find_pulse_trains(x, fs=40):
                     THD = 3.5 * fs
 
         if walkflag:
-            print(f"[DEBUG] Closing walk: len(x)={len(x)}, last two values: {x[-2:] if len(x) >= 2 else x}")
             if len(x) >= 2 and x[-1] - x[-2] < THD:
                 walk['end'] = x[-1]
                 walk['steps'] += 1
@@ -233,19 +230,15 @@ def remove_drift_40hz(x):
     return signal.filtfilt([1, -1], [1, -0.9748], x)
 
 def find_min_max(s, thr=None):
-    print(f"[DEBUG] ENTER find_min_max: len(s)={len(s)}, thr={thr}")
-    if len(s) < 3:  # avoid invalid diff/indexing
-        print("[DEBUG] Too few samples, returning empty arrays")
+    if len(s) < 3:
         return np.array([]), np.array([])
     
     d = np.diff(s)
-    if len(d) < 2:  # Need at least 2 differences
-        print("[DEBUG] Not enough differences, returning empty arrays")
+    if len(d) < 2:
         return np.array([]), np.array([])
     
     f = np.where(d[1:] * d[:-1] <= 0)[0] + 1
     if len(f) == 0:
-        print("[DEBUG] No extrema found, returning empty arrays")
         return np.array([]), np.array([])
     
     mi = f[d[f] >= 0] if len(f) > 0 else np.array([])
@@ -255,7 +248,6 @@ def find_min_max(s, thr=None):
         ma = ma[s[ma] > thr] if len(ma) > 0 else np.array([])
         mi = mi[s[mi] < -thr] if len(mi) > 0 else np.array([])
     
-    print(f"[DEBUG] find_min_max -> mi len: {len(mi)}, ma len: {len(ma)}, thr: {thr}")
     return mi, ma
 
 def gsd_low_back_acc(imu_acc, fs, plot_results=False, time_vector = None):
@@ -327,7 +319,6 @@ def gsd_low_back_acc(imu_acc, fs, plot_results=False, time_vector = None):
 
     min_peaks, max_peaks = find_min_max(f, th)
     
-    # Safety check: only proceed if we have peaks
     if len(max_peaks) == 0 and len(min_peaks) == 0:
         return [], sig_det_actv, np.zeros(len(sig_det_actv), dtype=int)
     
@@ -354,7 +345,7 @@ def gsd_low_back_acc(imu_acc, fs, plot_results=False, time_vector = None):
     walk_label = np.zeros(len(sig_det_actv), dtype=int)
     for walk in w_new:
         start_idx = max(0, walk['start'])
-        end_idx = min(len(sig_det_actv), walk['end'] + 1)  # Add 1 for inclusive end
+        end_idx = min(len(sig_det_actv), walk['end'] + 1)
         walk_label[start_idx:end_idx] = 1
 
     ind_no_wk = groupfind(walk_label == 0)
@@ -364,7 +355,6 @@ def gsd_low_back_acc(imu_acc, fs, plot_results=False, time_vector = None):
             end_idx = min(len(walk_label), ind_no_wk[j, 1])
             walk_label[start_idx:end_idx] = 1
     
-    # This section will process and return GSD_Output
     GSD_Output = []
     if np.any(walk_label == 1):
         ind_wk = groupfind(walk_label == 1)
