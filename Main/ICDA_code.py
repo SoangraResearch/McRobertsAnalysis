@@ -59,7 +59,7 @@ def sd_algo_amc(accV, fs):
 def step_detection(imu_acc, GS, fs, plot_results=False, original_time_array=None):
     acc_v = imu_acc[:, 0]  # vertical acceleration
 
-    print(GS)
+    #print(GS)
 
     print("is instance: " + (str)(isinstance(GS, list)))
     print("length of GS: " + (str)(len(GS)))
@@ -128,7 +128,8 @@ def seconds_to_datetime(seconds_offset, time_array, sampling_rate):
     except Exception as e:
         return f"Error converting time: {e}"
 
-def filter_and_print_long_segments(GS, min_duration=30, original_time_array=None, fs=100):
+#TODO: get working for GSDA
+def filter_and_print_long_segments(GS, min_duration=30, original_time_array=None, fs=100, algorithm_type='GSDB'):
     print(f"\n--- Filtering segments longer than {min_duration} seconds ---")
     
     if not isinstance(GS, list) or len(GS) == 0:
@@ -138,19 +139,30 @@ def filter_and_print_long_segments(GS, min_duration=30, original_time_array=None
     long_segments = []
     
     for i, segment in enumerate(GS):
-        if 'Start' in segment and 'End' in segment:
-            duration = segment['End'] - segment['Start']
+        start_key = 'Start'
+        end_key = 'End'
+        
+        if start_key in segment and end_key in segment:
+            start_time = segment[start_key]
+            end_time = segment[end_key]
             
-            start_dt = seconds_to_datetime(segment['Start'], original_time_array, fs)
-            end_dt = seconds_to_datetime(segment['End'], original_time_array, fs)
+            # Skip NaN segments (no detection)
+            if np.isnan(start_time) or np.isnan(end_time):
+                print(f"Segment {i}: No walking detected (NaN values)")
+                continue
+                
+            duration = end_time - start_time
             
-            print(f"Segment {i}: Start={segment['Start']:.3f}s ({start_dt}), End={segment['End']:.3f}s ({end_dt}), Duration={duration:.3f}s")
+            start_dt = seconds_to_datetime(start_time, original_time_array, fs)
+            end_dt = seconds_to_datetime(end_time, original_time_array, fs)
+            
+            print(f"Segment {i}: Start={start_time:.3f}s ({start_dt}), End={end_time:.3f}s ({end_dt}), Duration={duration:.3f}s")
             
             if duration > min_duration:
                 long_segments.append(segment)
                 print(f"  -> LONG SEGMENT: Duration {duration:.3f}s > {min_duration}s threshold")
         else:
-            print(f"Segment {i}: Missing Start/End keys")
+            print(f"Segment {i}: Missing {start_key}/{end_key} keys")
     
     print(f"\nTotal segments: {len(GS)}")
     print(f"Long segments (>{min_duration}s): {len(long_segments)}")
@@ -158,12 +170,14 @@ def filter_and_print_long_segments(GS, min_duration=30, original_time_array=None
     if long_segments:
         print("\nLong segments details:")
         for i, segment in enumerate(long_segments):
-            duration = segment['End'] - segment['Start']
-            start_dt = seconds_to_datetime(segment['Start'], original_time_array, fs)
-            end_dt = seconds_to_datetime(segment['End'], original_time_array, fs)
+            start_time = segment['Start']
+            end_time = segment['End']
+            duration = end_time - start_time
+            start_dt = seconds_to_datetime(start_time, original_time_array, fs)
+            end_dt = seconds_to_datetime(end_time, original_time_array, fs)
             print(f"  Long segment {i+1}: {duration:.3f}s")
-            print(f"    Start: {segment['Start']:.3f}s ({start_dt})")
-            print(f"    End: {segment['End']:.3f}s ({end_dt})")
+            print(f"    Start: {start_time:.3f}s ({start_dt})")
+            print(f"    End: {end_time:.3f}s ({end_dt})")
     else:
         print(f"No segments longer than {min_duration} seconds found")
     
