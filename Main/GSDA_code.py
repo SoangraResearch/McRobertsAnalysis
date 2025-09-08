@@ -22,7 +22,7 @@ def get_fields(data, curr_structure='data', rfields=None):
             rfields.append(new_path)
     return rfields
 
-def gsd_iluz(imu, time_vector=None, plot_results=False):
+def gsd_iluz(imu, time_vector=None, plot_results=False, force_walking = False):
     algorithm_target_fs = 100
     algorithm_output_fs = 100
 
@@ -39,8 +39,12 @@ def gsd_iluz(imu, time_vector=None, plot_results=False):
             WinS,
             OL,
             activity_thresh,
-            plot_results
+            plot_results,
+            force_walking = force_walking
         )
+
+        if force_walking:
+            gait_sequences_bool = np.ones(len(gait_sequences_bool), dtype=int)
 
         GSD = save_gsd_result(gait_sequences_bool, algorithm_output_fs, time_vector)
     except Exception as e:
@@ -163,7 +167,7 @@ from scipy.signal import firwin, lfilter
 from scipy.signal import convolve as conv
 from numpy.lib.stride_tricks import sliding_window_view
 
-def WBDet_Sine(imu, sample_rate, win_size, overlap, activity_thresh, plot_results=False):
+def WBDet_Sine(imu, sample_rate, win_size, overlap, activity_thresh, plot_results=False, force_walking = False):
     acc = imu[:, :3]
     v_acc = acc[:, 0]
     ap_acc = acc[:, 2]
@@ -182,18 +186,21 @@ def WBDet_Sine(imu, sample_rate, win_size, overlap, activity_thresh, plot_result
     v_conv = conv(v_acc - 1, template, mode='full')[len(template):]
     ap_conv = conv(ap_acc, template, mode='full')[len(template):]
 
-    # Buffer and activity thresholding
-    v_buf = sliding_window_view(v_conv, window_shape=win_size)[::(win_size - overlap)]
-    stds = np.std(v_buf, axis=1)
-    active_windows = np.where(stds > activity_thresh)[0]
+    if force_walking:
+        gait_bool = np.ones(len(v_acc), dtype=int)
+    else:
+        # Buffer and activity thresholding
+        v_buf = sliding_window_view(v_conv, window_shape=win_size)[::(win_size - overlap)]
+        stds = np.std(v_buf, axis=1)
+        active_windows = np.where(stds > activity_thresh)[0]
 
-    gait_bool = np.zeros(len(v_acc), dtype=int)
-    for win_idx in active_windows:
-        start = win_idx * (win_size - overlap)
-        end = start + win_size
-        if end > len(gait_bool):
-            continue
-        gait_bool[start:end] = 1  # Placeholder logic
+        gait_bool = np.zeros(len(v_acc), dtype=int)
+        for win_idx in active_windows:
+            start = win_idx * (win_size - overlap)
+            end = start + win_size
+            if end > len(gait_bool):
+                continue
+            gait_bool[start:end] = 1  # Placeholder logic
 
     if plot_results:
         import matplotlib.pyplot as plt

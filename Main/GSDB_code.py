@@ -250,18 +250,16 @@ def find_min_max(s, thr=None):
     
     return mi, ma
 
-def gsd_low_back_acc(imu_acc, fs, plot_results=False, time_vector = None):
+def gsd_low_back_acc(imu_acc, fs, plot_results=False, time_vector=None, force_walking=False):
     print("running gsd_low_back_acc")
     acc = imu_acc
     algorithm_target_fs = 40
     accN = np.linalg.norm(acc, axis=1)
-    print("accN calculated")
-    print(accN)
+    print(f"Original accN length: {len(accN)} samples at {fs}Hz = {len(accN)/fs:.2f} seconds")
 
     # resample accN from fs to 40 Hz
     accN40 = resamp_interp(accN, fs, algorithm_target_fs)
-    print("accN40")
-    print(accN40)
+    print(f"Resampled accN40 length: {len(accN40)} samples at 40Hz = {len(accN40)/40:.2f} seconds")
 
     accN_filt1 = signal.savgol_filter(accN40, 21, 7)
     accN_filt2 = signal.filtfilt([1, -1], [1, -0.9748], accN_filt1)
@@ -281,91 +279,104 @@ def gsd_low_back_acc(imu_acc, fs, plot_results=False, time_vector = None):
 
     sig_det_actv = accN_filt9
 
-    alarm, _ = hilbert_envelop(sig_det_actv, smooth_window=20, threshold_style=1, duration=algorithm_target_fs, gr=0)
+    # Check for force_walking early to skip detection but still process signal
+    if force_walking:
+        walk_label = np.ones(len(sig_det_actv), dtype=int)
+        GSD_Output = [{
+            'Start': 0,
+            'End': (len(sig_det_actv) - 1) / algorithm_target_fs,
+            'fs': fs
+        }]
+        print("Force walking true, GSD output: ")
+        print(f"GSD_output end: {(len(sig_det_actv) - 1) / algorithm_target_fs}")
+        print(f"walk_label shape: {walk_label.shape}, all ones: {np.all(walk_label == 1)}")
+    else:
+        # Original detection algorithm
+        alarm, _ = hilbert_envelop(sig_det_actv, smooth_window=20, threshold_style=1, duration=algorithm_target_fs, gr=0)
 
-    print("alarm")
-    print(alarm)
-    
-    walkLowBack = []
-    if np.any(alarm):
-        idx = groupfind(alarm > 0)
-        for j in range(idx.shape[0]):
-            if idx[j, 1] - idx[j, 0] <= 3 * algorithm_target_fs:
-                alarm[idx[j, 0]:idx[j, 1]] = 0
-            else:
-                walkLowBack.extend(sig_det_actv[idx[j, 0]:idx[j, 1]])
-        
-        if len(walkLowBack) > 0:  # Safety check for empty walkLowBack
-            walkLowBack = np.array(walkLowBack)
-            pksp, _ = signal.find_peaks(walkLowBack)
-            pksn, _ = signal.find_peaks(-walkLowBack)
+        print("alarm")
+        print(alarm)
+
+        walkLowBack = []
+        if np.any(alarm):
+            idx = groupfind(alarm > 0)
+            for j in range(idx.shape[0]):
+                if idx[j, 1] - idx[j, 0] <= 3 * algorithm_target_fs:
+                    alarm[idx[j, 0]:idx[j, 1]] = 0
+                else:
+                    walkLowBack.extend(sig_det_actv[idx[j, 0]:idx[j, 1]])
             
-            # Additional safety checks for empty peak arrays
-            pos_peaks = walkLowBack[pksp] if len(pksp) > 0 else np.array([])
-            neg_peaks = -walkLowBack[pksn] if len(pksn) > 0 else np.array([])
-            pks = np.concatenate((pos_peaks, neg_peaks)) if len(pos_peaks) > 0 or len(neg_peaks) > 0 else np.array([])
-            
-            if len(pks[pks > 0]) > 0:
-                th = np.percentile(pks[pks > 0], 5)
+            if len(walkLowBack) > 0:
+                walkLowBack = np.array(walkLowBack)
+                pksp, _ = signal.find_peaks(walkLowBack)
+                pksn, _ = signal.find_peaks(-walkLowBack)
+                
+                pos_peaks = walkLowBack[pksp] if len(pksp) > 0 else np.array([])
+                neg_peaks = -walkLowBack[pksn] if len(pksn) > 0 else np.array([])
+                pks = np.concatenate((pos_peaks, neg_peaks)) if len(pos_peaks) > 0 or len(neg_peaks) > 0 else np.array([])
+                
+                if len(pks[pks > 0]) > 0:
+                    th = np.percentile(pks[pks > 0], 5)
+                else:
+                    th = 0.15
+                f = sig_det_actv
             else:
-                th = 0.15  # Fallback threshold
-            f = sig_det_actv
+                th = 0.15
+                f = accN_filt4
         else:
-            th = 0.15  # Fallback if walkLowBack is empty
+            th = 0.15
             f = accN_filt4
-    else:
-        th = 0.15
-        f = accN_filt4
 
-    min_peaks, max_peaks = find_min_max(f, th)
-    
-    if len(max_peaks) == 0 and len(min_peaks) == 0:
-        return [], sig_det_actv, np.zeros(len(sig_det_actv), dtype=int)
-    
-    t1 = find_pulse_trains(max_peaks) if len(max_peaks) > 0 else []
-    t1 = [t for t in t1 if t['steps'] >= 4]
-    t2 = find_pulse_trains(min_peaks) if len(min_peaks) > 0 else []
-    t2 = [t for t in t2 if t['steps'] >= 4]
-    
-    t1_set = convert_w_to_set(t1)
-    t2_set = convert_w_to_set(t2)
-    t_final = intersect(t1_set, t2_set)
+        min_peaks, max_peaks = find_min_max(f, th)
+        
+        if len(max_peaks) == 0 and len(min_peaks) == 0:
+            walk_label = np.zeros(len(sig_det_actv), dtype=int)
+            GSD_Output = []
+        else:
+            t1 = find_pulse_trains(max_peaks) if len(max_peaks) > 0 else []
+            t1 = [t for t in t1 if t['steps'] >= 4]
+            t2 = find_pulse_trains(min_peaks) if len(min_peaks) > 0 else []
+            t2 = [t for t in t2 if t['steps'] >= 4]
+            
+            t1_set = convert_w_to_set(t1)
+            t2_set = convert_w_to_set(t2)
+            t_final = intersect(t1_set, t2_set)
 
-    if t_final.size == 0:
-        w = []
-        midswing = []
-    else:
-        w, midswing = pack_results(t_final, max_peaks)
-        if w:
-            w[0]['start'] = max(0, w[0]['start'])
-            w[-1]['end'] = min(len(sig_det_actv) - 1, w[-1]['end'])
+            if t_final.size == 0:
+                w = []
+                midswing = []
+            else:
+                w, midswing = pack_results(t_final, max_peaks)
+                if w:
+                    w[0]['start'] = max(0, w[0]['start'])
+                    w[-1]['end'] = min(len(sig_det_actv) - 1, w[-1]['end'])
 
-    w_new = [walk for walk in w if walk['steps'] >= 5]
+            w_new = [walk for walk in w if walk['steps'] >= 5]
 
-    walk_label = np.zeros(len(sig_det_actv), dtype=int)
-    for walk in w_new:
-        start_idx = max(0, walk['start'])
-        end_idx = min(len(sig_det_actv), walk['end'] + 1)
-        walk_label[start_idx:end_idx] = 1
+            walk_label = np.zeros(len(sig_det_actv), dtype=int)
+            for walk in w_new:
+                start_idx = max(0, walk['start'])
+                end_idx = min(len(sig_det_actv), walk['end'] + 1)
+                walk_label[start_idx:end_idx] = 1
 
-    ind_no_wk = groupfind(walk_label == 0)
-    for j in range(ind_no_wk.shape[0]):
-        if ind_no_wk[j, 1] - ind_no_wk[j, 0] <= 3 * algorithm_target_fs:
-            start_idx = max(0, ind_no_wk[j, 0])
-            end_idx = min(len(walk_label), ind_no_wk[j, 1])
-            walk_label[start_idx:end_idx] = 1
-    
-    GSD_Output = []
-    if np.any(walk_label == 1):
-        ind_wk = groupfind(walk_label == 1)
-        for j in range(ind_wk.shape[0]):
-            GSD_Output.append({
-                'Start': ind_wk[j, 0] / algorithm_target_fs,
-                'End': ind_wk[j, 1] / algorithm_target_fs,
-                'fs': fs
-            })
-    else:
-        print("No gait sequence(s) detected")
+            ind_no_wk = groupfind(walk_label == 0)
+            for j in range(ind_no_wk.shape[0]):
+                if ind_no_wk[j, 1] - ind_no_wk[j, 0] <= 3 * algorithm_target_fs:
+                    start_idx = max(0, ind_no_wk[j, 0])
+                    end_idx = min(len(walk_label), ind_no_wk[j, 1])
+                    walk_label[start_idx:end_idx] = 1
+            
+            GSD_Output = []
+            if np.any(walk_label == 1):
+                ind_wk = groupfind(walk_label == 1)
+                for j in range(ind_wk.shape[0]):
+                    GSD_Output.append({
+                        'Start': ind_wk[j, 0] / algorithm_target_fs,
+                        'End': ind_wk[j, 1] / algorithm_target_fs,
+                        'fs': fs
+                    })
+            else:
+                print("No gait sequence(s) detected")
 
     if plot_results:
         plt.plot(sig_det_actv)

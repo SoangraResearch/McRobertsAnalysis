@@ -34,23 +34,26 @@ def plot_GSDA(gait_bool, v_acc, plot_frame):
 def plot_GSDB(sig_det_actv, walk_label, plot_frame):
     for w in plot_frame.winfo_children():
         w.destroy()
-
+    
     # build the figure
     fig = Figure(figsize=(3.5, 3), dpi=100)
     ax = fig.add_subplot(111)
-
-    ax.plot(sig_det_actv, label='filtered accNorm')
-    ax.plot(walk_label, 'r', linewidth=2, label='Walking')
-    ax.set_xlabel('Samples (100Hz)')
+    
+    # Create time axis for proper scaling
+    time_axis = np.arange(len(sig_det_actv)) / 40.0  # 40Hz sampling rate
+    
+    ax.plot(time_axis, sig_det_actv, label='filtered accNorm')
+    ax.plot(time_axis, walk_label, 'r', linewidth=2, label='Walking')
+    ax.set_xlabel('Time (seconds)')
     ax.set_title("Gait Sequence Detection (GSDB)")
     ax.legend()
     fig.tight_layout()
-
+    
     # embed into Tk frame
     canvas = FigureCanvasTkAgg(fig, master=plot_frame)
     canvas.draw()
     canvas.get_tk_widget().pack(fill='both', expand=True)
-
+    
     return fig
 
 def plot_steps(GS, fs, acc_v, plot_frame):
