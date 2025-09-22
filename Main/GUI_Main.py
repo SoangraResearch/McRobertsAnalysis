@@ -591,20 +591,22 @@ def load_auto_analysis_file():
     auto_analysis_input_file = file_path
     label_var_auto_analysis.set("auto_analysis_input_file")
 
-    file_path = filedialog.askopenfilename(filetypes=[("CSV/JSON files", "*.csv *.json")])
     if not file_path:
         return
-    mobiliseD_directory_path = os.path.dirname(file_path)
-    mobiliseD_filename = os.path.splitext(os.path.basename(file_path))[0]
+    auto_analysis_directory_path = os.path.dirname(file_path)
+    auto_analysis_filename = os.path.splitext(os.path.basename(file_path))[0]
     try:
-        if file_path.endswith(".csv"):
+        if file_path.endswith(".OMX"):
             messagebox.showinfo("Loaded", f"Loaded file:\n{file_path}")
-            mobiliseD_file = file_path
-            mobilised_path_var.set(f"File loaded: {mobiliseD_filename}")
+            auto_analysis_file = file_path
+            auto_analysis_path_var.set(f"File loaded: {auto_analysis_filename}")
         else:
             raise ValueError("Unsupported file format")
     except Exception as e:
         messagebox.showerror("Load Error", str(e))
+
+def run_auto_analysis():
+    print("test")
 
 # -------------------------Tab 1 Select Data---------------------------------
 
@@ -722,10 +724,25 @@ label_frame.pack()
 for lbl in ["Healthy(GSDA)", "Patient(GSDB)"]:
     tk.Radiobutton(label_frame, text=lbl, variable=label_var_auto_analysis, value=lbl).pack(side="left", padx=20)
 
-run_auto_analysis_button = tk.Button(tab4, text="Run Auto Analysis", command=None)
+run_auto_analysis_button = tk.Button(tab4, text="Run Auto Analysis", command=run_auto_analysis)
 run_auto_analysis_button.pack(pady=10)
 
-tk.Label(tab4, text="Reading Data -> Splitting Data -> Sequence Detection -> Segment Selection -> Segment Analysis -> Output").pack(pady=(20,5))
+#progress text
+progress_text = tk.Text(tab4, height=1, borderwidth=0, highlightthickness=0, background=tab4.cget("bg"), wrap="none")
+progress_text.pack(pady=(20, 5), fill="x")
+
+bold_font = ("TkDefaultFont", 10, "bold")
+progress_text.tag_configure("bold", font=bold_font)
+
+progress_text.tag_configure("center", justify="center")
+
+progress_text.insert("end", "Reading Data", ("bold", "center"))
+progress_text.insert("end", " -> Splitting Data -> Sequence Detection -> Segment Selection -> Segment Analysis -> Output", "center")
+
+progress_text.tag_add("center", "1.0", "end")
+
+progress_text.config(state="disabled")
+progress_text.bind("<FocusIn>", lambda e: root.focus())
 
 # -------------------------Running the GUI---------------------------------
 root.mainloop()
