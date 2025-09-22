@@ -28,9 +28,11 @@ tab_control = ttk.Notebook(root)
 tab1 = tk.Frame(tab_control)
 tab2 = tk.Frame(tab_control)
 tab3 = tk.Frame(tab_control)
+tab4 = tk.Frame(tab_control)
 tab_control.add(tab1, text="Select Data")
 tab_control.add(tab2, text="Mobilise-D")
 tab_control.add(tab3, text="Ayush's Code")
+tab_control.add(tab4, text="Auto-Analysis (WIP)")
 
 tab_control.pack(expand=1, fill='both')
 
@@ -579,6 +581,31 @@ def save_all_ayush_code():
     except Exception as e:
         messagebox.showerror("Save Error", str(e))
               
+# -------------------------Tab 4 Methods---------------------------------
+def load_auto_analysis_file():
+    global auto_analysis_input_file
+    file_path = filedialog.askopenfilename(filetypes=[("OMX file", "*.OMX")])
+    if not file_path:
+        return
+    
+    auto_analysis_input_file = file_path
+    label_var_auto_analysis.set("auto_analysis_input_file")
+
+    file_path = filedialog.askopenfilename(filetypes=[("CSV/JSON files", "*.csv *.json")])
+    if not file_path:
+        return
+    mobiliseD_directory_path = os.path.dirname(file_path)
+    mobiliseD_filename = os.path.splitext(os.path.basename(file_path))[0]
+    try:
+        if file_path.endswith(".csv"):
+            messagebox.showinfo("Loaded", f"Loaded file:\n{file_path}")
+            mobiliseD_file = file_path
+            mobilised_path_var.set(f"File loaded: {mobiliseD_filename}")
+        else:
+            raise ValueError("Unsupported file format")
+    except Exception as e:
+        messagebox.showerror("Load Error", str(e))
+
 # -------------------------Tab 1 Select Data---------------------------------
 
 load_file_button = tk.Button(tab1, text="Load OMX File", command=load_file)
@@ -678,5 +705,27 @@ tk.Button(button_frame, text="Save All Linear Analysis Plots", command=lambda: s
 tk.Button(button_frame, text="Save All Non-Linear Analysis Plots", command=lambda: save_all_nonlinear_analysis_plots(True)).pack(side="left", padx=5)
 
 tk.Button(tab3, text="Save All", command=save_all_ayush_code).pack(pady=5)
+
+# -------------------------Tab 4 Auto Analysis---------------------------------
+load_file_button = tk.Button(tab4, text="Load OMX File", command=load_auto_analysis_file)
+load_file_button.pack(pady=10)
+
+auto_analysis_path_var = tk.StringVar(value="File loaded: (none)")
+auto_analysis_file_label = tk.Label(tab4, textvariable=auto_analysis_path_var)
+auto_analysis_file_label.pack()
+
+label_var_auto_analysis = tk.StringVar()
+label_var_auto_analysis.set("None")
+tk.Label(tab4, text="Select Type").pack(pady=(20, 5))
+label_frame = tk.Frame(tab4)
+label_frame.pack()
+for lbl in ["Healthy(GSDA)", "Patient(GSDB)"]:
+    tk.Radiobutton(label_frame, text=lbl, variable=label_var_auto_analysis, value=lbl).pack(side="left", padx=20)
+
+run_auto_analysis_button = tk.Button(tab4, text="Run Auto Analysis", command=None)
+run_auto_analysis_button.pack(pady=10)
+
+tk.Label(tab4, text="Reading Data -> Splitting Data -> Sequence Detection -> Segment Selection -> Segment Analysis -> Output").pack(pady=(20,5))
+
 # -------------------------Running the GUI---------------------------------
 root.mainloop()
