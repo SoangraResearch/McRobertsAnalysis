@@ -13,6 +13,7 @@ from Acceleration_Plot import PlotOMX
 from GSD_plots import plot_GSDA, plot_GSDB, plot_steps
 from Ayush_Analysis import linear_analysis, nonlinear_analysis
 from Ayush_Analysis_Plot import display_combined_plots, get_current_selected_plot
+from auto_analysis_progress import auto_analysis_progress
 
 #setting directory properly
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
@@ -606,7 +607,7 @@ def load_auto_analysis_file():
         messagebox.showerror("Load Error", str(e))
 
 def run_auto_analysis():
-    print("test")
+    progress_text.update_progress("Reading Data")
 
 # -------------------------Tab 1 Select Data---------------------------------
 
@@ -727,22 +728,8 @@ for lbl in ["Healthy(GSDA)", "Patient(GSDB)"]:
 run_auto_analysis_button = tk.Button(tab4, text="Run Auto Analysis", command=run_auto_analysis)
 run_auto_analysis_button.pack(pady=10)
 
-#progress text
-progress_text = tk.Text(tab4, height=1, borderwidth=0, highlightthickness=0, background=tab4.cget("bg"), wrap="none")
-progress_text.pack(pady=(20, 5), fill="x")
-
-bold_font = ("TkDefaultFont", 10, "bold")
-progress_text.tag_configure("bold", font=bold_font)
-
-progress_text.tag_configure("center", justify="center")
-
-progress_text.insert("end", "Reading Data", ("bold", "center"))
-progress_text.insert("end", " -> Splitting Data -> Sequence Detection -> Segment Selection -> Segment Analysis -> Output", "center")
-
-progress_text.tag_add("center", "1.0", "end")
-
-progress_text.config(state="disabled")
-progress_text.bind("<FocusIn>", lambda e: root.focus())
+progress_text = auto_analysis_progress(tab4, font_size=10)
+progress_text.clear() 
 
 # -------------------------Running the GUI---------------------------------
 root.mainloop()
