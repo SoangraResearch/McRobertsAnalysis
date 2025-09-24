@@ -51,6 +51,8 @@ file_stop_time_var = tk.StringVar()
 label_var = tk.StringVar()
 export_format_var = tk.StringVar()
 
+auto_analysis_file = "None"
+
 # -------------------------Tab 1 Methods---------------------------------
 def update_time_vars():
     if acceleration_plot is not None:
@@ -584,13 +586,12 @@ def save_all_ayush_code():
               
 # -------------------------Tab 4 Methods---------------------------------
 def load_auto_analysis_file():
-    global auto_analysis_input_file
+    global auto_analysis_file
     file_path = filedialog.askopenfilename(filetypes=[("OMX file", "*.OMX")])
     if not file_path:
         return
     
     auto_analysis_input_file = file_path
-    label_var_auto_analysis.set("auto_analysis_input_file")
 
     if not file_path:
         return
@@ -603,10 +604,21 @@ def load_auto_analysis_file():
             auto_analysis_path_var.set(f"File loaded: {auto_analysis_filename}")
         else:
             raise ValueError("Unsupported file format")
+            auto_analysis_input_file = "None"
     except Exception as e:
         messagebox.showerror("Load Error", str(e))
+        auto_analysis_input_file = "None"
 
 def run_auto_analysis():
+    global auto_analysis_input_file
+    if (auto_analysis_file == "None"):
+        messagebox.showerror("Error", "File not loaded")
+        return
+
+    if (label_var_auto_analysis.get() == "None"):
+        messagebox.showerror("Error", "GSD algorithm not set")
+        return
+
     progress_text.update_progress("Reading Data")
 
 # -------------------------Tab 1 Select Data---------------------------------
