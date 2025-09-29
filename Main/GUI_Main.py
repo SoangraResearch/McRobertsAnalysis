@@ -610,7 +610,7 @@ def load_auto_analysis_file():
         auto_analysis_input_file = "None"
 
 def run_auto_analysis():
-    global auto_analysis_input_file
+    global auto_analysis_file
     if (auto_analysis_file == "None"):
         messagebox.showerror("Error", "File not loaded")
         return
@@ -620,6 +620,18 @@ def run_auto_analysis():
         return
 
     progress_text.update_progress("Reading Data")
+
+    auto_analysis_data, filename = process_omx_file(auto_analysis_file)
+
+    # extract raw datenum timestamps
+    timestamps = auto_analysis_data['ACC'][:, 0]
+
+    # convert start & end
+    start_time = matlab_datenum_to_datetime(timestamps[0])
+    end_time = matlab_datenum_to_datetime(timestamps[-1])
+
+    print("Start:", start_time)
+    print("End:", end_time)
 
 # -------------------------Tab 1 Select Data---------------------------------
 
