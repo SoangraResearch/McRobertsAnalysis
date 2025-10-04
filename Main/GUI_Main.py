@@ -257,7 +257,7 @@ def process_GSD():
             imu_input = {"LowerBack": {"Acc": acc, "Gyr": np.zeros_like(acc), "Fs": {"Acc": fs}}}
             gsd_result, gait_bool_for_plot, v_acc_for_plot = gsd_iluz(imu_input, time_vector=original_time_array, plot_results=False, force_walking=force_data_as_walking.get())
             gsd_plot = plot_GSDA(gait_bool_for_plot, v_acc_for_plot, plot_left_GSD)
-            long_segments = filter_and_print_long_segments(gsd_result, original_time_array=original_time_array, min_duration=30, algorithm_type='GSDA')
+            long_segments = filter_and_print_long_segments(gsd_result, original_time_array=original_time_array, min_duration=30)
         elif label_var_MobiliseD.get() == "Patient(GSDB)":
             from GSDB_code import gsd_low_back_acc
             print("running GSDB")
