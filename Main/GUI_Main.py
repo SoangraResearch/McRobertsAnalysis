@@ -14,6 +14,7 @@ from GSD_plots import plot_GSDA, plot_GSDB, plot_steps
 from Ayush_Analysis import linear_analysis, nonlinear_analysis
 from Ayush_Analysis_Plot import display_combined_plots, get_current_selected_plot
 from auto_analysis_progress import auto_analysis_progress
+from Auto_analysis_code import split_data_by_day
 
 #setting directory properly
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
@@ -618,6 +619,8 @@ def run_auto_analysis():
     if (label_var_auto_analysis.get() == "None"):
         messagebox.showerror("Error", "GSD algorithm not set")
         return
+    
+    progress_text.clear()
 
     progress_text.update_progress("Reading Data")
 
@@ -633,6 +636,11 @@ def run_auto_analysis():
     print("Start:", start_time)
     print("End:", end_time)
 
+    progress_text.update_progress("Splitting Data")
+
+    data_chunks = split_data_by_day(auto_analysis_data, timestamps)
+    print("data chunks count: " + str(len(data_chunks)))
+    
 # -------------------------Tab 1 Select Data---------------------------------
 
 load_file_button = tk.Button(tab1, text="Load OMX File", command=load_file)
