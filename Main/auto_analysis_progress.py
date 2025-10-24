@@ -103,7 +103,9 @@ class auto_analysis_progress:
             except ValueError:
                 return
         self._apply_selection()
+        self.parent.update_idletasks()
 
     def clear(self):
         self._selected_index = None
         self._apply_selection()
+        self.parent.update_idletasks()
