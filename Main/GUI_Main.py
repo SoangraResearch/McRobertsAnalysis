@@ -11,6 +11,8 @@ from ICDA_code import step_detection, filter_and_print_long_segments
 from OMX_To_CSV import process_omx_file, matlab_datenum_to_datetime
 from Acceleration_Plot import PlotOMX
 from GSD_plots import plot_GSDA, plot_GSDB, plot_steps
+from GSDA_code import gsd_iluz
+from GSDB_code import gsd_low_back_acc
 from Ayush_Analysis import linear_analysis, nonlinear_analysis
 from Ayush_Analysis_Plot import display_combined_plots, get_current_selected_plot
 from auto_analysis_progress import auto_analysis_progress
@@ -254,13 +256,11 @@ def process_GSD():
         fs = 100
         print(label_var_MobiliseD.get())
         if label_var_MobiliseD.get() == "Healthy(GSDA)":
-            from GSDA_code import gsd_iluz
             imu_input = {"LowerBack": {"Acc": acc, "Gyr": np.zeros_like(acc), "Fs": {"Acc": fs}}}
             gsd_result, gait_bool_for_plot, v_acc_for_plot = gsd_iluz(imu_input, time_vector=original_time_array, plot_results=False, force_walking=force_data_as_walking.get())
             gsd_plot = plot_GSDA(gait_bool_for_plot, v_acc_for_plot, plot_left_GSD)
             long_segments = filter_and_print_long_segments(gsd_result, original_time_array=original_time_array, min_duration=30)
         elif label_var_MobiliseD.get() == "Patient(GSDB)":
-            from GSDB_code import gsd_low_back_acc
             print("running GSDB")
             gsd_result, sig_det_act_for_plot, walk_label_for_plot = gsd_low_back_acc(acc, fs, plot_results=False, time_vector=original_time_array, force_walking=force_data_as_walking.get())
             v_acc_for_plot = np.linalg.norm(acc, axis=1)
@@ -640,6 +640,27 @@ def run_auto_analysis():
 
     data_chunks = split_data_by_day(auto_analysis_data, timestamps)
     print("data chunks count: " + str(len(data_chunks)))
+
+    progress_text.update_progress("Sequence Detection")
+
+    #Running gsd algorithm
+    for chunk in data_chunks:
+        acc = chunk.iloc[:, 1:4].to_numpy()
+        time_col = chunk['Time'].to_numpy()
+        original_time_array = [matlab_datenum_to_datetime(t) for t in time_col]
+        fs = 100
+        if (label_var_auto_analysis).get() == "Healthy(GSDA)":
+            imu_input = {"LowerBack": {"Acc": acc, "Gyr": np.zeros_like(acc), "Fs": {"Acc": fs}}}
+            gsd_result, gait_bool_for_plot, v_acc_for_plot = gsd_iluz(imu_input, time_vector=original_time_array, plot_results=False, force_walking=False)
+        elif (label_var_auto_analysis).get() == "Patient(GSDB)":
+            gsd_result, sig_det_act_for_plot, walk_label_for_plot = gsd_low_back_acc(acc, fs, plot_results=False, time_vector=original_time_array, force_walking=force_data_as_walking.get())
+        else:
+            print("No data type selected!")
+        long_segments = filter_and_print_long_segments(gsd_result, original_time_array=original_time_array)
+        sd_result_df = pd.DataFrame(gsd_result)
+        step_result = step_detection(acc, gsd_result, fs, plot_results=False, original_time_array=original_time_array)
+
+    progress_text.update_progress("Segment Selection")
     
 # -------------------------Tab 1 Select Data---------------------------------
 
