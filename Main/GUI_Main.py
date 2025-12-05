@@ -629,13 +629,6 @@ def run_auto_analysis():
     # extract raw datenum timestamps
     timestamps = auto_analysis_data['ACC'][:, 0]
 
-    # convert start & end
-    start_time = matlab_datenum_to_datetime(timestamps[0])
-    end_time = matlab_datenum_to_datetime(timestamps[-1])
-
-    print("Start:", start_time)
-    print("End:", end_time)
-
     progress_text.update_progress("Splitting Data")
 
     data_chunks = split_data_by_day(auto_analysis_data, timestamps)
@@ -659,6 +652,7 @@ def run_auto_analysis():
         long_segments = filter_and_print_long_segments(gsd_result, original_time_array=original_time_array)
         sd_result_df = pd.DataFrame(gsd_result)
         step_result = step_detection(acc, gsd_result, fs, plot_results=False, original_time_array=original_time_array)
+        print("Long segments:", long_segments)
 
     progress_text.update_progress("Segment Selection")
     
