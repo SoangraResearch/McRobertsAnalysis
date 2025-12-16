@@ -421,6 +421,7 @@ def do_linear_analysis():
     global linear_df, linear_plots, nonlinear_plots
     linear_df, linear_plots = linear_analysis(ayush_code_file, plot_frame_ayush_code, assume_walking_var.get())
     load_save_plot_buttons()
+    messagebox.showinfo("Linear Analysis", f"Linear analysis complete")
 
     if(nonlinear_plots != None):
         display_combined_plots(linear_plots, nonlinear_plots, plot_frame_ayush_code)
@@ -430,6 +431,7 @@ def do_nonlinear_analysis():
     nonlinear_df, nonlinear_plots = nonlinear_analysis(ayush_code_file, plot_frame_ayush_code, assume_walking_var.get())
     print("nonlinear plots in main gui: " + str(len(nonlinear_plots)))
     load_save_plot_buttons()
+    messagebox.showinfo("Noninear Analysis", f"Nonlinear analysis complete")
 
     if(linear_plots != None):
         print("About to call display_combined_plots() from do_nonlinear_analysis()")
