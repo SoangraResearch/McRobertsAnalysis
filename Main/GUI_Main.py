@@ -18,6 +18,8 @@ from Ayush_Analysis_Plot import display_combined_plots, get_current_selected_plo
 from auto_analysis_progress import auto_analysis_progress
 from Auto_analysis_code import split_data_by_day
 
+from GUI_Tabs.Tab1Controller import Tab1Controller
+
 #setting directory properly
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
@@ -29,7 +31,10 @@ root.title("McRoberts Analysis")
 root.geometry("1000x600")
 
 tab_control = ttk.Notebook(root)
+
 tab1 = tk.Frame(tab_control)
+tab1_controller = Tab1Controller(tab1)
+
 tab2 = tk.Frame(tab_control)
 tab3 = tk.Frame(tab_control)
 tab4 = tk.Frame(tab_control)
@@ -57,168 +62,7 @@ export_format_var = tk.StringVar()
 auto_analysis_file = "None"
 
 # -------------------------Tab 1 Methods---------------------------------
-def update_time_vars():
-    if acceleration_plot is not None:
-        start_dt, stop_dt = acceleration_plot.get_current_bounds()
-        start_time_var.set(start_dt.strftime('%Y-%m-%d %H:%M:%S'))
-        stop_time_var.set(stop_dt.strftime('%Y-%m-%d %H:%M:%S'))
 
-def on_time_var_changed(*args):
-    if acceleration_plot is not None:
-        start_val = start_time_var.get()
-        stop_val = stop_time_var.get()
-
-        if not start_val or not stop_val:
-            return
-
-        start_dt = datetime.strptime(start_val, '%Y-%m-%d %H:%M:%S')
-        stop_dt = datetime.strptime(stop_val, '%Y-%m-%d %H:%M:%S')
-        
-        start_num = mdates.date2num(start_dt)
-        stop_num = mdates.date2num(stop_dt)
-
-        acceleration_plot.zoom_to_bounds(start_num, stop_num)
-
-def load_file():
-    global data, filename, acceleration_plot
-
-    file_path = filedialog.askopenfilename(filetypes=[("OMX file", "*.OMX")])
-    if not file_path:
-        return
-    
-    selected_file = file_path
-
-    data, filename = process_omx_file(selected_file)
-
-    acceleration_plot = PlotOMX(data, filename, plot_frame_OMX)
-    update_time_vars()
-
-    start_dt, stop_dt = acceleration_plot.get_current_bounds()
-    file_start_time_var.set(start_dt.strftime('%Y-%m-%d %H:%M:%S'))
-    file_stop_time_var.set(stop_dt.strftime('%Y-%m-%d %H:%M:%S'))
-
-    acceleration_plot.register_view_change_callback(update_time_vars)
-
-def load_time_entries():
-    # Outer frame to hold both pairs horizontally
-    time_frame = tk.Frame(tab1)
-    time_frame.pack(pady=10)
-
-    # Start time group
-    start_group = tk.Frame(time_frame)
-    start_group.pack(side="left", padx=40)
-
-    tk.Label(start_group, text="File Start Time:", width=32, anchor='center').pack()
-    tk.Entry(start_group, textvariable=file_start_time_var, state='readonly', width=20).pack()
-
-    # Stop time group
-    stop_group = tk.Frame(time_frame)
-    stop_group.pack(side="left", padx=40)
-
-    tk.Label(stop_group, text="File Stop Time:", width=32, anchor='center').pack()
-    tk.Entry(stop_group, textvariable=file_stop_time_var, state='readonly', width=20).pack()
-
-    # Outer frame to hold both start and stop time groups horizontally
-    time_frame = tk.Frame(tab1)
-    time_frame.pack(pady=10)
-
-    # Start time group
-    start_group = tk.Frame(time_frame)
-    start_group.pack(side="left", padx=40)
-
-    tk.Label(start_group, text="Start Time (YYYY-MM-DD HH:MM:SS):", width=32, anchor='w').pack()
-    start_entry = tk.Entry(start_group, textvariable=start_time_var)
-    start_entry.pack()
-
-    # Stop time group
-    stop_group = tk.Frame(time_frame)
-    stop_group.pack(side="left", padx=40)
-
-    tk.Label(stop_group, text="Stop Time (YYYY-MM-DD HH:MM:SS):", width=32, anchor='w').pack()
-    stop_entry = tk.Entry(stop_group, textvariable=stop_time_var)
-    stop_entry.pack()
-
-    start_time_var.trace_add("write", on_time_var_changed)
-    stop_time_var.trace_add("write", on_time_var_changed)
-
-def create_tab1_export_folder():
-    global new_filename, export_folder
-    safe_start = start_time_var.get().replace(":", "-").replace(" ", "_")
-    safe_stop = stop_time_var.get().replace(":", "-").replace(" ", "_")
-
-    new_filename = filename + "_from_" + safe_start + "_to_" + safe_stop
-
-    export_folder = os.path.join(os.getcwd(), "../Data/Output/" + filename + "/" + new_filename)
-    os.makedirs(export_folder, exist_ok=True)
-
-def export_csv():
-    global mobiliseD_file, new_filename, export_folder, mobiliseD_directory_path, mobiliseD_filename, ayush_code_file, ayush_code_directory_path, ayush_code_filename
-    create_tab1_export_folder()
-
-    output_path = filedialog.asksaveasfilename(
-        defaultextension=".csv",
-        filetypes=[("CSV files", "*.csv")],
-        initialdir=export_folder,
-        initialfile=new_filename,
-        title="Save CSV File"
-    )
-
-    if not output_path:
-        return False
-
-    starttime = datetime.strptime(start_time_var.get(), "%Y-%m-%d %H:%M:%S")
-    stoptime = datetime.strptime(stop_time_var.get(), "%Y-%m-%d %H:%M:%S")
-
-    filtered_rows = [row for row in data['ACC'] if starttime <= matlab_datenum_to_datetime(row[0]) <= stoptime]
-    total_rows = len(filtered_rows)
-    if total_rows == 0:
-        messagebox.showinfo("Info", "No data in the specified time range.")
-        return False
-
-    try:
-        with open(output_path, 'w', newline='') as f:
-            writer = csv.writer(f, delimiter=',')
-            writer.writerow(['Time', 'Ax', 'Ay', 'Az'])
-
-            last_reported_percent = 0
-            for i, row in enumerate(filtered_rows, start=1):
-                writer.writerow(row)
-                percent_complete = int(i / total_rows * 100)
-                if percent_complete // 10 > last_reported_percent // 10:
-                    last_reported_percent = percent_complete
-                    print(f"{(percent_complete // 10) * 10}% converted...")
-
-        messagebox.showinfo("Success", f"File saved to:\n{output_path}")
-    except Exception as e:
-        messagebox.showerror("Error", f"Failed to save file: {e}")
-        return False
-
-    mobiliseD_file = output_path
-    ayush_code_file = output_path
-    mobiliseD_filename = new_filename
-    ayush_code_filename = new_filename
-    mobiliseD_directory_path = export_folder
-    ayush_code_directory_path = export_folder
-    mobilised_path_var.set(f"File loaded: {new_filename}")
-    ayush_code_path_var.set(f"File loaded: {new_filename}")
-
-def export_acceleration_plot():
-    create_tab1_export_folder()
-
-    output_path=filedialog.asksaveasfilename(
-        defaultextension=".png",
-        filetypes=[("PNG Image", "*.png"), ("PDF File", "*.pdf"), ("SVG File", "*.svg")],
-        initialdir=export_folder,
-        initialfile=new_filename + "_acceleration_plot",
-        title="Save Acceleration Plot"
-    )
-
-    if output_path:
-        try:
-            acceleration_plot.fig.savefig(output_path, dpi=300)
-            messagebox.showinfo("Success", f"File saved to:\n{output_path}")
-        except Exception as e:
-            messagebox.showerror("Error", f"Failed to save file: {e}")
         
 # -------------------------Tab 2 Methods---------------------------------
 def load_mobiliseD_file():
@@ -660,23 +504,23 @@ def run_auto_analysis():
     
 # -------------------------Tab 1 Select Data---------------------------------
 
-load_file_button = tk.Button(tab1, text="Load OMX File", command=load_file)
+load_file_button = tk.Button(tab1, text="Load OMX File", command=lambda: tab1_controller.load_file(plot_frame_OMX))
 load_file_button.pack(pady=10)
 
 plot_frame_OMX = tk.Frame(tab1, height=350)
 plot_frame_OMX.pack_propagate(False)
 
-load_time_entries()
+tab1_controller.create_time_labels()
 
 plot_frame_OMX.pack(fill="both", expand=True)
 
 button_frame = tk.Frame(tab1)
 button_frame.pack(pady=10)
 
-Export_Button = tk.Button(button_frame, text="Export To CSV", command=export_csv)
+Export_Button = tk.Button(button_frame, text="Export To CSV", command=lambda: tab1_controller.export_csv())
 Export_Button.pack(side="left", padx=5)
 
-Export_Button = tk.Button(button_frame, text="Export Plot", command=export_acceleration_plot)
+Export_Button = tk.Button(button_frame, text="Export Plot", command=lambda: tab1_controller.export_acceleration_plot())
 Export_Button.pack(side="left", padx=5)
 
 # -------------------------Tab 2 Mobilise D---------------------------------

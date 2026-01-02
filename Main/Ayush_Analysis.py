@@ -56,7 +56,7 @@ def linear_analysis(filename, plot_frame, assume_walking=False):
     print("RMS of vm_bout:", np.sqrt(np.mean(vm_bout**2)))
 
     # parameters for find walking function
-    min_amp = 0.3 # amplitude threshold (in g ) #TODO: adjust min_amp?
+    min_amp = 0.3 # amplitude threshold (in g ) 
     T = 3 # minimum walking duration (in seconds)
     delta = 20 #maximum difference between consecutive peaks (in multiplication of 0.05Hz)
     alpha = 1.6 #maximum ratio between dominant peak below and within step frequency range
