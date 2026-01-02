@@ -19,6 +19,7 @@ from auto_analysis_progress import auto_analysis_progress
 from Auto_analysis_code import split_data_by_day
 
 from GUI_Tabs.Tab1Controller import Tab1Controller
+from GUI_Tabs.Tab2Controller import Tab2Controller
 
 #setting directory properly
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
@@ -34,12 +35,14 @@ tab_control = ttk.Notebook(root)
 
 tab1 = tk.Frame(tab_control)
 tab1_controller = Tab1Controller(tab1)
+tab_control.add(tab1, text="Select Data")
 
 tab2 = tk.Frame(tab_control)
+tab2_controller = Tab2Controller(tab2)
+tab_control.add(tab2, text="Mobilise-D")
+
 tab3 = tk.Frame(tab_control)
 tab4 = tk.Frame(tab_control)
-tab_control.add(tab1, text="Select Data")
-tab_control.add(tab2, text="Mobilise-D")
 tab_control.add(tab3, text="Ayush's Code")
 tab_control.add(tab4, text="Auto-Analysis (WIP)")
 
@@ -63,24 +66,28 @@ auto_analysis_file = "None"
 
 # -------------------------Tab 1 Methods---------------------------------
 
+def export_csv():
+    tab1_controller.export_csv()
+    mobilised_path_var.set(f"File loaded: {tab1_controller.export_filename}")
+    ayush_code_path_var.set(f"File loaded: {tab1_controller.export_filename}")
         
 # -------------------------Tab 2 Methods---------------------------------
-def load_mobiliseD_file():
-    global mobiliseD_file, mobiliseD_directory_path, mobiliseD_filename
-    file_path = filedialog.askopenfilename(filetypes=[("CSV/JSON files", "*.csv *.json")])
-    if not file_path:
-        return
-    mobiliseD_directory_path = os.path.dirname(file_path)
-    mobiliseD_filename = os.path.splitext(os.path.basename(file_path))[0]
-    try:
-        if file_path.endswith(".csv"):
-            messagebox.showinfo("Loaded", f"Loaded file:\n{file_path}")
-            mobiliseD_file = file_path
-            mobilised_path_var.set(f"File loaded: {mobiliseD_filename}")
-        else:
-            raise ValueError("Unsupported file format")
-    except Exception as e:
-        messagebox.showerror("Load Error", str(e))
+# def load_mobiliseD_file():
+#     global mobiliseD_file, mobiliseD_directory_path, mobiliseD_filename
+#     file_path = filedialog.askopenfilename(filetypes=[("CSV/JSON files", "*.csv *.json")])
+#     if not file_path:
+#         return
+#     mobiliseD_directory_path = os.path.dirname(file_path)
+#     mobiliseD_filename = os.path.splitext(os.path.basename(file_path))[0]
+#     try:
+#         if file_path.endswith(".csv"):
+#             messagebox.showinfo("Loaded", f"Loaded file:\n{file_path}")
+#             mobiliseD_file = file_path
+#             mobilised_path_var.set(f"File loaded: {mobiliseD_filename}")
+#         else:
+#             raise ValueError("Unsupported file format")
+#     except Exception as e:
+#         messagebox.showerror("Load Error", str(e))
 
 def convert_mobiliseD_file_to_df():
     global mobiliseD_file, mobiliseD_df
@@ -517,7 +524,7 @@ plot_frame_OMX.pack(fill="both", expand=True)
 button_frame = tk.Frame(tab1)
 button_frame.pack(pady=10)
 
-Export_Button = tk.Button(button_frame, text="Export To CSV", command=lambda: tab1_controller.export_csv())
+Export_Button = tk.Button(button_frame, text="Export To CSV", command=lambda: export_csv())
 Export_Button.pack(side="left", padx=5)
 
 Export_Button = tk.Button(button_frame, text="Export Plot", command=lambda: tab1_controller.export_acceleration_plot())
@@ -525,7 +532,7 @@ Export_Button.pack(side="left", padx=5)
 
 # -------------------------Tab 2 Mobilise D---------------------------------
 
-tk.Button(tab2, text="Load CSV File", command=load_mobiliseD_file).pack(pady=10)
+tk.Button(tab2, text="Load CSV File", command=lambda: tab2_controller.load_file(mobilised_path_var)).pack(pady=10)
 
 mobilised_path_var = tk.StringVar(value="File loaded: (none)")
 MobiliseD_file_label = tk.Label(tab2, textvariable=mobilised_path_var)

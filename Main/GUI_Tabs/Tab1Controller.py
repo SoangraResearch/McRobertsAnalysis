@@ -96,8 +96,6 @@ class Tab1Controller:
         # ayush_code_filename = self.export_filename
         # mobiliseD_directory_path = self.export_folder
         # ayush_code_directory_path = self.export_folder
-        # # mobilised_path_var.set(f"File loaded: {new_filename}")
-        # # ayush_code_path_var.set(f"File loaded: {new_filename}")
 
     def export_acceleration_plot(self):
         self._create_tab1_export_folder()
