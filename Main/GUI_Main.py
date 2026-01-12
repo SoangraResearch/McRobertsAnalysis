@@ -70,6 +70,7 @@ auto_analysis_file = "None"
 def export_csv():
     tab1_controller.export_csv()
     mobilised_path_var.set(f"File loaded: {tab1_controller.export_filename}")
+    tab2_controller.set_file(os.path.join(tab1_controller.export_folder, tab1_controller.export_filename + ".csv"))
     ayush_code_path_var.set(f"File loaded: {tab1_controller.export_filename}")
         
 # -------------------------Tab 2 Methods---------------------------------

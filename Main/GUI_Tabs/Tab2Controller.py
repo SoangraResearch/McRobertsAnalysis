@@ -42,9 +42,7 @@ class Tab2Controller:
             if file_path.endswith(".csv"):
                 messagebox.showinfo("Loaded", f"Loaded file:\n{file_path}")
 
-                self.file = file_path
-                self.directory_path = os.path.dirname(file_path)
-                self.filename = os.path.splitext(os.path.basename(file_path))[0]
+                self.set_file(file_path)
         
                 file_path = (f"File loaded: {self.filename}")
                 return file_path
@@ -53,6 +51,15 @@ class Tab2Controller:
         except Exception as e:
             messagebox.showerror("Load Error", str(e))
             return "None"
+        
+    def set_file(self, file_path):
+        print(f"DEBUG: Attempting to set file to: {file_path}")
+        print(f"DEBUG: File exists: {os.path.exists(file_path)}")
+        print(f"DEBUG: Is file: {os.path.isfile(file_path)}")
+        
+        self.file = file_path
+        self.directory_path = os.path.dirname(file_path)
+        self.filename = os.path.splitext(os.path.basename(file_path))[0]
 
     def process_GSD(self, GSDType, force_walking, left_GSD_frame, right_GSD_frame):  
         self._convert_mobiliseD_file_to_df()
