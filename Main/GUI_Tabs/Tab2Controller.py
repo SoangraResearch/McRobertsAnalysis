@@ -53,10 +53,6 @@ class Tab2Controller:
             return "None"
         
     def set_file(self, file_path):
-        print(f"DEBUG: Attempting to set file to: {file_path}")
-        print(f"DEBUG: File exists: {os.path.exists(file_path)}")
-        print(f"DEBUG: Is file: {os.path.isfile(file_path)}")
-        
         self.file = file_path
         self.directory_path = os.path.dirname(file_path)
         self.filename = os.path.splitext(os.path.basename(file_path))[0]
@@ -74,24 +70,13 @@ class Tab2Controller:
             original_time_array = [matlab_datenum_to_datetime(t) for t in time_col]
             fs = 100 #100 is proper amount for a mcroberts sensor
 
-            print(GSDType)
             if GSDType == "Healthy(GSDA)":
                 gsd_result, v_acc_for_plot = self._run_GSDA(acc, fs, original_time_array)
-                # imu_input = {"LowerBack": {"Acc": acc, "Gyr": np.zeros_like(acc), "Fs": {"Acc": fs}}}
-                # gsd_result, gait_bool_for_plot, v_acc_for_plot = gsd_iluz(imu_input, time_vector=original_time_array, plot_results=False, force_walking=force_data_as_walking.get())
-                # gsd_plot = plot_GSDA(gait_bool_for_plot, v_acc_for_plot, plot_left_GSD)
-                # long_segments = filter_and_print_long_segments(gsd_result, original_time_array=original_time_array, min_duration=30)
             elif GSDType == "Patient(GSDB)":
                 gsd_result, v_acc_for_plot = self._run_GSDB(acc, fs, original_time_array)
-                # print("running GSDB")
-                # gsd_result, sig_det_act_for_plot, walk_label_for_plot = gsd_low_back_acc(acc, fs, plot_results=False, time_vector=original_time_array, force_walking=force_data_as_walking.get())
-                # v_acc_for_plot = np.linalg.norm(acc, axis=1)
-                # print("GSDB calculated")
-                # gsd_plot = plot_GSDB(sig_det_act_for_plot, walk_label_for_plot, plot_left_GSD)
-                # print("GSDB plotted")
-                # long_segments = filter_and_print_long_segments(gsd_result, original_time_array=original_time_array)
             else:
                 gsd_result = -1
+
             self.sd_result_df = pd.DataFrame(gsd_result)
             step_result = step_detection(acc, gsd_result, fs, plot_results=False, original_time_array=original_time_array)
             self.step_result_df = pd.DataFrame(step_result)
@@ -101,98 +86,68 @@ class Tab2Controller:
             messagebox.showerror("Error", str(e))
 
     def save_GSD_results(self, open_prompt_window):
-        #self.create_export_folder()
-
         try:
             if self.sd_result_df is None:
                 messagebox.showerror("Error", "No GSD result to save.")
                 return
             if open_prompt_window:
                 ouput_path = self._get_csv_output_path("_GSD_results", "Save GSD results")
-                # output_path=filedialog.asksaveasfilename(
-                #     defaultextension=".csv",
-                #     filetypes=[("CSV files", "*.csv")],
-                #     initialdir=self.export_folder,
-                #     initialfile=self.filename + "_GSD_results",
-                #     title="Save GSD results"
-                # )
                 if not output_path:
                     return False
             else:
                 output_path = os.path.join(self.directory_path, self.filename + "_GSD_results.csv")
+
             self.sd_result_df.to_csv(output_path, index=False)
             messagebox.showinfo("Saved", f"GSD result saved to: {output_path}")
         except Exception as e:
             messagebox.showerror("Save Error", str(e))
 
     def save_GSD_plot(self, open_prompt_window):
-        #self.create_export_folder()
         try:
             if self.gsd_plot is None:
                 messagebox.showerror("Error", "No GSD plot to save.")
                 return
             if open_prompt_window:
                 output_path = self._get_plot_output_path("_GSD_plot", "Save GSD plot")
-                # output_path=filedialog.asksaveasfilename(
-                #     defaultextension=".png",
-                #     filetypes=[("PNG Image", "*.png"), ("PDF File", "*.pdf"), ("SVG File", "*.svg")],
-                #     initialdir=self.export_folder,
-                #     initialfile=self.filename + "_GSD_plot",
-                #     title="Save GSD plot"
-                # )
                 if not output_path:
                     return False
             else:
                 output_path = os.path.join(self.directory_path, self.filename + "_GSD_plot.png")
+
             self.gsd_plot.savefig(output_path, dpi=300)
             messagebox.showinfo("Saved", f"GSD plot saved to: {output_path}")
         except Exception as e:
             messagebox.showerror("Save Error", str(e))
 
     def save_step_counts(self, open_prompt_window):
-        #self.create_tab2_export_folder()
-
         try:
             if self.step_result_df is None:
                 messagebox.showerror("Error", "No step counts to save.")
                 return
             if open_prompt_window:
                 output_path = self._get_csv_output_path("_step_counts", "Save Step Counts")
-                # output_path=filedialog.asksaveasfilename(
-                #     defaultextension=".csv",
-                #     filetypes=[("CSV files", "*.csv")],
-                #     initialdir=self.export_folder,
-                #     initialfile=self.filename + "_step_counts",
-                #     title="Save step counts"
-                # )
                 if not output_path:
                     return False
             else:
                 output_path = os.path.join(self.directory_path, self.filename + "_step_counts.csv")
+
             self.step_result_df.to_csv(output_path, index=False)
             messagebox.showinfo("Saved", f"step counts saved to: {output_path}")
         except Exception as e:
             messagebox.showerror("Save Error", str(e))
 
     def save_steps_plot(self, open_prompt_window):
-        #create_tab2_export_folder()
         try:
             if self.steps_plot is None:
                 messagebox.showerror("Error", "No steps plot to save.")
                 return
             if open_prompt_window:
                 output_path = self._get_plot_output_path("_steps_plot", "Save Steps Plot")
-                # output_path=filedialog.asksaveasfilename(
-                #     defaultextension=".png",
-                #     filetypes=[("PNG Image", "*.png"), ("PDF File", "*.pdf"), ("SVG File", "*.svg")],
-                #     initialdir=export_folder,
-                #     initialfile=mobiliseD_filename + "_steps_plot",
-                #     title="Save steps plot"
-                # )
                 if not output_path:
                     return False
             else:
                 output_path = os.path.join(self.directory_path, self.filename + "_steps_plot.png")
+
             self.steps_plot.savefig(output_path, dpi=300)
             messagebox.showinfo("Saved", f"steps plot saved to: {output_path}")
         except Exception as e:
@@ -228,9 +183,6 @@ class Tab2Controller:
         self.gsd_plot = plot_GSDB(sig_det_act_for_plot, walk_label_for_plot, self.left_frame)
         long_segments = filter_and_print_long_segments(gsd_result, original_time_array=original_time_array)
         return gsd_result, v_acc_for_plot
-    
-    def _create_export_folder(self):
-        os.makedirs(self.directory_path, exist_ok=True)
 
     def _get_csv_output_path(self, file_end, output_title):
         output_path = filedialog.asksaveasfilename(

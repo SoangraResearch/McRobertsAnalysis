@@ -90,11 +90,8 @@ class Tab1Controller:
             messagebox.showerror("Error", f"Failed to save file: {e}")
             return False
 
-        # mobiliseD_file = output_path
         # ayush_code_file = output_path
-        # mobiliseD_filename = self.export_filename
         # ayush_code_filename = self.export_filename
-        # mobiliseD_directory_path = self.export_folder
         # ayush_code_directory_path = self.export_folder
 
     def export_acceleration_plot(self):
