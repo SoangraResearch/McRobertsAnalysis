@@ -52,6 +52,7 @@ plot_frame_OMX = None
 acceleration_plot = None
 mobiliseD_file = None
 mobiliseD_directory_path = None
+mobilised_path_var = tk.StringVar()
 linear_plots = None
 nonlinear_plots = None
 exported_csv_path = "None"
@@ -72,6 +73,9 @@ def export_csv():
     ayush_code_path_var.set(f"File loaded: {tab1_controller.export_filename}")
         
 # -------------------------Tab 2 Methods---------------------------------
+def load_mobiliseD_file():
+    mobilised_path_var.set(tab2_controller.load_file())
+
 # def load_mobiliseD_file():
 #     global mobiliseD_file, mobiliseD_directory_path, mobiliseD_filename
 #     file_path = filedialog.askopenfilename(filetypes=[("CSV/JSON files", "*.csv *.json")])
@@ -89,154 +93,154 @@ def export_csv():
 #     except Exception as e:
 #         messagebox.showerror("Load Error", str(e))
 
-def convert_mobiliseD_file_to_df():
-    global mobiliseD_file, mobiliseD_df
-    try:
-        mobiliseD_df = pd.read_csv(mobiliseD_file)
-    except Exception as e:
-        messagebox.showerror("Load Error", str(e))
+# def convert_mobiliseD_file_to_df():
+#     global mobiliseD_file, mobiliseD_df
+#     try:
+#         mobiliseD_df = pd.read_csv(mobiliseD_file)
+#     except Exception as e:
+#         messagebox.showerror("Load Error", str(e))
 
-def process_GSD():
-    global mobiliseD_df, gsd_result, sd_result_df, gsd_plot, step_result_df, steps_plot
-    convert_mobiliseD_file_to_df()
+# def process_GSD():
+#     global mobiliseD_df, gsd_result, sd_result_df, gsd_plot, step_result_df, steps_plot
+#     convert_mobiliseD_file_to_df()
 
-    try:
-        acc = mobiliseD_df.iloc[:, 1:4].to_numpy()
-        time_col = mobiliseD_df['Time'].to_numpy()
-        original_time_array = [matlab_datenum_to_datetime(t) for t in time_col]
-        fs = 100
-        print(label_var_MobiliseD.get())
-        if label_var_MobiliseD.get() == "Healthy(GSDA)":
-            imu_input = {"LowerBack": {"Acc": acc, "Gyr": np.zeros_like(acc), "Fs": {"Acc": fs}}}
-            gsd_result, gait_bool_for_plot, v_acc_for_plot = gsd_iluz(imu_input, time_vector=original_time_array, plot_results=False, force_walking=force_data_as_walking.get())
-            gsd_plot = plot_GSDA(gait_bool_for_plot, v_acc_for_plot, plot_left_GSD)
-            long_segments = filter_and_print_long_segments(gsd_result, original_time_array=original_time_array, min_duration=30)
-        elif label_var_MobiliseD.get() == "Patient(GSDB)":
-            print("running GSDB")
-            gsd_result, sig_det_act_for_plot, walk_label_for_plot = gsd_low_back_acc(acc, fs, plot_results=False, time_vector=original_time_array, force_walking=force_data_as_walking.get())
-            v_acc_for_plot = np.linalg.norm(acc, axis=1)
-            print("GSDB calculated")
-            gsd_plot = plot_GSDB(sig_det_act_for_plot, walk_label_for_plot, plot_left_GSD)
-            print("GSDB plotted")
-            long_segments = filter_and_print_long_segments(gsd_result, original_time_array=original_time_array)
-        else:
-            gsd_result = -1
-        sd_result_df = pd.DataFrame(gsd_result)
-        step_result = step_detection(acc, gsd_result, fs, plot_results=False, original_time_array=original_time_array)
-        step_result_df = pd.DataFrame(gsd_result)
-        steps_plot = plot_steps(gsd_result, fs, v_acc_for_plot, plot_right_GSD)
-        messagebox.showinfo("GSD Result", f"Gait sequences found: {len(gsd_result)}")
-    except Exception as e:
-        messagebox.showerror("Error", str(e))
+#     try:
+#         acc = mobiliseD_df.iloc[:, 1:4].to_numpy()
+#         time_col = mobiliseD_df['Time'].to_numpy()
+#         original_time_array = [matlab_datenum_to_datetime(t) for t in time_col]
+#         fs = 100
+#         print(label_var_MobiliseD.get())
+#         if label_var_MobiliseD.get() == "Healthy(GSDA)":
+#             imu_input = {"LowerBack": {"Acc": acc, "Gyr": np.zeros_like(acc), "Fs": {"Acc": fs}}}
+#             gsd_result, gait_bool_for_plot, v_acc_for_plot = gsd_iluz(imu_input, time_vector=original_time_array, plot_results=False, force_walking=force_data_as_walking.get())
+#             gsd_plot = plot_GSDA(gait_bool_for_plot, v_acc_for_plot, plot_left_GSD)
+#             long_segments = filter_and_print_long_segments(gsd_result, original_time_array=original_time_array, min_duration=30)
+#         elif label_var_MobiliseD.get() == "Patient(GSDB)":
+#             print("running GSDB")
+#             gsd_result, sig_det_act_for_plot, walk_label_for_plot = gsd_low_back_acc(acc, fs, plot_results=False, time_vector=original_time_array, force_walking=force_data_as_walking.get())
+#             v_acc_for_plot = np.linalg.norm(acc, axis=1)
+#             print("GSDB calculated")
+#             gsd_plot = plot_GSDB(sig_det_act_for_plot, walk_label_for_plot, plot_left_GSD)
+#             print("GSDB plotted")
+#             long_segments = filter_and_print_long_segments(gsd_result, original_time_array=original_time_array)
+#         else:
+#             gsd_result = -1
+#         sd_result_df = pd.DataFrame(gsd_result)
+#         step_result = step_detection(acc, gsd_result, fs, plot_results=False, original_time_array=original_time_array)
+#         step_result_df = pd.DataFrame(gsd_result)
+#         steps_plot = plot_steps(gsd_result, fs, v_acc_for_plot, plot_right_GSD)
+#         messagebox.showinfo("GSD Result", f"Gait sequences found: {len(gsd_result)}")
+#     except Exception as e:
+#         messagebox.showerror("Error", str(e))
 
-def create_tab2_export_folder():
-    global export_folder, mobiliseD_directory_path
+# def create_tab2_export_folder():
+#     global export_folder, mobiliseD_directory_path
 
-    export_folder = mobiliseD_directory_path
-    os.makedirs(export_folder, exist_ok=True)
+#     export_folder = mobiliseD_directory_path
+#     os.makedirs(export_folder, exist_ok=True)
     
-def save_GSD_results(open_prompt_window):
-    create_tab2_export_folder()
+# def save_GSD_results(open_prompt_window):
+#     create_tab2_export_folder()
 
-    try:
-        if sd_result_df is None:
-            messagebox.showerror("Error", "No GSD result to save.")
-            return
-        if open_prompt_window:
-            output_path=filedialog.asksaveasfilename(
-                defaultextension=".csv",
-                filetypes=[("CSV files", "*.csv")],
-                initialdir=export_folder,
-                initialfile=mobiliseD_filename + "_GSD_results",
-                title="Save GSD results"
-            )
-            if not output_path:
-                return False
-        else:
-            output_path = os.path.join(export_folder, mobiliseD_filename + "_GSD_results.csv")
-        sd_result_df.to_csv(output_path, index=False)
-        messagebox.showinfo("Saved", f"GSD result saved to: {output_path}")
-    except Exception as e:
-        messagebox.showerror("Save Error", str(e))
+#     try:
+#         if sd_result_df is None:
+#             messagebox.showerror("Error", "No GSD result to save.")
+#             return
+#         if open_prompt_window:
+#             output_path=filedialog.asksaveasfilename(
+#                 defaultextension=".csv",
+#                 filetypes=[("CSV files", "*.csv")],
+#                 initialdir=export_folder,
+#                 initialfile=mobiliseD_filename + "_GSD_results",
+#                 title="Save GSD results"
+#             )
+#             if not output_path:
+#                 return False
+#         else:
+#             output_path = os.path.join(export_folder, mobiliseD_filename + "_GSD_results.csv")
+#         sd_result_df.to_csv(output_path, index=False)
+#         messagebox.showinfo("Saved", f"GSD result saved to: {output_path}")
+#     except Exception as e:
+#         messagebox.showerror("Save Error", str(e))
 
-def save_GSD_plot(open_prompt_window):
-    create_tab2_export_folder()
-    try:
-        if gsd_plot is None:
-            messagebox.showerror("Error", "No GSD plot to save.")
-            return
-        if open_prompt_window:
-            output_path=filedialog.asksaveasfilename(
-                defaultextension=".png",
-                filetypes=[("PNG Image", "*.png"), ("PDF File", "*.pdf"), ("SVG File", "*.svg")],
-                initialdir=export_folder,
-                initialfile=mobiliseD_filename + "_GSD_plot",
-                title="Save GSD plot"
-            )
-            if not output_path:
-                return False
-        else:
-            output_path = os.path.join(export_folder, mobiliseD_filename + "_GSD_plot.png")
-        gsd_plot.savefig(output_path, dpi=300)
-        messagebox.showinfo("Saved", f"GSD plot saved to: {output_path}")
-    except Exception as e:
-        messagebox.showerror("Save Error", str(e))
+# def save_GSD_plot(open_prompt_window):
+#     create_tab2_export_folder()
+#     try:
+#         if gsd_plot is None:
+#             messagebox.showerror("Error", "No GSD plot to save.")
+#             return
+#         if open_prompt_window:
+#             output_path=filedialog.asksaveasfilename(
+#                 defaultextension=".png",
+#                 filetypes=[("PNG Image", "*.png"), ("PDF File", "*.pdf"), ("SVG File", "*.svg")],
+#                 initialdir=export_folder,
+#                 initialfile=mobiliseD_filename + "_GSD_plot",
+#                 title="Save GSD plot"
+#             )
+#             if not output_path:
+#                 return False
+#         else:
+#             output_path = os.path.join(export_folder, mobiliseD_filename + "_GSD_plot.png")
+#         gsd_plot.savefig(output_path, dpi=300)
+#         messagebox.showinfo("Saved", f"GSD plot saved to: {output_path}")
+#     except Exception as e:
+#         messagebox.showerror("Save Error", str(e))
 
-def save_step_counts(open_prompt_window):
-    create_tab2_export_folder()
+# def save_step_counts(open_prompt_window):
+#     create_tab2_export_folder()
 
-    try:
-        if step_result_df is None:
-            messagebox.showerror("Error", "No step counts to save.")
-            return
-        if open_prompt_window:
-            output_path=filedialog.asksaveasfilename(
-                defaultextension=".csv",
-                filetypes=[("CSV files", "*.csv")],
-                initialdir=export_folder,
-                initialfile=mobiliseD_filename + "_step_counts",
-                title="Save step counts"
-            )
-            if not output_path:
-                return False
-        else:
-            output_path = os.path.join(export_folder, mobiliseD_filename + "_step_counts.csv")
-        step_result_df.to_csv(output_path, index=False)
-        messagebox.showinfo("Saved", f"step counts saved to: {output_path}")
-    except Exception as e:
-        messagebox.showerror("Save Error", str(e))
+#     try:
+#         if step_result_df is None:
+#             messagebox.showerror("Error", "No step counts to save.")
+#             return
+#         if open_prompt_window:
+#             output_path=filedialog.asksaveasfilename(
+#                 defaultextension=".csv",
+#                 filetypes=[("CSV files", "*.csv")],
+#                 initialdir=export_folder,
+#                 initialfile=mobiliseD_filename + "_step_counts",
+#                 title="Save step counts"
+#             )
+#             if not output_path:
+#                 return False
+#         else:
+#             output_path = os.path.join(export_folder, mobiliseD_filename + "_step_counts.csv")
+#         step_result_df.to_csv(output_path, index=False)
+#         messagebox.showinfo("Saved", f"step counts saved to: {output_path}")
+#     except Exception as e:
+#         messagebox.showerror("Save Error", str(e))
 
-def save_steps_plot(open_prompt_window):
-    create_tab2_export_folder()
-    try:
-        if steps_plot is None:
-            messagebox.showerror("Error", "No steps plot to save.")
-            return
-        if open_prompt_window:
-            output_path=filedialog.asksaveasfilename(
-                defaultextension=".png",
-                filetypes=[("PNG Image", "*.png"), ("PDF File", "*.pdf"), ("SVG File", "*.svg")],
-                initialdir=export_folder,
-                initialfile=mobiliseD_filename + "_steps_plot",
-                title="Save steps plot"
-            )
-            if not output_path:
-                return False
-        else:
-            output_path = os.path.join(export_folder, mobiliseD_filename + "_steps_plot.png")
-        steps_plot.savefig(output_path, dpi=300)
-        messagebox.showinfo("Saved", f"steps plot saved to: {output_path}")
-    except Exception as e:
-        messagebox.showerror("Save Error", str(e))
+# def save_steps_plot(open_prompt_window):
+#     create_tab2_export_folder()
+#     try:
+#         if steps_plot is None:
+#             messagebox.showerror("Error", "No steps plot to save.")
+#             return
+#         if open_prompt_window:
+#             output_path=filedialog.asksaveasfilename(
+#                 defaultextension=".png",
+#                 filetypes=[("PNG Image", "*.png"), ("PDF File", "*.pdf"), ("SVG File", "*.svg")],
+#                 initialdir=export_folder,
+#                 initialfile=mobiliseD_filename + "_steps_plot",
+#                 title="Save steps plot"
+#             )
+#             if not output_path:
+#                 return False
+#         else:
+#             output_path = os.path.join(export_folder, mobiliseD_filename + "_steps_plot.png")
+#         steps_plot.savefig(output_path, dpi=300)
+#         messagebox.showinfo("Saved", f"steps plot saved to: {output_path}")
+#     except Exception as e:
+#         messagebox.showerror("Save Error", str(e))
 
-def save_all_GSD():
-    try:
-        save_GSD_results(False)
-        save_GSD_plot(False)
-        save_step_counts(False)
-        save_steps_plot(False)
-    except Exception as e:
-        messagebox.showerror("Save Error", str(e))
+# def save_all_GSD():
+#     try:
+#         save_GSD_results(False)
+#         save_GSD_plot(False)
+#         save_step_counts(False)
+#         save_steps_plot(False)
+#     except Exception as e:
+#         messagebox.showerror("Save Error", str(e))
 
 # -------------------------Tab 3 Methods---------------------------------
 def load_ayush_code_file():
@@ -532,7 +536,7 @@ Export_Button.pack(side="left", padx=5)
 
 # -------------------------Tab 2 Mobilise D---------------------------------
 
-tk.Button(tab2, text="Load CSV File", command=lambda: tab2_controller.load_file(mobilised_path_var)).pack(pady=10)
+tk.Button(tab2, text="Load CSV File", command=lambda: load_mobiliseD_file()).pack(pady=10)
 
 mobilised_path_var = tk.StringVar(value="File loaded: (none)")
 MobiliseD_file_label = tk.Label(tab2, textvariable=mobilised_path_var)
@@ -551,7 +555,7 @@ gsd_frame = tk.Frame(tab2)
 gsd_frame.pack(pady=15)
 
 # button
-tk.Button(gsd_frame, text="Run GSD Detection", command=process_GSD).pack(side="left", padx=10)
+tk.Button(gsd_frame, text="Run GSD Detection", command=lambda: tab2_controller.process_GSD(label_var_MobiliseD.get(), force_data_as_walking.get(), plot_left_GSD, plot_right_GSD)).pack(side="left", padx=10)
 
 # checkbox
 force_data_as_walking = tk.BooleanVar(value=False)
@@ -573,12 +577,12 @@ button_frame = tk.Frame(tab2)
 button_frame.pack(pady=5)
 
 # Add buttons side by side
-tk.Button(button_frame, text="Save GSD Result", command=lambda: save_GSD_results(True)).pack(side="left", padx=5)
-tk.Button(button_frame, text="Save GSD plot", command=lambda: save_GSD_plot(True)).pack(side="left", padx=5)
-tk.Button(button_frame, text="Save Step Counts", command=lambda: save_step_counts(True)).pack(side="left", padx=5)
-tk.Button(button_frame, text="Save Steps plot", command=lambda: save_steps_plot(True)).pack(side="left", padx=5)
+tk.Button(button_frame, text="Save GSD Result", command=lambda: tab2_controller.save_GSD_results(True)).pack(side="left", padx=5)
+tk.Button(button_frame, text="Save GSD plot", command=lambda: tab2_controller.save_GSD_plot(True)).pack(side="left", padx=5)
+tk.Button(button_frame, text="Save Step Counts", command=lambda: tab2_controller.save_step_counts(True)).pack(side="left", padx=5)
+tk.Button(button_frame, text="Save Steps plot", command=lambda: tab2_controller.save_steps_plot(True)).pack(side="left", padx=5)
 
-tk.Button(tab2, text="Save All", command=save_all_GSD).pack(pady=5)
+tk.Button(tab2, text="Save All", command=lambda: tab2_controller.save_all_GSD()).pack(pady=5)
 
 # -------------------------Tab 3 Ayush's Code---------------------------------
 
