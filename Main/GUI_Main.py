@@ -20,6 +20,7 @@ from Auto_analysis_code import split_data_by_day
 
 from GUI_Tabs.Tab1Controller import Tab1Controller
 from GUI_Tabs.Tab2Controller import Tab2Controller
+#from GUI_Tabs.Tab3Controller import Tab3Controller
 
 #setting directory properly
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
@@ -42,8 +43,10 @@ tab2_controller = Tab2Controller(tab2)
 tab_control.add(tab2, text="Mobilise-D")
 
 tab3 = tk.Frame(tab_control)
-tab4 = tk.Frame(tab_control)
+#tab3_controller = Tab3Controller(tab3)
 tab_control.add(tab3, text="Ayush's Code")
+
+tab4 = tk.Frame(tab_control)
 tab_control.add(tab4, text="Auto-Analysis (WIP)")
 
 tab_control.pack(expand=1, fill='both')
@@ -53,6 +56,7 @@ acceleration_plot = None
 mobiliseD_file = None
 mobiliseD_directory_path = None
 mobilised_path_var = tk.StringVar()
+ayush_code_path_var = tk.StringVar()
 linear_plots = None
 nonlinear_plots = None
 exported_csv_path = "None"
@@ -79,34 +83,38 @@ def load_mobiliseD_file():
     mobilised_path_var.set(tab2_controller.load_file())
 
 # -------------------------Tab 3 Methods---------------------------------
+
 def load_ayush_code_file():
-    global ayush_code_directory_path, ayush_code_filename, ayush_code_file, linear_df, linear_plots, nonlinear_df, nonlinear_plots
-    file_path = filedialog.askopenfilename(filetypes=[("CSV/JSON files", "*.csv *.json")])
-    if not file_path:
-        return
-    ayush_code_directory_path = os.path.dirname(file_path)
-    ayush_code_filename = os.path.splitext(os.path.basename(file_path))[0]
+    ayush_code_path_var.set(tab3_controller.load_file())
 
-    try:
-        if file_path.endswith(".csv"):
-            messagebox.showinfo("Loaded", f"Loaded file:\n{file_path}")
-            ayush_code_file = file_path
-            ayush_code_path_var.set(f"File loaded: {ayush_code_filename}")
-            linear_df = None
-            linear_plots = None
-            nonlinear_df = None
-            nonlinear_plots = []
-        else:
-            raise ValueError("Unsupported file format")
-    except Exception as e:
-        messagebox.showerror("Load Error", str(e))
+# def load_ayush_code_file():
+#     global ayush_code_directory_path, ayush_code_filename, ayush_code_file, linear_df, linear_plots, nonlinear_df, nonlinear_plots
+#     file_path = filedialog.askopenfilename(filetypes=[("CSV/JSON files", "*.csv *.json")])
+#     if not file_path:
+#         return
+#     ayush_code_directory_path = os.path.dirname(file_path)
+#     ayush_code_filename = os.path.splitext(os.path.basename(file_path))[0]
 
-def ayush_analyze_data():
-    global linear_df, nonlinear_df, linear_plots, nonlinear_plots
-    linear_df, linear_plots = linear_analysis(ayush_code_file, plot_frame_ayush_code, assume_walking_var.get())
-    nonlinear_df, nonlinear_plots = nonlinear_analysis(ayush_code_file, plot_frame_ayush_code, assume_walking_var.get())
-    display_combined_plots(linear_plots, nonlinear_plots, plot_frame_ayush_code)
-    load_save_plot_buttons()
+#     try:
+#         if file_path.endswith(".csv"):
+#             messagebox.showinfo("Loaded", f"Loaded file:\n{file_path}")
+#             ayush_code_file = file_path
+#             ayush_code_path_var.set(f"File loaded: {ayush_code_filename}")
+#             linear_df = None
+#             linear_plots = None
+#             nonlinear_df = None
+#             nonlinear_plots = []
+#         else:
+#             raise ValueError("Unsupported file format")
+#     except Exception as e:
+#         messagebox.showerror("Load Error", str(e))
+
+# def ayush_analyze_data():
+#     global linear_df, nonlinear_df, linear_plots, nonlinear_plots
+#     linear_df, linear_plots = linear_analysis(ayush_code_file, plot_frame_ayush_code, assume_walking_var.get())
+#     nonlinear_df, nonlinear_plots = nonlinear_analysis(ayush_code_file, plot_frame_ayush_code, assume_walking_var.get())
+#     display_combined_plots(linear_plots, nonlinear_plots, plot_frame_ayush_code)
+#     load_save_plot_buttons()
 
 def do_linear_analysis():
     global linear_df, linear_plots, nonlinear_plots
