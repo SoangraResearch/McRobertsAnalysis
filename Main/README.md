@@ -37,6 +37,16 @@ Make a note of where Octave is installed.
     - To correct this and get more accurate data segments, you can cut say a day of data from the original OMX file, then run that day of data through the GSD algorithm. In console, the algorithm will print out a list of segments longer than 30s and will have better accuracy due to the larger range of data available. 
     - After getting this list, you can go back to the acceleration plot and zoom to one of those segments. Then you can export that and use it in further analysis. Because walking segmentation does not work as well with smaller segments of data, in the analysis tab you can check the box to assume data is walking, and the algorithm will skip the walking segmentation stage, processing all data as walking.
 
+## Alex Lark Data Analysis method
+    1. Upload large data file to 1st tab.
+    2. After loading, adjust the end date of the plot to be exactly 24 hours after the start date, and export this 24-hour data.
+    3. Once exported, switch to the 2nd tab and run the appropriate GSD algorithm on the 24-hour data. Ensure that force data as walking is unchecked. This step will take a while for the algorithm to run.
+    4. Save all output. In console, you will see a list of all long segments greater than 30 seconds, their length, and their start and stop timestamps. Choose one of these long segments, switch back to to the first tab, and zoom in on that segment. 
+    5. If the segment looks good, trim it to just 30 seconds. If it does not look good, select another long segment and try again. Once you are zoomed in on the 30 seconds, export that csv and plot.
+    6. With your 30 seconds of data, run the GSD algorithm in tab 2, this time with force data as walking checked. Also run linear and nonlinear analysis in tab 3, with force data as walking also checked there. The nonlinear analysis may take some time. Once everything has run, save all output from both tabs 2 and 3. 
+    7. Reset the plot in tab 1, then adjust the start date to move it forward by exactly 24 hours. Adjust the end date as well to move it forward by 24 hours. If the original data would not reach the new end date, leave the end date as it was originally. Once your bounds are set, this is your new 24-hour data. Export it. 
+    8. Repeat steps 3 through 6. Repeat the process again so you have 3 whole days of data from the original dataset, as long as the data supports it. 
+
 ## Notes
     - All necessary files for GUI_Main are in Main, Mobilise-D-TVS-Recommended-Algorithms-master, or Non_GUI/Ayush_Files
     - By default, all results are stored in Data/Output in subfolders specifically created for the data
