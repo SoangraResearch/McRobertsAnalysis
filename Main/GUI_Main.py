@@ -1,20 +1,12 @@
 import os
-import csv
-import re
 import tkinter as tk
 import pandas as pd
 import numpy as np
-from datetime import timedelta, datetime
 from tkinter import filedialog, messagebox, ttk
-import matplotlib.dates as mdates
 from ICDA_code import step_detection, filter_and_print_long_segments
 from OMX_To_CSV import process_omx_file, matlab_datenum_to_datetime
-from Acceleration_Plot import PlotOMX
-from GSD_plots import plot_GSDA, plot_GSDB, plot_steps
 from GSDA_code import gsd_iluz
 from GSDB_code import gsd_low_back_acc
-from Ayush_Analysis import linear_analysis, nonlinear_analysis
-from Ayush_Analysis_Plot import display_combined_plots, get_current_selected_plot
 from auto_analysis_progress import auto_analysis_progress
 from Auto_analysis_code import split_data_by_day
 
@@ -76,216 +68,120 @@ def export_csv():
     mobilised_path_var.set(f"File loaded: {tab1_controller.export_filename}")
     tab2_controller.set_file(os.path.join(tab1_controller.export_folder, tab1_controller.export_filename + ".csv"))
     ayush_code_path_var.set(f"File loaded: {tab1_controller.export_filename}")
-        
+    tab3_controller.set_file(os.path.join(tab1_controller.export_folder, tab1_controller.export_filename + ".csv"))
+    
+# -------------------------Tab 1 Select Data---------------------------------
+
+load_file_button = tk.Button(tab1, text="Load OMX File", command=lambda: tab1_controller.load_file(plot_frame_OMX))
+load_file_button.pack(pady=10)
+
+plot_frame_OMX = tk.Frame(tab1, height=350)
+plot_frame_OMX.pack_propagate(False)
+
+tab1_controller.create_time_labels()
+
+plot_frame_OMX.pack(fill="both", expand=True)
+
+button_frame = tk.Frame(tab1)
+button_frame.pack(pady=10)
+
+Export_Button = tk.Button(button_frame, text="Export To CSV", command=lambda: export_csv())
+Export_Button.pack(side="left", padx=5)
+
+Export_Button = tk.Button(button_frame, text="Export Plot", command=lambda: tab1_controller.export_acceleration_plot())
+Export_Button.pack(side="left", padx=5)
+
 # -------------------------Tab 2 Methods---------------------------------
 
 def load_mobiliseD_file():
     mobilised_path_var.set(tab2_controller.load_file())
+
+# -------------------------Tab 2 Mobilise D---------------------------------
+
+tk.Button(tab2, text="Load CSV File", command=lambda: load_mobiliseD_file()).pack(pady=10)
+
+mobilised_path_var = tk.StringVar(value="File loaded: (none)")
+MobiliseD_file_label = tk.Label(tab2, textvariable=mobilised_path_var)
+MobiliseD_file_label.pack()
+
+label_var_MobiliseD = tk.StringVar()
+label_var_MobiliseD.set("None")
+tk.Label(tab2, text="Select Type").pack(pady=(20, 5))
+label_frame = tk.Frame(tab2)
+label_frame.pack()
+for lbl in ["Healthy(GSDA)", "Patient(GSDB)"]:
+    tk.Radiobutton(label_frame, text=lbl, variable=label_var_MobiliseD, value=lbl).pack(side="left", padx=20)
+
+# container frame for button + checkbox
+gsd_frame = tk.Frame(tab2)
+gsd_frame.pack(pady=15)
+
+# button
+tk.Button(gsd_frame, text="Run GSD Detection", command=lambda: tab2_controller.process_GSD(label_var_MobiliseD.get(), force_data_as_walking.get(), plot_left_GSD, plot_right_GSD)).pack(side="left", padx=10)
+
+# checkbox
+force_data_as_walking = tk.BooleanVar(value=False)
+tk.Checkbutton(gsd_frame, text="Force Data as Walking",
+               variable=force_data_as_walking).pack(side="left", padx=10)
+
+plot_frame_GSD = tk.Frame(tab2, height=300)
+plot_frame_GSD.pack(fill="both", expand=True)
+
+# Left and right frames inside plot_frame_GSD
+plot_left_GSD = tk.Frame(plot_frame_GSD, width=500)
+plot_left_GSD.pack(side='left', fill='both', expand=True)
+
+plot_right_GSD = tk.Frame(plot_frame_GSD, width=500)
+plot_right_GSD.pack(side='left', fill='both', expand=True)
+
+# Create a frame to hold the buttons horizontally
+button_frame = tk.Frame(tab2)
+button_frame.pack(pady=5)
+
+# Add buttons side by side
+tk.Button(button_frame, text="Save GSD Result", command=lambda: tab2_controller.save_GSD_results(True)).pack(side="left", padx=5)
+tk.Button(button_frame, text="Save GSD plot", command=lambda: tab2_controller.save_GSD_plot(True)).pack(side="left", padx=5)
+tk.Button(button_frame, text="Save Step Counts", command=lambda: tab2_controller.save_step_counts(True)).pack(side="left", padx=5)
+tk.Button(button_frame, text="Save Steps plot", command=lambda: tab2_controller.save_steps_plot(True)).pack(side="left", padx=5)
+
+tk.Button(tab2, text="Save All", command=lambda: tab2_controller.save_all_GSD()).pack(pady=5)
 
 # -------------------------Tab 3 Methods---------------------------------
 
 def load_ayush_code_file():
     ayush_code_path_var.set(tab3_controller.load_file())
 
-# def load_ayush_code_file():
-#     global ayush_code_directory_path, ayush_code_filename, ayush_code_file, linear_df, linear_plots, nonlinear_df, nonlinear_plots
-#     file_path = filedialog.askopenfilename(filetypes=[("CSV/JSON files", "*.csv *.json")])
-#     if not file_path:
-#         return
-#     ayush_code_directory_path = os.path.dirname(file_path)
-#     ayush_code_filename = os.path.splitext(os.path.basename(file_path))[0]
+# -------------------------Tab 3 Ayush's Code---------------------------------
 
-#     try:
-#         if file_path.endswith(".csv"):
-#             messagebox.showinfo("Loaded", f"Loaded file:\n{file_path}")
-#             ayush_code_file = file_path
-#             ayush_code_path_var.set(f"File loaded: {ayush_code_filename}")
-#             linear_df = None
-#             linear_plots = None
-#             nonlinear_df = None
-#             nonlinear_plots = []
-#         else:
-#             raise ValueError("Unsupported file format")
-#     except Exception as e:
-#         messagebox.showerror("Load Error", str(e))
+tk.Button(tab3, text="Load CSV File", command=load_ayush_code_file).pack(pady=10)
 
-# def ayush_analyze_data():
-#     global linear_df, nonlinear_df, linear_plots, nonlinear_plots
-#     linear_df, linear_plots = linear_analysis(ayush_code_file, plot_frame_ayush_code, assume_walking_var.get())
-#     nonlinear_df, nonlinear_plots = nonlinear_analysis(ayush_code_file, plot_frame_ayush_code, assume_walking_var.get())
-#     display_combined_plots(linear_plots, nonlinear_plots, plot_frame_ayush_code)
-#     load_save_plot_buttons()
+ayush_code_path_var = tk.StringVar(value="File loaded: (none)")
+ayush_code_file_label = tk.Label(tab3, textvariable=ayush_code_path_var)
+ayush_code_file_label.pack()
 
-# def do_linear_analysis():
-#     global linear_df, linear_plots, nonlinear_plots
-#     linear_df, linear_plots = linear_analysis(ayush_code_file, plot_frame_ayush_code, assume_walking_var.get())
-#     load_save_plot_buttons()
-#     messagebox.showinfo("Linear Analysis", f"Linear analysis complete")
+analysis_frame = tk.Frame(tab3)
+analysis_frame.pack(pady=5)
 
-#     if(nonlinear_plots != None):
-#         display_combined_plots(linear_plots, nonlinear_plots, plot_frame_ayush_code)
+assume_walking_var = tk.BooleanVar(value=False)
+plot_frame_ayush_code = tk.Frame(tab3, height=300)
 
-# def do_nonlinear_analysis():
-#     global nonlinear_df, nonlinear_plots, linear_plots
-#     nonlinear_df, nonlinear_plots = nonlinear_analysis(ayush_code_file, plot_frame_ayush_code, assume_walking_var.get())
-#     print("nonlinear plots in main gui: " + str(len(nonlinear_plots)))
-#     load_save_plot_buttons()
-#     messagebox.showinfo("Noninear Analysis", f"Nonlinear analysis complete")
+tk.Button(analysis_frame, text="Linear Analysis", width=15, command=lambda: tab3_controller.do_linear_analysis(plot_frame_ayush_code, assume_walking_var)).pack(side="left", padx=10)
+tk.Button(analysis_frame, text="Non-Linear Analysis", width=15, command=lambda: tab3_controller.do_nonlinear_analysis(plot_frame_ayush_code, assume_walking_var)).pack(side="left", padx=10)
 
-#     if(linear_plots != None):
-#         print("About to call display_combined_plots() from do_nonlinear_analysis()")
-#         print(linear_plots)
-#         print(f"linear_plots: {len(linear_plots) if linear_plots else 0}")
-#         print(f"nonlinear_plots: {len(nonlinear_plots) if nonlinear_plots else 0}")
-#         plot_frame_ayush_code.after(100, lambda: display_combined_plots(linear_plots, nonlinear_plots, plot_frame_ayush_code))
+tk.Checkbutton(analysis_frame, text="Assume data is walking", variable=assume_walking_var).pack(side="left", padx=10)
 
-# def create_tab3_export_folder():
-#     global export_folder, ayush_code_directory_path
+plot_frame_ayush_code.pack(fill="both", expand=True)
 
-#     export_folder = ayush_code_directory_path
-#     os.makedirs(export_folder, exist_ok=True)
+button_frame = tk.Frame(tab3)
+button_frame.pack(pady=5)
 
-# def save_linear_analysis(open_prompt_window):
-#     create_tab3_export_folder()
-#     try:
-#         if linear_df is None:
-#             messagebox.showerror("Error", "No linear analysis to save.")
-#             return
-#         if open_prompt_window:
-#             output_path=filedialog.asksaveasfilename(
-#                 defaultextension=".csv",
-#                 filetypes=[("CSV files", "*.csv")],
-#                 initialdir=export_folder,
-#                 initialfile=shorten_filename(ayush_code_filename) + "_linear_analysis",
-#                 title="Save linear analysis"
-#             )
-#             if not output_path:
-#                 return False
-#         else:
-#             output_path = os.path.join(export_folder, shorten_filename(ayush_code_filename) + "_linear_analysis.csv")
-#         linear_df.to_csv(output_path, index=False)
-#         messagebox.showinfo("Saved", f"linear analysis saved to: {output_path}")
-#     except Exception as e:
-#         messagebox.showerror("Save Error", str(e))
+tk.Button(button_frame, text="Save Linear Analysis", command=lambda: tab3_controller.save_linear_analysis(True)).pack(side="left", padx=5)
+tk.Button(button_frame, text="Save Non-Linear Analysis", command=lambda: tab3_controller.save_nonlinear_analysis(True)).pack(side="left", padx=5)
+tk.Button(button_frame, text="Save All Linear Analysis Plots", command=lambda: tab3_controller.save_all_linear_analysis_plots(True)).pack(side="left", padx=5)
+tk.Button(button_frame, text="Save All Non-Linear Analysis Plots", command=lambda: tab3_controller.save_all_nonlinear_analysis_plots(True)).pack(side="left", padx=5)
 
-# def load_save_plot_buttons():
-#     save_current_linear_plot = tk.Button(plot_frame_ayush_code, text="Save Linear Plot", command=lambda: save_current_linear_analysis_plot(True, get_current_selected_plot(plot_frame_ayush_code)), font=("Arial", 8), relief="raised", bd=2)
-#     save_current_linear_plot.place(x=15, y=-35, anchor="sw", relx=0, rely=1)
-    
-#     save_current_nonlinear_plot = tk.Button(plot_frame_ayush_code, text="Save Nonlinear Plot", command=lambda: save_current_nonlinear_analysis_plot(True, get_current_selected_plot(plot_frame_ayush_code)), font=("Arial", 8), relief="raised", bd=2)
-#     save_current_nonlinear_plot.place(x=-15, y=-35, anchor="se", relx=1, rely=1)
+tk.Button(tab3, text="Save All", command=lambda: tab3_controller.save_all_output()).pack(pady=5)
 
-# def save_nonlinear_analysis(open_prompt_window):
-#     create_tab3_export_folder()
-#     try:
-#         if nonlinear_df is None:
-#             messagebox.showerror("Error", "No nonlinear analysis to save.")
-#             return
-#         if open_prompt_window:
-#             output_path=filedialog.asksaveasfilename(
-#                 defaultextension=".csv",
-#                 filetypes=[("CSV files", "*.csv")],
-#                 initialdir=export_folder,
-#                 initialfile=shorten_filename(ayush_code_filename) + "_nonlinear_analysis",
-#                 title="Save nonlinear analysis"
-#             )
-#             if not output_path:
-#                 return False
-#         else:
-#             output_path = os.path.join(export_folder, shorten_filename(ayush_code_filename) + "_nonlinear_analysis.csv")
-#         nonlinear_df.to_csv(output_path, index=False)
-#         messagebox.showinfo("Saved", f"nonlinear analysis saved to: {output_path}")
-#     except Exception as e:
-#         messagebox.showerror("Save Error", str(e))
-
-# def shorten_filename(filename):
-#     filename = re.sub(r'_from_\d{4}-\d{2}-\d{2}_[0-9\-]+_to_\d{4}-\d{2}-\d{2}_[0-9\-]+', '', filename)
-#     return filename
-
-# def save_current_linear_analysis_plot(open_prompt_window, plotnum):
-#     create_tab3_export_folder()
-#     try:
-#         if linear_plots is None:
-#             messagebox.showerror("Error", "No linear analysis plot to save.")
-#             return
-        
-#         if open_prompt_window:
-#             output_path = filedialog.asksaveasfilename(
-#                 defaultextension=".png",
-#                 filetypes=[("PNG Image", "*.png"), ("PDF File", "*.pdf"), ("SVG File", "*.svg")],
-#                 initialdir=export_folder,
-#                 initialfile=shorten_filename(ayush_code_filename) + "_linear_analysis_plot_" + str(plotnum + 1),
-#                 title="Save linear analysis plot"
-#             )
-#             if not output_path:
-#                 return False
-#         else:
-#             output_path = os.path.join(
-#                 export_folder,
-#                 shorten_filename(ayush_code_filename) + "_linear_analysis_plot_" + str(plotnum + 1) + ".png"
-#             )
-        
-#         print("Full save path length:", len(output_path))
-#         print("Full save path:", output_path)
-        
-#         linear_plots[plotnum].savefig(output_path, dpi=300)
-#         messagebox.showinfo("Saved", f"linear analysis plot saved to: {output_path}")
-    
-#     except Exception as e:
-#         messagebox.showerror("Save Error", str(e))
-
-# def save_current_nonlinear_analysis_plot(open_prompt_window, plotnum):
-#     create_tab3_export_folder()
-#     try:
-#         if nonlinear_plots is None:
-#             messagebox.showerror("Error", "No nonlinear analysis plot to save.")
-#             return
-        
-#         if open_prompt_window:
-#             output_path = filedialog.asksaveasfilename(
-#                 defaultextension=".png",
-#                 filetypes=[("PNG Image", "*.png"), ("PDF File", "*.pdf"), ("SVG File", "*.svg")],
-#                 initialdir=export_folder,
-#                 initialfile=shorten_filename(ayush_code_filename) + "_nonlinear_analysis_plot_" + str(plotnum + 1),
-#                 title="Save nonlinear analysis plot"
-#             )
-#             if not output_path:
-#                 return False
-#         else:
-#             output_path = os.path.join(
-#                 export_folder,
-#                 shorten_filename(ayush_code_filename) + "_nonlinear_analysis_plot_" + str(plotnum + 1) + ".png"
-#             )
-        
-#         nonlinear_plots[plotnum].savefig(output_path, dpi=300)
-#         messagebox.showinfo("Saved", f"nonlinear analysis plot saved to: {output_path}")
-    
-#     except Exception as e:
-#         messagebox.showerror("Save Error", str(e))
-
-# def save_all_linear_analysis_plots(open_prompt_window):
-#     try:
-#         for i in range(len(linear_plots)):
-#             save_current_linear_analysis_plot(open_prompt_window, i)
-#     except Exception as e:
-#         messagebox.showerror("Save Error", str(e))        
-
-# def save_all_nonlinear_analysis_plots(open_prompt_window):
-#     try:
-#         for i in range(len(nonlinear_plots)):
-#             save_current_nonlinear_analysis_plot(open_prompt_window, i)
-#     except Exception as e:
-#         messagebox.showerror("Save Error", str(e))
-
-# def save_all_ayush_code():
-#     try:
-#         save_linear_analysis(False)
-#         save_nonlinear_analysis(False)
-#         save_all_linear_analysis_plots(False)
-#         save_all_nonlinear_analysis_plots(False)
-#     except Exception as e:
-#         messagebox.showerror("Save Error", str(e))
-              
 # -------------------------Tab 4 Methods---------------------------------
 def load_auto_analysis_file():
     global auto_analysis_file
@@ -356,106 +252,6 @@ def run_auto_analysis():
         print("Long segments:", long_segments)
 
     progress_text.update_progress("Segment Selection")
-    
-# -------------------------Tab 1 Select Data---------------------------------
-
-load_file_button = tk.Button(tab1, text="Load OMX File", command=lambda: tab1_controller.load_file(plot_frame_OMX))
-load_file_button.pack(pady=10)
-
-plot_frame_OMX = tk.Frame(tab1, height=350)
-plot_frame_OMX.pack_propagate(False)
-
-tab1_controller.create_time_labels()
-
-plot_frame_OMX.pack(fill="both", expand=True)
-
-button_frame = tk.Frame(tab1)
-button_frame.pack(pady=10)
-
-Export_Button = tk.Button(button_frame, text="Export To CSV", command=lambda: export_csv())
-Export_Button.pack(side="left", padx=5)
-
-Export_Button = tk.Button(button_frame, text="Export Plot", command=lambda: tab1_controller.export_acceleration_plot())
-Export_Button.pack(side="left", padx=5)
-
-# -------------------------Tab 2 Mobilise D---------------------------------
-
-tk.Button(tab2, text="Load CSV File", command=lambda: load_mobiliseD_file()).pack(pady=10)
-
-mobilised_path_var = tk.StringVar(value="File loaded: (none)")
-MobiliseD_file_label = tk.Label(tab2, textvariable=mobilised_path_var)
-MobiliseD_file_label.pack()
-
-label_var_MobiliseD = tk.StringVar()
-label_var_MobiliseD.set("None")
-tk.Label(tab2, text="Select Type").pack(pady=(20, 5))
-label_frame = tk.Frame(tab2)
-label_frame.pack()
-for lbl in ["Healthy(GSDA)", "Patient(GSDB)"]:
-    tk.Radiobutton(label_frame, text=lbl, variable=label_var_MobiliseD, value=lbl).pack(side="left", padx=20)
-
-# container frame for button + checkbox
-gsd_frame = tk.Frame(tab2)
-gsd_frame.pack(pady=15)
-
-# button
-tk.Button(gsd_frame, text="Run GSD Detection", command=lambda: tab2_controller.process_GSD(label_var_MobiliseD.get(), force_data_as_walking.get(), plot_left_GSD, plot_right_GSD)).pack(side="left", padx=10)
-
-# checkbox
-force_data_as_walking = tk.BooleanVar(value=False)
-tk.Checkbutton(gsd_frame, text="Force Data as Walking",
-               variable=force_data_as_walking).pack(side="left", padx=10)
-
-plot_frame_GSD = tk.Frame(tab2, height=300)
-plot_frame_GSD.pack(fill="both", expand=True)
-
-# Left and right frames inside plot_frame_GSD
-plot_left_GSD = tk.Frame(plot_frame_GSD, width=500)
-plot_left_GSD.pack(side='left', fill='both', expand=True)
-
-plot_right_GSD = tk.Frame(plot_frame_GSD, width=500)
-plot_right_GSD.pack(side='left', fill='both', expand=True)
-
-# Create a frame to hold the buttons horizontally
-button_frame = tk.Frame(tab2)
-button_frame.pack(pady=5)
-
-# Add buttons side by side
-tk.Button(button_frame, text="Save GSD Result", command=lambda: tab2_controller.save_GSD_results(True)).pack(side="left", padx=5)
-tk.Button(button_frame, text="Save GSD plot", command=lambda: tab2_controller.save_GSD_plot(True)).pack(side="left", padx=5)
-tk.Button(button_frame, text="Save Step Counts", command=lambda: tab2_controller.save_step_counts(True)).pack(side="left", padx=5)
-tk.Button(button_frame, text="Save Steps plot", command=lambda: tab2_controller.save_steps_plot(True)).pack(side="left", padx=5)
-
-tk.Button(tab2, text="Save All", command=lambda: tab2_controller.save_all_GSD()).pack(pady=5)
-
-# -------------------------Tab 3 Ayush's Code---------------------------------
-
-tk.Button(tab3, text="Load CSV File", command=load_ayush_code_file).pack(pady=10)
-
-ayush_code_path_var = tk.StringVar(value="File loaded: (none)")
-ayush_code_file_label = tk.Label(tab3, textvariable=ayush_code_path_var)
-ayush_code_file_label.pack()
-
-analysis_frame = tk.Frame(tab3)
-analysis_frame.pack(pady=5)
-
-tk.Button(analysis_frame, text="Linear Analysis", width=15, command=tab3_controller.do_linear_analysis).pack(side="left", padx=10)
-tk.Button(analysis_frame, text="Non-Linear Analysis", width=15, command=tab3_controller.do_nonlinear_analysis).pack(side="left", padx=10)
-assume_walking_var = tk.BooleanVar(value=False)
-tk.Checkbutton(analysis_frame, text="Assume data is walking", variable=assume_walking_var).pack(side="left", padx=10)
-
-plot_frame_ayush_code = tk.Frame(tab3, height=300)
-plot_frame_ayush_code.pack(fill="both", expand=True)
-
-button_frame = tk.Frame(tab3)
-button_frame.pack(pady=5)
-
-tk.Button(button_frame, text="Save Linear Analysis", command=lambda: tab3_controller.save_linear_analysis(True)).pack(side="left", padx=5)
-tk.Button(button_frame, text="Save Non-Linear Analysis", command=lambda: tab3_controller.save_nonlinear_analysis(True)).pack(side="left", padx=5)
-tk.Button(button_frame, text="Save All Linear Analysis Plots", command=lambda: tab3_controller.save_all_linear_analysis_plots(True)).pack(side="left", padx=5)
-tk.Button(button_frame, text="Save All Non-Linear Analysis Plots", command=lambda: tab3_controller.save_all_nonlinear_analysis_plots(True)).pack(side="left", padx=5)
-
-tk.Button(tab3, text="Save All", command=lambda: tab3_controller.save_all_ayush_code).pack(pady=5)
 
 # -------------------------Tab 4 Auto Analysis---------------------------------
 load_file_button = tk.Button(tab4, text="Load OMX File", command=load_auto_analysis_file)
