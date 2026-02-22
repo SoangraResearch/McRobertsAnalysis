@@ -91,7 +91,7 @@ class Tab2Controller:
                 messagebox.showerror("Error", "No GSD result to save.")
                 return
             if open_prompt_window:
-                ouput_path = self._get_csv_output_path("_GSD_results", "Save GSD results")
+                output_path = self._get_csv_output_path("_GSD_results", "Save GSD results")
                 if not output_path:
                     return False
             else:
