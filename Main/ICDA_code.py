@@ -7,6 +7,20 @@ import pywt
 import numpy as np
 import matplotlib.pyplot as plt
 
+from pathlib import Path
+
+#automatically finds file paths
+def find_root():
+    current = Path(__file__).resolve()
+    for parent in current.parents:
+        candidate = parent / "SoangraResearch"
+        if candidate.exists():
+            return candidate
+    raise FileNotFoundError("Could not find 'SoangraResearch' folder in any parent directory.")
+
+ROOT = find_root()
+FIR_FILTER_PATH = ROOT / "McRobertsAnalysis" / "Mobilise-D-TVS-Recommended-Algorithms-master" / "ICDA" / "Library" / "FIR-2-3Hz-40.mat"
+
 def remove_drift_40hz(x):
     return filtfilt([1, -1], [1, -0.9748], x)
 
@@ -33,7 +47,7 @@ def sd_algo_amc(accV, fs):
     # resample using same method from earlier translation
     accV40 = resamp_interp(accV, fs, algorithm_target_fs)
 
-    Num = loadmat("C:/Users/ahala/OneDrive/Desktop/SoangraResearch/McRobertsAnalysis/Mobilise-D-TVS-Recommended-Algorithms-master/ICDA/Library/FIR-2-3Hz-40.mat")['Num'].flatten()
+    Num = loadmat(str(FIR_FILTER_PATH))['Num'].flatten()
 
     len_padd = 10000 * len(Num)
     accV40_zp = np.pad(accV40, pad_width=len_padd, mode='wrap')
@@ -88,7 +102,7 @@ def step_detection(imu_acc, GS, fs, plot_results=False, original_time_array=None
         return []
 
     if plot_results:
-        Num = loadmat("C:/Users/ahala/OneDrive/Desktop/SoangraResearch/McRobertsAnalysis/Mobilise-D-TVS-Recommended-Algorithms-master/ICDA/Library/FIR-2-3Hz-40.mat")['Num'].flatten()  
+        Num = loadmat(str(FIR_FILTER_PATH))['Num'].flatten()
 
         fs_algo = 40
         IC_all_sig = np.concatenate([np.array(g['IC']) for g in GS if 'IC' in g and len(g['IC']) > 0])
