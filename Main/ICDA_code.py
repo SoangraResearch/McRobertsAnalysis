@@ -10,16 +10,16 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 
 #automatically finds file paths
-def find_root():
+def find_mcroberts_root():
     current = Path(__file__).resolve()
     for parent in current.parents:
-        candidate = parent / "SoangraResearch"
+        candidate = parent / "McRobertsAnalysis"
         if candidate.exists():
             return candidate
-    raise FileNotFoundError("Could not find 'SoangraResearch' folder in any parent directory.")
+    raise FileNotFoundError("Could not find 'McRobertsAnalysis' folder in any parent directory.")
 
-ROOT = find_root()
-FIR_FILTER_PATH = ROOT / "McRobertsAnalysis" / "Mobilise-D-TVS-Recommended-Algorithms-master" / "ICDA" / "Library" / "FIR-2-3Hz-40.mat"
+MCROBERTS_ROOT = find_mcroberts_root()
+FIR_FILTER_PATH = MCROBERTS_ROOT / "Mobilise-D-TVS-Recommended-Algorithms-master" / "ICDA" / "Library" / "FIR-2-3Hz-40.mat"
 
 def remove_drift_40hz(x):
     return filtfilt([1, -1], [1, -0.9748], x)
