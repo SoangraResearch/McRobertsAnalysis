@@ -16,7 +16,8 @@ Make a note of where Octave is installed.
 ### Step 2: Set the `OCTAVE_EXECUTABLE` Environment Variable
 
 - On **Windows**
-    In Powershell, run: setx OCTAVE_EXECUTABLE "C:\Program Files\GNU Octave\Octave-10.2 0\mingw64\bin\octave-cli.exe" (or alternative installation path)
+    In Powershell, run: setx OCTAVE_EXECUTABLE "C:\Program Files\GNU Octave\Octave-10.2.0\mingw64\bin\octave-cli.exe" (or alternative installation path)
+    restart your terminal (or IDE)
 
 - On **macOS**
     In Terminal, run: export OCTAVE_EXECUTABLE=$(which octave-cli)
