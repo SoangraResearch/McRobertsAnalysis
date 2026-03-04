@@ -49,5 +49,5 @@ Make a note of where Octave is installed.
     8. Repeat steps 3 through 6. Repeat the process again so you have 3 whole days of data from the original dataset, as long as the data supports it. 
 
 ## Notes
-    - All necessary files for GUI_Main are in Main, Mobilise-D-TVS-Recommended-Algorithms-master, or Non_GUI/Ayush_Files
+    - All necessary files for GUI_Main are in Main, DynaportCompany_Codes_new, Mobilise-D-TVS-Recommended-Algorithms-master, or Non_GUI/Ayush_Files
     - By default, all results are stored in Data/Output in subfolders specifically created for the data
