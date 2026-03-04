@@ -57,7 +57,7 @@ class Tab2Controller:
         self.directory_path = os.path.dirname(file_path)
         self.filename = os.path.splitext(os.path.basename(file_path))[0]
 
-    def process_GSD(self, GSDType, force_walking, left_GSD_frame, right_GSD_frame):  
+    def process_GSD(self, GSDType, force_walking, left_GSD_frame, right_GSD_frame, extra_plots=0):  
         self._convert_mobiliseD_file_to_df()
         
         self.force_data_as_walking = force_walking
@@ -73,7 +73,7 @@ class Tab2Controller:
             if GSDType == "Healthy(GSDA)":
                 gsd_result, v_acc_for_plot = self._run_GSDA(acc, fs, original_time_array)
             elif GSDType == "Patient(GSDB)":
-                gsd_result, v_acc_for_plot = self._run_GSDB(acc, fs, original_time_array)
+                gsd_result, v_acc_for_plot = self._run_GSDB(acc, fs, original_time_array, extra_plots=extra_plots)
             else:
                 gsd_result = -1
 
@@ -177,8 +177,8 @@ class Tab2Controller:
         long_segments = filter_and_print_long_segments(gsd_result, original_time_array=original_time_array, min_duration=30)
         return gsd_result, v_acc_for_plot
 
-    def _run_GSDB(self, acc, fs, original_time_array):
-        gsd_result, sig_det_act_for_plot, walk_label_for_plot = gsd_low_back_acc(acc, fs, plot_results=False, time_vector=original_time_array, force_walking=self.force_data_as_walking)
+    def _run_GSDB(self, acc, fs, original_time_array, extra_plots=0):
+        gsd_result, sig_det_act_for_plot, walk_label_for_plot = gsd_low_back_acc(acc, fs, plot_results=False, time_vector=original_time_array, force_walking=self.force_data_as_walking, extra_plots=extra_plots)
         v_acc_for_plot = np.linalg.norm(acc, axis=1)
         self.gsd_plot = plot_GSDB(sig_det_act_for_plot, walk_label_for_plot, self.left_frame)
         long_segments = filter_and_print_long_segments(gsd_result, original_time_array=original_time_array)

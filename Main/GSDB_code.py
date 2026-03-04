@@ -250,7 +250,7 @@ def find_min_max(s, thr=None):
     
     return mi, ma
 
-def gsd_low_back_acc(imu_acc, fs, plot_results=False, time_vector=None, force_walking=False):
+def gsd_low_back_acc(imu_acc, fs, plot_results=False, time_vector=None, force_walking=False, extra_plots=0):
     print("running gsd_low_back_acc")
     acc = imu_acc
     algorithm_target_fs = 40
@@ -292,7 +292,7 @@ def gsd_low_back_acc(imu_acc, fs, plot_results=False, time_vector=None, force_wa
         print(f"walk_label shape: {walk_label.shape}, all ones: {np.all(walk_label == 1)}")
     else:
         # Original detection algorithm
-        alarm, _ = hilbert_envelop(sig_det_actv, smooth_window=20, threshold_style=1, duration=algorithm_target_fs, gr=0)
+        alarm, _ = hilbert_envelop(sig_det_actv, smooth_window=20, threshold_style=1, duration=algorithm_target_fs, gr=extra_plots)
 
         print("alarm")
         print(alarm)
