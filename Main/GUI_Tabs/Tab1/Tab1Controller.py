@@ -4,7 +4,7 @@ import matplotlib.dates as mdates
 import tkinter as tk
 from tkinter import filedialog, messagebox
 from OMX_To_CSV import process_omx_file, matlab_datenum_to_datetime
-from Acceleration_Plot import PlotOMX
+from Main.GUI_Tabs.Tab1.Acceleration_Plot import PlotOMX
 from datetime import datetime
 
 class Tab1Controller:
@@ -89,10 +89,6 @@ class Tab1Controller:
         except Exception as e:
             messagebox.showerror("Error", f"Failed to save file: {e}")
             return False
-
-        # ayush_code_file = output_path
-        # ayush_code_filename = self.export_filename
-        # ayush_code_directory_path = self.export_folder
 
     def export_acceleration_plot(self):
         self._create_tab1_export_folder()

@@ -7,12 +7,12 @@ from ICDA_code import step_detection, filter_and_print_long_segments
 from OMX_To_CSV import process_omx_file, matlab_datenum_to_datetime
 from GSDA_code import gsd_iluz
 from GSDB_code import gsd_low_back_acc
-from auto_analysis_progress import auto_analysis_progress
-from Auto_analysis_code import split_data_by_day
+from Main.GUI_Tabs.Tab4.auto_analysis_progress import auto_analysis_progress
+from Main.GUI_Tabs.Tab4.Auto_analysis_code import split_data_by_day
 
-from GUI_Tabs.Tab1Controller import Tab1Controller
-from GUI_Tabs.Tab2Controller import Tab2Controller
-from GUI_Tabs.Tab3Controller import Tab3Controller
+from Main.GUI_Tabs.Tab1.Tab1Controller import Tab1Controller
+from Main.GUI_Tabs.Tab2.Tab2Controller import Tab2Controller
+from Main.GUI_Tabs.Tab3.Tab3Controller import Tab3Controller
 
 #setting directory properly
 os.chdir(os.path.dirname(os.path.abspath(__file__)))

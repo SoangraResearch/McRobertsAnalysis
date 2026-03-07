@@ -2,8 +2,8 @@ import os
 import re
 import tkinter as tk
 from tkinter import filedialog, messagebox
-from Ayush_Analysis import linear_analysis, nonlinear_analysis
-from Ayush_Analysis_Plot import display_combined_plots, get_current_selected_plot
+from Main.GUI_Tabs.Tab3.Analysis_code import linear_analysis, nonlinear_analysis
+from Main.GUI_Tabs.Tab3.Analysis_Plots import display_combined_plots, get_current_selected_plot
 
 class Tab3Controller:
     def __init__(self, tab_frame):

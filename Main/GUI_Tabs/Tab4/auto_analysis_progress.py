@@ -47,6 +47,29 @@ class auto_analysis_progress:
         # initial draw after geometry settles
         self.canvas.after(1, self._redraw)
 
+    # -------------------------Public Methods---------------------------------
+
+    def update_progress(self, index_or_name: Union[int, str]):
+        if isinstance(index_or_name, int):
+            if 0 <= index_or_name < len(self.steps):
+                self._selected_index = index_or_name
+            else:
+                return
+        else:
+            try:
+                self._selected_index = self.steps.index(index_or_name)
+            except ValueError:
+                return
+        self._apply_selection()
+        self.parent.update_idletasks()
+
+    def clear(self):
+        self._selected_index = None
+        self._apply_selection()
+        self.parent.update_idletasks()
+
+    # -------------------------Private/Helper Methods---------------------------------
+
     def _redraw(self, event=None):
         c = self.canvas
         c.delete("all")
@@ -90,22 +113,3 @@ class auto_analysis_progress:
         for i, tid in enumerate(self.step_item_ids):
             font_to_use = self.bold_font if (self._selected_index == i) else self.base_font
             self.canvas.itemconfig(tid, font=font_to_use)
-
-    def update_progress(self, index_or_name: Union[int, str]):
-        if isinstance(index_or_name, int):
-            if 0 <= index_or_name < len(self.steps):
-                self._selected_index = index_or_name
-            else:
-                return
-        else:
-            try:
-                self._selected_index = self.steps.index(index_or_name)
-            except ValueError:
-                return
-        self._apply_selection()
-        self.parent.update_idletasks()
-
-    def clear(self):
-        self._selected_index = None
-        self._apply_selection()
-        self.parent.update_idletasks()

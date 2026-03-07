@@ -101,8 +101,42 @@ class PlotOMX:
         self.fig.canvas.mpl_connect('scroll_event', self._update_edge_labels)
 
         # Reset view button
-        reset_button = tk.Button(self.container, text="⟳ Reset View", command=self.reset_view)
+        reset_button = tk.Button(self.container, text="⟳ Reset View", command=self._reset_view)
         reset_button.place(x=10, y=10)
+
+    # -------------------------Public Methods---------------------------------
+    
+    def register_view_change_callback(self, callback):
+        self.view_change_callbacks.append(callback)
+
+    def get_current_bounds(self):
+        x_min, x_max = self.ax.get_xlim()
+        return mdates.num2date(x_min), mdates.num2date(x_max)
+
+    def zoom_to_bounds(self, xmin, xmax):
+        xmin, xmax = self._clamp_xlim(xmin, xmax)
+
+        current_xlim = self.ax.get_xlim()
+        eps = 1e-12
+        if abs(current_xlim[0] - xmin) < eps and abs(current_xlim[1] - xmax) < eps:
+            return
+
+        x_dt, y_columns = self._downsample_data(xmin, xmax, max_points=self.max_points)
+        xnums = mdates.date2num(x_dt)
+
+        for line, col in zip(self.lines, range(y_columns.shape[1])):
+            line.set_data(xnums, y_columns[:, col])
+
+        self.ax.set_xlim(xmin, xmax)
+        self.ax.set_ylim(self.y_limits)
+        self.canvas.draw_idle()
+        self._update_edge_labels()
+
+        self.current_x = xnums
+        self.current_y = y_columns
+        self.current_view = (xmin, xmax)
+
+    # -------------------------Private/Helper Methods---------------------------------
 
     def _downsample_data(self, x_min, x_max, max_points=5000):
         if isinstance(x_min, (int, float)):
@@ -143,46 +177,16 @@ class PlotOMX:
 
         return np.array(x_down), np.vstack(y_down)
     
-    def register_view_change_callback(self, callback):
-        self.view_change_callbacks.append(callback)
-
-    def reset_view(self):
+    def _reset_view(self):
         self.ax.set_xlim(self.initial_xlim)
         self.ax.set_ylim(self.y_limits)
         self.canvas.draw_idle()
         self._update_edge_labels()
         self._notify_view_change()
 
-    def get_raw_bounds(self):
+    def _get_raw_bounds(self):
         x_min, x_max = self.ax.get_xlim()
         return x_min, x_max
-
-    def get_current_bounds(self):
-        x_min, x_max = self.ax.get_xlim()
-        return mdates.num2date(x_min), mdates.num2date(x_max)
-
-    def zoom_to_bounds(self, xmin, xmax):
-        xmin, xmax = self._clamp_xlim(xmin, xmax)
-
-        current_xlim = self.ax.get_xlim()
-        eps = 1e-12
-        if abs(current_xlim[0] - xmin) < eps and abs(current_xlim[1] - xmax) < eps:
-            return
-
-        x_dt, y_columns = self._downsample_data(xmin, xmax, max_points=self.max_points)
-        xnums = mdates.date2num(x_dt)
-
-        for line, col in zip(self.lines, range(y_columns.shape[1])):
-            line.set_data(xnums, y_columns[:, col])
-
-        self.ax.set_xlim(xmin, xmax)
-        self.ax.set_ylim(self.y_limits)
-        self.canvas.draw_idle()
-        self._update_edge_labels()
-
-        self.current_x = xnums
-        self.current_y = y_columns
-        self.current_view = (xmin, xmax)
 
     def _notify_view_change(self):
         for cb in self.view_change_callbacks:

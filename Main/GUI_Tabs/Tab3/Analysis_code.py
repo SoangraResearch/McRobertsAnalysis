@@ -2,8 +2,7 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.signal import resample
-from scipy.signal import butter, filtfilt
-from Main.Ayush_Analysis_Plot import linear_plot, nonlinear_plot
+from Main.GUI_Tabs.Tab3.Analysis_Plots import linear_plot, nonlinear_plot
 from Non_GUI.Ayush_Files.gait_functions.walking import find_walking
 from Non_GUI.Ayush_Files.gait_functions.hs_to_detection import get_hs_to_wavelet # function to detect heal strike and toe off from the walking data
 from Non_GUI.Ayush_Files.gait_functions.hs_to_detection import gait_parameters  # function to calculate gait parameters from heal strike and toe off

@@ -1,12 +1,9 @@
 import numpy as np
-import scipy.signal as signal
 import matplotlib.pyplot as plt
-import pywt
-import pandas as pd
-from scipy.interpolate import interp1d
-from scipy.signal import hilbert, convolve
+from scipy.signal import resample
+import numpy as np
+import matplotlib.pyplot as plt
 
-# GetFields.m file
 def get_fields(data, curr_structure='data', rfields=None):
     if rfields is None:
         rfields = []
@@ -53,9 +50,6 @@ def gsd_iluz(imu, time_vector=None, plot_results=False, force_walking = False):
 
     return GSD, gait_sequences_bool, v_acc
 
-# preprocessing_standardized.m
-from scipy.signal import resample
-
 def preprocessing_standardized(IMU, algorithm_target_fs):
     acc = IMU['LowerBack']['Acc']
     gyr = IMU['LowerBack']['Gyr']
@@ -69,8 +63,6 @@ def preprocessing_standardized(IMU, algorithm_target_fs):
         imu_preprocessed = np.hstack([acc, gyr])
 
     return imu_preprocessed
-
-# save_gsd_result.m file
 
 def save_gsd_result(walking_bool_vector, algorithm_output_fs, time_vector=None):
     if np.all(walking_bool_vector == 0):
@@ -99,11 +91,6 @@ def save_gsd_result(walking_bool_vector, algorithm_output_fs, time_vector=None):
         })
 
     return gait_sequences
-
-# Find_Peaks.m file
-
-import numpy as np
-import matplotlib.pyplot as plt
 
 def find_peaks(vec, th, do_plot=0):
     vec = np.asarray(vec)
