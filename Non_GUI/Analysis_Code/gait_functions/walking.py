@@ -25,8 +25,8 @@ from scipy.signal import find_peaks
 from scipy.signal.windows import tukey
 from ssqueezepy import ssq_cwt
 
-from Non_GUI.Ayush_Files.forest_develop.src.forest.constants import Frequency
-from Non_GUI.Ayush_Files.forest_develop.src.forest.utils import get_ids
+from Non_GUI.Analysis_Code.forest_develop.src.forest.constants import Frequency
+from Non_GUI.Analysis_Code.forest_develop.src.forest.utils import get_ids
 
 logger = logging.getLogger(__name__)
 
