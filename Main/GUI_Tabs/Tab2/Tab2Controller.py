@@ -5,7 +5,7 @@ from tkinter import filedialog, messagebox
 from OMX_To_CSV import matlab_datenum_to_datetime
 from GSDA_code import gsd_iluz
 from GSDB_code import gsd_low_back_acc
-from Main.GUI_Tabs.Tab2.GSD_plots import plot_GSDA, plot_GSDB, plot_steps
+from GSD_plots import plot_GSDA, plot_GSDB, plot_steps
 from ICDA_code import filter_and_print_long_segments, step_detection
 
 class Tab2Controller:

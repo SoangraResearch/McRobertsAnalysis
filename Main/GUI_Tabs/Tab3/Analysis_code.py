@@ -3,20 +3,20 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.signal import resample
 from Main.GUI_Tabs.Tab3.Analysis_Plots import linear_plot, nonlinear_plot
-from Non_GUI.Ayush_Files.gait_functions.walking import find_walking
-from Non_GUI.Ayush_Files.gait_functions.hs_to_detection import get_hs_to_wavelet # function to detect heal strike and toe off from the walking data
-from Non_GUI.Ayush_Files.gait_functions.hs_to_detection import gait_parameters  # function to calculate gait parameters from heal strike and toe off
+from Non_GUI.Analysis_Code.gait_functions.walking import find_walking
+from Non_GUI.Analysis_Code.gait_functions.hs_to_detection import get_hs_to_wavelet # function to detect heal strike and toe off from the walking data
+from Non_GUI.Analysis_Code.gait_functions.hs_to_detection import gait_parameters  # function to calculate gait parameters from heal strike and toe off
 
-from Non_GUI.Ayush_Files.non_linear_functions.ami_stergio import AMI_Stergiou
-from Non_GUI.Ayush_Files.non_linear_functions.fnn import FNN
-from Non_GUI.Ayush_Files.non_linear_functions.ent_Ap import Ent_Ap
-from Non_GUI.Ayush_Files.non_linear_functions.ent_symbolic import Ent_Symbolic
-from Non_GUI.Ayush_Files.non_linear_functions.entMSPlus import Ent_MS_Plus
-from Non_GUI.Ayush_Files.non_linear_functions.entPermu import Ent_Permu
-from Non_GUI.Ayush_Files.non_linear_functions.lye_R import LyE_R
-from Non_GUI.Ayush_Files.non_linear_functions.lye_W import LyE_W
-from Non_GUI.Ayush_Files.non_linear_functions.rqa import RQA
-from Non_GUI.Ayush_Files.non_linear_functions.ent_Samp import Ent_Samp
+from Non_GUI.Analysis_Code.non_linear_functions.ami_stergio import AMI_Stergiou
+from Non_GUI.Analysis_Code.non_linear_functions.fnn import FNN
+from Non_GUI.Analysis_Code.non_linear_functions.ent_Ap import Ent_Ap
+from Non_GUI.Analysis_Code.non_linear_functions.ent_symbolic import Ent_Symbolic
+from Non_GUI.Analysis_Code.non_linear_functions.entMSPlus import Ent_MS_Plus
+from Non_GUI.Analysis_Code.non_linear_functions.entPermu import Ent_Permu
+from Non_GUI.Analysis_Code.non_linear_functions.lye_R import LyE_R
+from Non_GUI.Analysis_Code.non_linear_functions.lye_W import LyE_W
+from Non_GUI.Analysis_Code.non_linear_functions.rqa import RQA
+from Non_GUI.Analysis_Code.non_linear_functions.ent_Samp import Ent_Samp
 
 def linear_analysis(filename, plot_frame, assume_walking=False):
     fs = 100

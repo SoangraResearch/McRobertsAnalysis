@@ -3,7 +3,7 @@ import tkinter as tk
 import pandas as pd
 import numpy as np
 from tkinter import filedialog, messagebox, ttk
-from ICDA_code import step_detection, filter_and_print_long_segments
+from Main.ICDA_code import step_detection, filter_and_print_long_segments
 from OMX_To_CSV import process_omx_file, matlab_datenum_to_datetime
 from GSDA_code import gsd_iluz
 from GSDB_code import gsd_low_back_acc
@@ -36,7 +36,7 @@ tab_control.add(tab2, text="Mobilise-D")
 
 tab3 = tk.Frame(tab_control)
 tab3_controller = Tab3Controller(tab3)
-tab_control.add(tab3, text="Ayush's Code")
+tab_control.add(tab3, text="Analysis")
 
 tab4 = tk.Frame(tab_control)
 tab_control.add(tab4, text="Auto-Analysis (WIP)")
@@ -48,7 +48,7 @@ acceleration_plot = None
 mobiliseD_file = None
 mobiliseD_directory_path = None
 mobilised_path_var = tk.StringVar()
-ayush_code_path_var = tk.StringVar()
+analysis_code_path_var = tk.StringVar()
 linear_plots = None
 nonlinear_plots = None
 exported_csv_path = "None"
@@ -67,7 +67,7 @@ def export_csv():
     tab1_controller.export_csv()
     mobilised_path_var.set(f"File loaded: {tab1_controller.export_filename}")
     tab2_controller.set_file(os.path.join(tab1_controller.export_folder, tab1_controller.export_filename + ".csv"))
-    ayush_code_path_var.set(f"File loaded: {tab1_controller.export_filename}")
+    analysis_code_path_var.set(f"File loaded: {tab1_controller.export_filename}")
     tab3_controller.set_file(os.path.join(tab1_controller.export_folder, tab1_controller.export_filename + ".csv"))
     
 # -------------------------Tab 1 Select Data---------------------------------
@@ -148,29 +148,29 @@ tk.Button(tab2, text="Save All", command=lambda: tab2_controller.save_all_GSD())
 
 # -------------------------Tab 3 Methods---------------------------------
 
-def load_ayush_code_file():
-    ayush_code_path_var.set(tab3_controller.load_file())
+def load_analysis_code_file():
+    analysis_code_path_var.set(tab3_controller.load_file())
 
-# -------------------------Tab 3 Ayush's Code---------------------------------
+# -------------------------Tab 3 Analysis---------------------------------
 
-tk.Button(tab3, text="Load CSV File", command=load_ayush_code_file).pack(pady=10)
+tk.Button(tab3, text="Load CSV File", command=load_analysis_code_file).pack(pady=10)
 
-ayush_code_path_var = tk.StringVar(value="File loaded: (none)")
-ayush_code_file_label = tk.Label(tab3, textvariable=ayush_code_path_var)
-ayush_code_file_label.pack()
+analysis_code_path_var = tk.StringVar(value="File loaded: (none)")
+analysis_file_label = tk.Label(tab3, textvariable=analysis_code_path_var)
+analysis_file_label.pack()
 
 analysis_frame = tk.Frame(tab3)
 analysis_frame.pack(pady=5)
 
 assume_walking_var = tk.BooleanVar(value=False)
-plot_frame_ayush_code = tk.Frame(tab3, height=300)
+plot_frame_analysis = tk.Frame(tab3, height=300)
 
-tk.Button(analysis_frame, text="Linear Analysis", width=15, command=lambda: tab3_controller.do_linear_analysis(plot_frame_ayush_code, assume_walking_var)).pack(side="left", padx=10)
-tk.Button(analysis_frame, text="Non-Linear Analysis", width=15, command=lambda: tab3_controller.do_nonlinear_analysis(plot_frame_ayush_code, assume_walking_var)).pack(side="left", padx=10)
+tk.Button(analysis_frame, text="Linear Analysis", width=15, command=lambda: tab3_controller.do_linear_analysis(plot_frame_analysis, assume_walking_var)).pack(side="left", padx=10)
+tk.Button(analysis_frame, text="Non-Linear Analysis", width=15, command=lambda: tab3_controller.do_nonlinear_analysis(plot_frame_analysis, assume_walking_var)).pack(side="left", padx=10)
 
 tk.Checkbutton(analysis_frame, text="Assume data is walking", variable=assume_walking_var).pack(side="left", padx=10)
 
-plot_frame_ayush_code.pack(fill="both", expand=True)
+plot_frame_analysis.pack(fill="both", expand=True)
 
 button_frame = tk.Frame(tab3)
 button_frame.pack(pady=5)
