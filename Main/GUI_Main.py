@@ -1,4 +1,9 @@
 import os
+import sys
+
+# Add parent directory to sys.path so 'from Main.X' imports resolve when running directly
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 import tkinter as tk
 import pandas as pd
 import numpy as np
@@ -14,7 +19,6 @@ from Main.GUI_Tabs.Tab1.Tab1Controller import Tab1Controller
 from Main.GUI_Tabs.Tab2.Tab2Controller import Tab2Controller
 from Main.GUI_Tabs.Tab3.Tab3Controller import Tab3Controller
 
-#setting directory properly
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
 # -------------------------Tkinter Setup---------------------------------
