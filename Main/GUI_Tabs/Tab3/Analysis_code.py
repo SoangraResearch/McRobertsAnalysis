@@ -2,7 +2,8 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.signal import resample
-from Main.GUI_Tabs.Tab3.Analysis_Plots import linear_plot, nonlinear_plot
+# nonlinear_plot moved to Tab3Controller — plots must be built on the main thread
+from Main.GUI_Tabs.Tab3.Analysis_Plots import linear_plot
 from Non_GUI.Analysis_Code.gait_functions.walking import find_walking
 from Non_GUI.Analysis_Code.gait_functions.hs_to_detection import get_hs_to_wavelet # function to detect heal strike and toe off from the walking data
 from Non_GUI.Analysis_Code.gait_functions.hs_to_detection import gait_parameters  # function to calculate gait parameters from heal strike and toe off
@@ -139,7 +140,21 @@ def linear_analysis(filename, plot_frame, assume_walking=False):
 
     return df, plots
 
-def nonlinear_analysis(filename, plot_frame, assume_walking=False):
+def nonlinear_analysis(filename, assume_walking=False, progress_callback=None):
+    """Runs nonlinear analysis on a background thread.
+
+    Returns raw plot data (dicts) instead of Matplotlib figures, because
+    Tkinter widgets can only be created on the main thread. The caller
+    (Tab3Controller) converts these dicts into figures after this returns.
+
+    Args:
+        filename: Path to CSV with acceleration data (Ax, Ay, Az).
+        assume_walking: If True, treats the entire file as one walking period.
+        progress_callback: Optional function(str) for live GUI status updates.
+
+    Returns:
+        (DataFrame, list[dict]): Results table and raw LyE plot data per period.
+    """
     fs = 100 # sampling frequency of sensor
 
     accleration = pd.read_csv(filename)
@@ -212,15 +227,21 @@ def nonlinear_analysis(filename, plot_frame, assume_walking=False):
     
     plots = []
 
-    for i in range(len(walking)):
+    num_periods = len(walking)
+    for i in range(num_periods):
         print("iterating through walking. Index: ", i)
         walk_start = walking[i,0]
         walk_end= walking[i,1]
         data = resampled_res_acc[walk_start:walk_end]
+
+        if progress_callback:
+            progress_callback(f"Period {i+1}/{num_periods}: Computing AMI...")
         #Calculate delay from Stergiou
         tau, V_ami = AMI_Stergiou(data,35)
         print("AMI_Stergiou calculated")
         delay = int(tau[0][0])
+        if progress_callback:
+            progress_callback(f"Period {i+1}/{num_periods}: Computing FNN...")
         #Calculate dimensions from fnn
         # Parameters for fnn function
         MaxDim = 30
@@ -230,6 +251,8 @@ def nonlinear_analysis(filename, plot_frame, assume_walking=False):
         ans = FNN(data, delay, MaxDim, Rtol, Atol, speed)
         print("FNN calculated")
         dim = ans[1]  #dimension
+        if progress_callback:
+            progress_callback(f"Period {i+1}/{num_periods}: Computing entropies...")
         # Approximate entropy
         r = 0.2 #tolerance
         AE = Ent_Ap(data, dim, r)
@@ -257,20 +280,30 @@ def nonlinear_analysis(filename, plot_frame, assume_walking=False):
         '''
         [permEnt_value,hist_value] = Ent_Permu(data, m, delay)
         print("ENT_Permu calculated")
+        if progress_callback:
+            progress_callback(f"Period {i+1}/{num_periods}: Computing LyE_R...")
         #LyE_Rosenstein
         name = "test"
         slope = [1,2,3,4]
         MeanPeriod = 1
         Plot = False
         (LyEl,LyEs,out), time, AveLnDiv, LyES, timeS, lyESline, LyEL, timeL, LyELline = LyE_R(data,name,fs_HS_TO,delay,m,slope, MeanPeriod, Plot)
-        fig = nonlinear_plot(time, AveLnDiv, LyES, timeS, lyESline, LyEL, timeL, LyELline, plot_frame, i)
-        print("nonlinear plot produced")
-        plots.append(fig)
         print("LYE_R calculated")
+        # Store raw plot data — figures are built on the main thread by Tab3Controller
+        plot_data = {
+            'time': time, 'AveLnDiv': AveLnDiv,
+            'LyES': LyES, 'timeS': timeS, 'lyESline': lyESline,
+            'LyEL': LyEL, 'timeL': timeL, 'LyELline': LyELline
+        }
+        plots.append(plot_data)
+        if progress_callback:
+            progress_callback(f"Period {i+1}/{num_periods}: Computing LyE_W...")
         #largest lyapunov exponent
         evolve = 2 # assuming
         [out,lye] = LyE_W(data, fs_HS_TO, delay, dim, evolve)
         print("LYE_W calculated")
+        if progress_callback:
+            progress_callback(f"Period {i+1}/{num_periods}: Computing RQA...")
         # RQA
         TYPE = 'RQA'
         ZSCORE = 1
@@ -293,6 +326,9 @@ def nonlinear_analysis(filename, plot_frame, assume_walking=False):
         MaxV= rqa_RESULTS[0]['MaxV']
         EntrV=rqa_RESULTS[0]['EntrV']
         EntrW=rqa_RESULTS[0]['EntrW']
+
+        if progress_callback:
+            progress_callback(f"Period {i+1}/{num_periods}: Computing MSE...")
 
         tau = 20
         r = 0.2
