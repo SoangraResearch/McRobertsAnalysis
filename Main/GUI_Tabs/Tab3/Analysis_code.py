@@ -287,7 +287,8 @@ def nonlinear_analysis(filename, assume_walking=False, progress_callback=None):
         slope = [1,2,3,4]
         MeanPeriod = 1
         Plot = False
-        (LyEl,LyEs,out), time, AveLnDiv, LyES, timeS, lyESline, LyEL, timeL, LyELline = LyE_R(data,name,fs_HS_TO,delay,m,slope, MeanPeriod, Plot)
+        # Use dim (FNN-determined embedding dimension), not m (entropy param which is always 2)
+        (LyEl,LyEs,out), time, AveLnDiv, LyES, timeS, lyESline, LyEL, timeL, LyELline = LyE_R(data,name,fs_HS_TO,delay,dim,slope, MeanPeriod, Plot)
         print("LYE_R calculated")
         # Store raw plot data — figures are built on the main thread by Tab3Controller
         plot_data = {
