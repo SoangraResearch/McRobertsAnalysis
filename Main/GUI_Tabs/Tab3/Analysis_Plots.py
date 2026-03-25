@@ -28,25 +28,28 @@ def display_combined_plots(linear_plots, nonlinear_plots, plot_frame):
         linear_frame = ttk.Frame(plots_frame)
         nonlinear_frame = ttk.Frame(plots_frame)
 
-        def draw(i=i):
+        # Capture i, linear_frame, nonlinear_frame by value (default args) so each
+        # deferred draw targets the correct tab. Without this, all draws would
+        # reference the last loop iteration's frames, rendering every plot into one tab.
+        def draw(i=i, lf=linear_frame, nf=nonlinear_frame):
             if i < len(linear_plots):
                 fig = linear_plots[i]
                 fig.set_size_inches(5, 3.5)
-                canvas = FigureCanvasTkAgg(fig, master=linear_frame)
+                canvas = FigureCanvasTkAgg(fig, master=lf)
                 canvas.draw()
                 canvas.get_tk_widget().pack(fill='both', expand=True)
 
             if i < len(nonlinear_plots):
                 fig = nonlinear_plots[i]
                 fig.set_size_inches(5, 3.5)
-                canvas = FigureCanvasTkAgg(fig, master=nonlinear_frame)
+                canvas = FigureCanvasTkAgg(fig, master=nf)
                 canvas.draw()
                 canvas.get_tk_widget().pack(fill='both', expand=True)
 
-            linear_frame.pack(side='left', fill='both', expand=True)
-            nonlinear_frame.pack(side='right', fill='both', expand=True)
+            lf.pack(side='left', fill='both', expand=True)
+            nf.pack(side='right', fill='both', expand=True)
 
-        # Defer drawing to ensure proper layout
+        # Defer drawing to ensure frames are laid out before embedding canvases
         plot_frame.after(50, draw)
 
     if num_tabs > 0:
