@@ -247,7 +247,7 @@ def nonlinear_analysis(filename, assume_walking=False, progress_callback=None):
         MaxDim = 30
         Rtol = 15
         Atol = 2
-        speed = 0
+        speed = 1  # Stop early once optimal dimension is found (speed=0 computes all 30)
         ans = FNN(data, delay, MaxDim, Rtol, Atol, speed)
         print("FNN calculated")
         dim = ans[1]  #dimension
