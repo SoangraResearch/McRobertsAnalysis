@@ -621,8 +621,10 @@ def rqaHistograms(a, DATA, TYPE, radius):
 
     diag_hist = np.array([])
     vertical_hist = np.array([])
+    # np.diag already returns a new array — .copy() was redundant and caused a
+    # full-matrix copy on every iteration, which is a major slowdown for large matrices.
     for i4 in range(-DATA.shape[1],DATA.shape[1]): # caluculate diagonal line distribution
-        diagonal = np.diag(a.copy(), k=i4).astype(int)
+        diagonal = np.diag(a, k=i4).astype(int)
         d=label_components(diagonal)
         # lengths
         d = d[np.nonzero(d)]
@@ -636,8 +638,9 @@ def rqaHistograms(a, DATA, TYPE, radius):
         if len(diag_hist) == 0:
             diag_hist = 0
     
+    # Column slicing already produces a new array; .copy() was redundant here too.
     for i5 in range(DATA.shape[1]):
-        C = a[:,i5].copy().astype(int)
+        C = a[:,i5].astype(int)
         v = label_components(C)
 
         v = v[np.nonzero(v)]
