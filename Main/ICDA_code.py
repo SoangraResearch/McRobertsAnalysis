@@ -4,13 +4,16 @@ from scipy.signal import convolve
 from scipy.io import loadmat
 from GSDB_code import resamp_interp
 import pywt
+import sys
 import numpy as np
 import matplotlib.pyplot as plt
 
 from pathlib import Path
 
-#automatically finds file paths
+# .app support: use bundled path when running as .app
 def find_mcroberts_root():
+    if getattr(sys, 'frozen', False):
+        return Path(sys._MEIPASS)
     current = Path(__file__).resolve()
     for parent in current.parents:
         candidate = parent / "McRobertsAnalysis"

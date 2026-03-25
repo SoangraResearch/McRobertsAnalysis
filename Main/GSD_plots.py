@@ -1,4 +1,5 @@
 import os
+import sys
 import pywt
 import numpy as np
 import matplotlib.pyplot as plt
@@ -57,8 +58,12 @@ def plot_GSDB(sig_det_actv, walk_label, plot_frame):
     return fig
 
 def plot_steps(GS, fs, acc_v, plot_frame):
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    mat_file_path = os.path.normpath(os.path.join(current_dir, "../Mobilise-D-TVS-Recommended-Algorithms-master/ICDA/Library/FIR-2-3Hz-40.mat"))
+    # .app support: use bundled path when running as .app
+    if getattr(sys, 'frozen', False):
+        mat_file_path = os.path.join(sys._MEIPASS, "Mobilise-D-TVS-Recommended-Algorithms-master", "ICDA", "Library", "FIR-2-3Hz-40.mat")
+    else:
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        mat_file_path = os.path.normpath(os.path.join(current_dir, "../Mobilise-D-TVS-Recommended-Algorithms-master/ICDA/Library/FIR-2-3Hz-40.mat"))
     Num = loadmat(mat_file_path)['Num'].flatten()
 
     fs_algo = 40

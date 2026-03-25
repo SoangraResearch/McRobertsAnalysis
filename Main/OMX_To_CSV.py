@@ -11,15 +11,19 @@ from oct2py import Oct2Py
 
 def process_omx_file(filepath: str):
     
-    #setting working directory
-    os.chdir(os.path.dirname(os.path.abspath(__file__)))
+    # .app support: use bundled path when running as .app
+    if getattr(sys, 'frozen', False):
+        base_path = sys._MEIPASS
+    else:
+        os.chdir(os.path.dirname(os.path.abspath(__file__)))
+        base_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..')
 
     #Initializing Oct2Py
     oc = Oct2Py()
     atexit.register(oc.exit)
 
     #Adding necessary filepath
-    oc.addpath('../DynaportCompany_Codes_new/source')
+    oc.addpath(os.path.join(base_path, 'DynaportCompany_Codes_new', 'source'))
 
     #Getting filename
     filename = os.path.splitext(os.path.basename(filepath))[0]
