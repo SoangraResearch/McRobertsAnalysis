@@ -12,11 +12,12 @@ from tkinter import filedialog, messagebox, ttk
 from OMX_To_CSV import process_omx_file
 from Main.GUI_Tabs.Tab4.auto_analysis_progress import auto_analysis_progress
 from Main.GUI_Tabs.Tab4.Auto_analysis_code import (
+    combine_segment_batch_results_to_tables,
+    combine_tab2_per_chunk_export_tables,
     run_segment_batch_analysis,
     run_sequence_detection_per_chunk,
     select_segments_for_auto_analysis,
     split_data_by_day,
-    combine_segment_batch_results_to_tables,
 )
 
 # Each tab’s behavior is in its controller; this module mostly wires widgets and callbacks.
@@ -255,7 +256,8 @@ def run_auto_analysis():
         auto_analysis_per_chunk_results = run_sequence_detection_per_chunk(
             data_chunks,
             label_var_auto_analysis.get(),
-            force_data_as_walking.get(),
+            # Tab 4 checkbox value (separate from Tab 2’s Mobilise-D checkbox).
+            force_data_as_walking_tab4.get(),
         )
 
         progress_text.update_progress("Segment Selection")
@@ -288,6 +290,49 @@ def run_auto_analysis():
 
         saved_any = False
         saved_paths = []
+        tab2_export_note = ""
+
+        # Optional Tab 2–style export:
+        # If the checkbox is enabled, we prompt the user to save CSVs that mirror
+        # Tab 2 outputs (GSD gait sequences and step counts), but combined across
+        # all day-chunks processed in this Tab 4 run.
+        if save_tab2_auto_results.get():
+            gsd_all_df, step_all_df = combine_tab2_per_chunk_export_tables(
+                auto_analysis_per_chunk_results
+            )
+            # Save GSD results for all day chunks (stacked into one table).
+            if not gsd_all_df.empty:
+                default_gsd = f"{base_name}_tab4_GSD_results.csv"
+                gsd_path = filedialog.asksaveasfilename(
+                    defaultextension=".csv",
+                    filetypes=[("CSV files", "*.csv")],
+                    initialdir=base_dir,
+                    initialfile=default_gsd,
+                    title="Save Tab 2–style GSD results (all day chunks)",
+                )
+                if gsd_path:
+                    gsd_all_df.to_csv(gsd_path, index=False)
+                    saved_any = True
+                    saved_paths.append(os.path.basename(gsd_path))
+            # Save step counts for all day chunks (stacked into one table).
+            if not step_all_df.empty:
+                default_steps = f"{base_name}_tab4_step_counts.csv"
+                step_path = filedialog.asksaveasfilename(
+                    defaultextension=".csv",
+                    filetypes=[("CSV files", "*.csv")],
+                    initialdir=base_dir,
+                    initialfile=default_steps,
+                    title="Save Tab 2–style step counts (all day chunks)",
+                )
+                if step_path:
+                    step_all_df.to_csv(step_path, index=False)
+                    saved_any = True
+                    saved_paths.append(os.path.basename(step_path))
+            # If both tables are empty, show a short note in the final summary.
+            if gsd_all_df.empty and step_all_df.empty:
+                tab2_export_note = (
+                    "Tab 2 export: no GSD/step rows (all day chunks empty or skipped).\n\n"
+                )
 
         if not linear_all_df.empty:
             default_linear = f"{base_name}_tab4_linear_segments.csv"
@@ -317,7 +362,7 @@ def run_auto_analysis():
                 saved_any = True
                 saved_paths.append(os.path.basename(nonlinear_path))
 
-        summary_msg = (
+        summary_msg = tab2_export_note + (
             f"Day chunks: {len(data_chunks)}\n"
             f"Long segments selected: {n_sel}\n"
             f"Analyzed OK: {n_ok}, failed: {n_fail}\n"
@@ -354,6 +399,18 @@ label_frame = tk.Frame(tab4)
 label_frame.pack()
 for lbl in ["Healthy(GSDA)", "Patient(GSDB)"]:
     tk.Radiobutton(label_frame, text=lbl, variable=label_var_auto_analysis, value=lbl).pack(side="left", padx=20)
+
+# Optional flag: forces the “walking” behavior inside the GSD/segment logic.
+force_data_as_walking_tab4 = tk.BooleanVar(value=False)
+tk.Checkbutton(tab4, text="Force Data as Walking", variable=force_data_as_walking_tab4).pack(pady=5)
+
+# Offer save dialogs for Mobilise-D–style CSVs (Plots still require Tab 2.)
+save_tab2_auto_results = tk.BooleanVar(value=False)
+tk.Checkbutton(
+    tab4,
+    text="After run: offer to save Tab 2 results (GSD + step counts CSV)",
+    variable=save_tab2_auto_results,
+).pack(pady=2)
 
 run_auto_analysis_button = tk.Button(tab4, text="Run Auto Analysis", command=run_auto_analysis)
 run_auto_analysis_button.pack(pady=10)

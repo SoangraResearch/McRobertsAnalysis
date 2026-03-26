@@ -1,4 +1,5 @@
 import numpy as np
+from scipy.spatial import cKDTree
 
 def Ent_Samp(data, m, r):
   """
@@ -28,30 +29,29 @@ def Ent_Samp(data, m, r):
              Shifat Sarwar, ssarwar@unomaha.edu
   Define r as R times the standard deviation
   """
+  data = np.asarray(data, dtype=float).reshape(-1)
   R = r * np.std(data)
   N = len(data)
+  n = N - m
+  if n <= 0:
+    raise ValueError("Embedding dimension is too large for input length.")
 
-  data = np.array(data)
+  # Preserve historical implementation behavior: it uses N-m templates.
+  emb_m = np.lib.stride_tricks.sliding_window_view(data, m)[:n]
+  emb_m1 = np.lib.stride_tricks.sliding_window_view(data, m + 1)[:n]
 
-  dij = np.zeros((N-m,m+1))
-  dj =  np.zeros((N-m,1))
-  dj1 = np.zeros((N-m,1))
-  Bm = np.zeros((N-m,1))
-  Am = np.zeros((N-m,1))
+  tree_m = cKDTree(emb_m)
+  tree_m1 = cKDTree(emb_m1)
 
-  for i in range(N-m):
-    for k in range(m+1):
-      dij[:,k] = np.abs(data[k:N-m+k]-data[i+k]) 
-    dj = np.max(dij[:,0:m],axis=1)
-    dj1 = np.max(dij,axis=1)
-    d = np.where(dj <= R) 
-    d1 = np.where(dj1 <= R)
-    nm = d[0].shape[0]-1 # subtract the self match
-    Bm[i] = nm/(N-m)
-    nm1 = d1[0].shape[0]-1 # subtract the self match
-    Am[i] = nm1/(N-m)
-  
-  Bmr = np.sum(Bm)/(N-m)
-  Amr = np.sum(Am)/(N-m)
+  # Use count-only mode to avoid allocating neighbor index lists for every point.
+  counts_m = tree_m.query_ball_point(emb_m, r=R, p=np.inf, return_length=True)
+  counts_m1 = tree_m1.query_ball_point(emb_m1, r=R, p=np.inf, return_length=True)
 
-  return -np.log(Amr/Bmr)
+  # Match original self-match handling exactly.
+  Bm = (counts_m.astype(float) - 1.0) / n
+  Am = (counts_m1.astype(float) - 1.0) / n
+
+  Bmr = np.mean(Bm)
+  Amr = np.mean(Am)
+
+  return -np.log(Amr / Bmr)

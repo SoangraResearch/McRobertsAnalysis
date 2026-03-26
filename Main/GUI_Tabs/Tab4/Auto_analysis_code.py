@@ -431,3 +431,41 @@ def combine_segment_batch_results_to_tables(batch_results):
     )
 
     return linear_all, nonlinear_all, failures
+
+
+def combine_tab2_per_chunk_export_tables(per_chunk_results):
+    """Stack Tab 2–style tables from each day chunk for export.
+
+    Each row’s gait timing fields (e.g. Start/End in ``sd_result_df``) stay in
+    **seconds from the start of that day chunk**, same as Tab 2 on a CSV that
+    contains only that chunk.
+
+    Returns:
+        (gsd_all_df, step_all_df): combined GSD results and step-detection tables,
+        with column ``day_chunk_index`` identifying the source chunk (0-based).
+    """
+    gsd_parts = []
+    step_parts = []
+
+    for entry in per_chunk_results or []:
+        if not entry or entry.get("skipped"):
+            continue
+        idx = entry.get("chunk_index")
+        sdf = entry.get("sd_result_df")
+        if isinstance(sdf, pd.DataFrame) and not sdf.empty:
+            d = sdf.copy()
+            d["day_chunk_index"] = idx
+            gsd_parts.append(d)
+        pdf = entry.get("step_result_df")
+        if isinstance(pdf, pd.DataFrame) and not pdf.empty:
+            d = pdf.copy()
+            d["day_chunk_index"] = idx
+            step_parts.append(d)
+
+    gsd_all = (
+        pd.concat(gsd_parts, ignore_index=True) if gsd_parts else pd.DataFrame()
+    )
+    step_all = (
+        pd.concat(step_parts, ignore_index=True) if step_parts else pd.DataFrame()
+    )
+    return gsd_all, step_all

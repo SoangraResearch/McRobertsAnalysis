@@ -1,4 +1,5 @@
 import numpy as np
+from scipy.spatial import cKDTree
 
 def Ent_Ap(data, dim, r):
     """
@@ -31,20 +32,25 @@ def Ent_Ap(data, dim, r):
     """
 
 
-    r = r*np.std(data)
+    data = np.asarray(data, dtype=float).reshape(-1)
+    r = r * np.std(data)
     N = len(data)
-    phim = np.zeros(2)
+    phim = np.zeros(2, dtype=float)
+
     for j in range(2):
-        m = dim+j
-        phi = np.zeros(N-m+1)
-        data_mat = np.zeros((N-m+1,m))
-        for i in range(m):
-            data_mat[:,i] = data[i:N-m+i+1]
-        for i in range(N-m+1):
-            temp_mat = np.abs(data_mat - data_mat[i,:])
-            AorB = np.unique(np.where(temp_mat > r)[0])
-            AorB = len(temp_mat) - len(AorB)
-            phi[i] = AorB/(N-m+1)
-        phim[j] = np.sum(np.log(phi))/(N-m+1)
+        m = dim + j
+        n = N - m + 1
+        if n <= 0:
+            raise ValueError("Embedding dimension is too large for input length.")
+
+        data_mat = np.lib.stride_tricks.sliding_window_view(data, m)
+        tree = cKDTree(data_mat)
+
+        # Match original behavior exactly: include self-matches and use <= r
+        # Count neighbors without materializing full index lists (prevents OOM on long bouts).
+        counts = tree.query_ball_point(data_mat, r=r, p=np.inf, return_length=True)
+        phi = counts.astype(float) / n
+        phim[j] = np.sum(np.log(phi)) / n
+
     AE = phim[0] - phim[1]
     return AE
