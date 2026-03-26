@@ -356,3 +356,78 @@ def run_segment_batch_analysis(data_chunks, selected_segments, assume_walking=Tr
         shutil.rmtree(tmpdir, ignore_errors=True)
 
     return results
+
+
+def combine_segment_batch_results_to_tables(batch_results):
+    """Flatten per-segment analysis results into 2 combined tables.
+
+    The batch results come from :func:`run_segment_batch_analysis` and contain
+    ``linear_df`` and ``nonlinear_df`` for each successfully analyzed segment.
+
+    Returns:
+        (linear_all_df, nonlinear_all_df, failures)
+        - ``linear_all_df``: concatenated linear segment rows with metadata
+        - ``nonlinear_all_df``: concatenated nonlinear segment rows with metadata
+        - ``failures``: list of dicts describing segments that errored
+    """
+    linear_parts = []
+    nonlinear_parts = []
+    failures = []
+
+    for r in batch_results or []:
+        if not r:
+            continue
+
+        if r.get("error") is not None:
+            failures.append(
+                {
+                    "chunk_index": r.get("chunk_index"),
+                    "segment_index": r.get("segment_index"),
+                    "error": r.get("error"),
+                }
+            )
+            continue
+
+        chunk_idx = r.get("chunk_index")
+        seg_idx = r.get("segment_index")
+        seg = r.get("segment") or {}
+
+        start_s = seg.get("Start")
+        end_s = seg.get("End")
+        try:
+            duration_s = float(end_s) - float(start_s)
+        except Exception:
+            duration_s = None
+
+        meta = {
+            "chunk_index": chunk_idx,
+            "segment_index": seg_idx,
+            "segment_start_s": start_s,
+            "segment_end_s": end_s,
+            "segment_duration_s": duration_s,
+        }
+
+        linear_df = r.get("linear_df")
+        if isinstance(linear_df, pd.DataFrame) and not linear_df.empty:
+            df = linear_df.copy()
+            for k, v in meta.items():
+                df[k] = v
+            linear_parts.append(df)
+
+        nonlinear_df = r.get("nonlinear_df")
+        if isinstance(nonlinear_df, pd.DataFrame) and not nonlinear_df.empty:
+            df = nonlinear_df.copy()
+            for k, v in meta.items():
+                df[k] = v
+            nonlinear_parts.append(df)
+
+    linear_all = (
+        pd.concat(linear_parts, ignore_index=True) if linear_parts else pd.DataFrame()
+    )
+    nonlinear_all = (
+        pd.concat(nonlinear_parts, ignore_index=True)
+        if nonlinear_parts
+        else pd.DataFrame()
+    )
+
+    return linear_all, nonlinear_all, failures

@@ -16,6 +16,7 @@ from Main.GUI_Tabs.Tab4.Auto_analysis_code import (
     run_sequence_detection_per_chunk,
     select_segments_for_auto_analysis,
     split_data_by_day,
+    combine_segment_batch_results_to_tables,
 )
 
 # Each tab’s behavior is in its controller; this module mostly wires widgets and callbacks.
@@ -276,12 +277,60 @@ def run_auto_analysis():
         n_sel = len(auto_analysis_selected_segments)
         n_ok = sum(1 for r in auto_analysis_batch_results if r.get("error") is None)
         n_fail = len(auto_analysis_batch_results) - n_ok
-        messagebox.showinfo(
-            "Auto Analysis",
+
+        # Consolidate all per-segment results into combined tables and let the user save them as CSVs.
+        linear_all_df, nonlinear_all_df, failures = combine_segment_batch_results_to_tables(
+            auto_analysis_batch_results
+        )
+
+        base_dir = os.path.dirname(auto_analysis_file)
+        base_name = os.path.splitext(os.path.basename(auto_analysis_file))[0]
+
+        saved_any = False
+        saved_paths = []
+
+        if not linear_all_df.empty:
+            default_linear = f"{base_name}_tab4_linear_segments.csv"
+            linear_path = filedialog.asksaveasfilename(
+                defaultextension=".csv",
+                filetypes=[("CSV files", "*.csv")],
+                initialdir=base_dir,
+                initialfile=default_linear,
+                title="Save Tab4 Linear Segments (CSV)",
+            )
+            if linear_path:
+                linear_all_df.to_csv(linear_path, index=False)
+                saved_any = True
+                saved_paths.append(os.path.basename(linear_path))
+
+        if not nonlinear_all_df.empty:
+            default_nonlinear = f"{base_name}_tab4_nonlinear_segments.csv"
+            nonlinear_path = filedialog.asksaveasfilename(
+                defaultextension=".csv",
+                filetypes=[("CSV files", "*.csv")],
+                initialdir=base_dir,
+                initialfile=default_nonlinear,
+                title="Save Tab4 Nonlinear Segments (CSV)",
+            )
+            if nonlinear_path:
+                nonlinear_all_df.to_csv(nonlinear_path, index=False)
+                saved_any = True
+                saved_paths.append(os.path.basename(nonlinear_path))
+
+        summary_msg = (
             f"Day chunks: {len(data_chunks)}\n"
             f"Long segments selected: {n_sel}\n"
-            f"Analyzed OK: {n_ok}, failed: {n_fail}",
+            f"Analyzed OK: {n_ok}, failed: {n_fail}\n"
         )
+        if saved_any:
+            summary_msg += "Saved:\n" + "\n".join(saved_paths)
+        else:
+            if (linear_all_df.empty) and (nonlinear_all_df.empty):
+                summary_msg += "\nNo successful segment outputs to save."
+            else:
+                summary_msg += "\nNo CSVs saved (prompts cancelled)."
+
+        messagebox.showinfo("Auto Analysis", summary_msg)
 
     except Exception as e:
         auto_analysis_per_chunk_results = None
