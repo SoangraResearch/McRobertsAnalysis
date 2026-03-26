@@ -5,20 +5,23 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import tkinter as tk
-import pandas as pd
-import numpy as np
+import traceback
 from tkinter import filedialog, messagebox, ttk
-from Main.ICDA_code import step_detection, filter_and_print_long_segments
-from OMX_To_CSV import process_omx_file, matlab_datenum_to_datetime
-from GSDA_code import gsd_iluz
-from GSDB_code import gsd_low_back_acc
-from Main.GUI_Tabs.Tab4.auto_analysis_progress import auto_analysis_progress
-from Main.GUI_Tabs.Tab4.Auto_analysis_code import split_data_by_day
 
+# OMX reader (Octave) and Tab 4 batch logic live outside this file.
+from OMX_To_CSV import process_omx_file
+from Main.GUI_Tabs.Tab4.auto_analysis_progress import auto_analysis_progress
+from Main.GUI_Tabs.Tab4.Auto_analysis_code import (
+    run_sequence_detection_per_chunk,
+    split_data_by_day,
+)
+
+# Each tab’s behavior is in its controller; this module mostly wires widgets and callbacks.
 from Main.GUI_Tabs.Tab1.Tab1Controller import Tab1Controller
 from Main.GUI_Tabs.Tab2.Tab2Controller import Tab2Controller
 from Main.GUI_Tabs.Tab3.Tab3Controller import Tab3Controller
 
+# OMX paths and local imports (GSDA_code, etc.) assume the working directory is Main/.
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
 # -------------------------Tkinter Setup---------------------------------
@@ -47,6 +50,7 @@ tab_control.add(tab4, text="Auto-Analysis (WIP)")
 
 tab_control.pack(expand=1, fill='both')
 
+# --- Shared / legacy GUI state (mostly Tab 1–3). Controllers also keep their own file paths. ---
 plot_frame_OMX = None
 acceleration_plot = None
 mobiliseD_file = None
@@ -63,12 +67,15 @@ file_stop_time_var = tk.StringVar()
 label_var = tk.StringVar()
 export_format_var = tk.StringVar()
 
+# --- Tab 4 only: path to raw OMX, and last run’s per-day GSD/step results (for later pipeline steps). ---
 auto_analysis_file = "None"
+auto_analysis_per_chunk_results = None
 
 # -------------------------Tab 1 Methods---------------------------------
 
 def export_csv():
     tab1_controller.export_csv()
+    # Point Mobilise-D Tab and Analysis Tab at the same exported CSV name/path.
     mobilised_path_var.set(f"File loaded: {tab1_controller.export_filename}")
     tab2_controller.set_file(os.path.join(tab1_controller.export_folder, tab1_controller.export_filename + ".csv"))
     analysis_code_path_var.set(f"File loaded: {tab1_controller.export_filename}")
@@ -123,7 +130,7 @@ gsd_frame.pack(pady=15)
 # button
 tk.Button(gsd_frame, text="Run GSD Detection", command=lambda: tab2_controller.process_GSD(label_var_MobiliseD.get(), force_data_as_walking.get(), plot_left_GSD, plot_right_GSD, extra_plots=1)).pack(side="left", padx=10) #set extra plots to 1 to display plots
 
-# checkbox
+# Shared with Tab 4 auto analysis so GSD uses the same “force walking” flag as Mobilise-D.
 force_data_as_walking = tk.BooleanVar(value=False)
 tk.Checkbutton(gsd_frame, text="Force Data as Walking",
                variable=force_data_as_walking).pack(side="left", padx=10)
@@ -186,7 +193,7 @@ tk.Button(button_frame, text="Save All Non-Linear Analysis Plots", command=lambd
 
 tk.Button(tab3, text="Save All", command=lambda: tab3_controller.save_all_output()).pack(pady=5)
 
-# -------------------------Tab 4 Methods---------------------------------
+# -------------------------Tab 4 Methods (OMX → day chunks → GSD; no controller class yet) ---------------------------------
 def load_auto_analysis_file():
     global auto_analysis_file
     file_path = filedialog.askopenfilename(filetypes=[("OMX file", "*.OMX")])
@@ -212,7 +219,7 @@ def load_auto_analysis_file():
         auto_analysis_input_file = "None"
 
 def run_auto_analysis():
-    global auto_analysis_file
+    global auto_analysis_file, auto_analysis_per_chunk_results
     if (auto_analysis_file == "None"):
         messagebox.showerror("Error", "File not loaded")
         return
@@ -223,41 +230,36 @@ def run_auto_analysis():
     
     progress_text.clear()
 
-    progress_text.update_progress("Reading Data")
+    try:
+        # Drop any previous results so a failed run does not leave stale data.
+        auto_analysis_per_chunk_results = None
+        progress_text.update_progress("Reading Data")
 
-    auto_analysis_data, filename = process_omx_file(auto_analysis_file)
+        auto_analysis_data, _filename = process_omx_file(auto_analysis_file)
+        timestamps = auto_analysis_data['ACC'][:, 0]
 
-    # extract raw datenum timestamps
-    timestamps = auto_analysis_data['ACC'][:, 0]
+        progress_text.update_progress("Splitting Data")
 
-    progress_text.update_progress("Splitting Data")
+        data_chunks = split_data_by_day(auto_analysis_data, timestamps)
 
-    data_chunks = split_data_by_day(auto_analysis_data, timestamps)
-    print("data chunks count: " + str(len(data_chunks)))
+        progress_text.update_progress("Sequence Detection")
 
-    progress_text.update_progress("Sequence Detection")
+        # Healthy vs Patient chooses gsd_iluz vs gsd_low_back_acc inside Auto_analysis_code.
+        auto_analysis_per_chunk_results = run_sequence_detection_per_chunk(
+            data_chunks,
+            label_var_auto_analysis.get(),
+            force_data_as_walking.get(),
+        )
 
-    #Running gsd algorithm
-    for chunk in data_chunks:
-        acc = chunk.iloc[:, 1:4].to_numpy()
-        time_col = chunk['Time'].to_numpy()
-        original_time_array = [matlab_datenum_to_datetime(t) for t in time_col]
-        fs = 100
-        if (label_var_auto_analysis).get() == "Healthy(GSDA)":
-            imu_input = {"LowerBack": {"Acc": acc, "Gyr": np.zeros_like(acc), "Fs": {"Acc": fs}}}
-            gsd_result, gait_bool_for_plot, v_acc_for_plot = gsd_iluz(imu_input, time_vector=original_time_array, plot_results=False, force_walking=False)
-        elif (label_var_auto_analysis).get() == "Patient(GSDB)":
-            gsd_result, sig_det_act_for_plot, walk_label_for_plot = gsd_low_back_acc(acc, fs, plot_results=False, time_vector=original_time_array, force_walking=force_data_as_walking.get())
-        else:
-            print("No data type selected!")
-        long_segments = filter_and_print_long_segments(gsd_result, original_time_array=original_time_array)
-        sd_result_df = pd.DataFrame(gsd_result)
-        step_result = step_detection(acc, gsd_result, fs, plot_results=False, original_time_array=original_time_array)
-        print("Long segments:", long_segments)
+        # Next pipeline stage: pick segments from long_segments (placeholder progress step for now).
+        progress_text.update_progress("Segment Selection")
 
-    progress_text.update_progress("Segment Selection")
+    except Exception as e:
+        auto_analysis_per_chunk_results = None
+        traceback.print_exc()
+        messagebox.showerror("Auto Analysis Error", str(e))
 
-# -------------------------Tab 4 Auto Analysis---------------------------------
+# -------------------------Tab 4 Auto Analysis UI ---------------------------------
 load_file_button = tk.Button(tab4, text="Load OMX File", command=load_auto_analysis_file)
 load_file_button.pack(pady=10)
 
