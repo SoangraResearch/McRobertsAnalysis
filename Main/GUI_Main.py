@@ -13,6 +13,7 @@ from OMX_To_CSV import process_omx_file
 from Main.GUI_Tabs.Tab4.auto_analysis_progress import auto_analysis_progress
 from Main.GUI_Tabs.Tab4.Auto_analysis_code import (
     run_sequence_detection_per_chunk,
+    select_segments_for_auto_analysis,
     split_data_by_day,
 )
 
@@ -67,9 +68,10 @@ file_stop_time_var = tk.StringVar()
 label_var = tk.StringVar()
 export_format_var = tk.StringVar()
 
-# --- Tab 4 only: path to raw OMX, and last run’s per-day GSD/step results (for later pipeline steps). ---
+# --- Tab 4 only: OMX path, per-day GSD output, and flattened long-segment list for batch analysis. ---
 auto_analysis_file = "None"
 auto_analysis_per_chunk_results = None
+auto_analysis_selected_segments = None
 
 # -------------------------Tab 1 Methods---------------------------------
 
@@ -219,7 +221,7 @@ def load_auto_analysis_file():
         auto_analysis_input_file = "None"
 
 def run_auto_analysis():
-    global auto_analysis_file, auto_analysis_per_chunk_results
+    global auto_analysis_file, auto_analysis_per_chunk_results, auto_analysis_selected_segments
     if (auto_analysis_file == "None"):
         messagebox.showerror("Error", "File not loaded")
         return
@@ -233,6 +235,7 @@ def run_auto_analysis():
     try:
         # Drop any previous results so a failed run does not leave stale data.
         auto_analysis_per_chunk_results = None
+        auto_analysis_selected_segments = None
         progress_text.update_progress("Reading Data")
 
         auto_analysis_data, _filename = process_omx_file(auto_analysis_file)
@@ -251,11 +254,20 @@ def run_auto_analysis():
             force_data_as_walking.get(),
         )
 
-        # Next pipeline stage: pick segments from long_segments (placeholder progress step for now).
         progress_text.update_progress("Segment Selection")
+        # One row per long bout: chunk_index + segment dict (Start/End relative to that chunk).
+        auto_analysis_selected_segments = select_segments_for_auto_analysis(
+            auto_analysis_per_chunk_results
+        )
+        messagebox.showinfo(
+            "Auto Analysis",
+            f"Selected {len(auto_analysis_selected_segments)} long segment(s) "
+            f"across {len(data_chunks)} day chunk(s).",
+        )
 
     except Exception as e:
         auto_analysis_per_chunk_results = None
+        auto_analysis_selected_segments = None
         traceback.print_exc()
         messagebox.showerror("Auto Analysis Error", str(e))
 

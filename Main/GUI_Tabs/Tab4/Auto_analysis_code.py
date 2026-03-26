@@ -181,3 +181,51 @@ def run_sequence_detection_per_chunk(data_chunks, gsd_type, force_walking):
             ) from e
 
     return results
+
+
+def select_segments_for_auto_analysis(per_chunk_results):
+    """Build the list of walking bouts to analyze next (Tab 4 segment-selection step).
+
+    Each chunk already applied ``filter_and_print_long_segments`` during sequence
+    detection (same rules as Tab 2). This step only **collects** those bouts into
+    one list and sorts them so later code can iterate in a stable order.
+
+    ``segment['Start']`` / ``segment['End']`` are in **seconds from the start of
+    that day chunk**, not from the beginning of the full OMX file.
+
+    Args:
+        per_chunk_results: Output of ``run_sequence_detection_per_chunk`` (list of dicts).
+
+    Returns:
+        List of dicts with ``chunk_index``, ``segment_index`` (nth long bout in
+        that chunk), and ``segment`` (the original GSD segment dict).
+    """
+    if not per_chunk_results:
+        return []
+
+    selected = []
+    for entry in per_chunk_results:
+        if not entry or entry.get("skipped"):
+            continue
+        chunk_idx = entry["chunk_index"]
+        long_segs = entry.get("long_segments") or []
+        # Each item is a gait bout dict (Start/End in seconds within this chunk).
+        for seg_i, segment in enumerate(long_segs):
+            if not isinstance(segment, dict):
+                continue
+            selected.append(
+                {
+                    "chunk_index": chunk_idx,
+                    "segment_index": seg_i,
+                    "segment": segment,
+                }
+            )
+
+    # Day order, then earlier bouts first within the same day (reproducible runs).
+    selected.sort(
+        key=lambda r: (
+            r["chunk_index"],
+            float(r["segment"].get("Start", 0.0)),
+        )
+    )
+    return selected
