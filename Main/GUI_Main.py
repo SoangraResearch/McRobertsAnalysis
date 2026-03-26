@@ -12,6 +12,7 @@ from tkinter import filedialog, messagebox, ttk
 from OMX_To_CSV import process_omx_file
 from Main.GUI_Tabs.Tab4.auto_analysis_progress import auto_analysis_progress
 from Main.GUI_Tabs.Tab4.Auto_analysis_code import (
+    run_segment_batch_analysis,
     run_sequence_detection_per_chunk,
     select_segments_for_auto_analysis,
     split_data_by_day,
@@ -72,6 +73,7 @@ export_format_var = tk.StringVar()
 auto_analysis_file = "None"
 auto_analysis_per_chunk_results = None
 auto_analysis_selected_segments = None
+auto_analysis_batch_results = None  # per-segment Tab 3 linear + nonlinear outputs
 
 # -------------------------Tab 1 Methods---------------------------------
 
@@ -221,7 +223,7 @@ def load_auto_analysis_file():
         auto_analysis_input_file = "None"
 
 def run_auto_analysis():
-    global auto_analysis_file, auto_analysis_per_chunk_results, auto_analysis_selected_segments
+    global auto_analysis_file, auto_analysis_per_chunk_results, auto_analysis_selected_segments, auto_analysis_batch_results
     if (auto_analysis_file == "None"):
         messagebox.showerror("Error", "File not loaded")
         return
@@ -236,6 +238,7 @@ def run_auto_analysis():
         # Drop any previous results so a failed run does not leave stale data.
         auto_analysis_per_chunk_results = None
         auto_analysis_selected_segments = None
+        auto_analysis_batch_results = None
         progress_text.update_progress("Reading Data")
 
         auto_analysis_data, _filename = process_omx_file(auto_analysis_file)
@@ -259,15 +262,31 @@ def run_auto_analysis():
         auto_analysis_selected_segments = select_segments_for_auto_analysis(
             auto_analysis_per_chunk_results
         )
+
+        progress_text.update_progress("Segment Analysis")
+        # Temp CSV per bout; Tab 3 analysis on main thread (UI may pause for large batches).
+        auto_analysis_batch_results = run_segment_batch_analysis(
+            data_chunks,
+            auto_analysis_selected_segments,
+            assume_walking=True,
+        )
+
+        progress_text.update_progress("Output")
+
+        n_sel = len(auto_analysis_selected_segments)
+        n_ok = sum(1 for r in auto_analysis_batch_results if r.get("error") is None)
+        n_fail = len(auto_analysis_batch_results) - n_ok
         messagebox.showinfo(
             "Auto Analysis",
-            f"Selected {len(auto_analysis_selected_segments)} long segment(s) "
-            f"across {len(data_chunks)} day chunk(s).",
+            f"Day chunks: {len(data_chunks)}\n"
+            f"Long segments selected: {n_sel}\n"
+            f"Analyzed OK: {n_ok}, failed: {n_fail}",
         )
 
     except Exception as e:
         auto_analysis_per_chunk_results = None
         auto_analysis_selected_segments = None
+        auto_analysis_batch_results = None
         traceback.print_exc()
         messagebox.showerror("Auto Analysis Error", str(e))
 

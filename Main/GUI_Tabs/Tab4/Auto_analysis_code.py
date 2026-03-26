@@ -1,10 +1,15 @@
 """Tab 4 helpers: split OMX acceleration into day-sized windows, then run GSD per window."""
+import os
+import shutil
+import tempfile
+
 import numpy as np
 import pandas as pd
 
 from GSDA_code import gsd_iluz
 from GSDB_code import gsd_low_back_acc
 from ICDA_code import filter_and_print_long_segments, step_detection
+from Main.GUI_Tabs.Tab3.Analysis_code import linear_analysis, nonlinear_analysis
 from OMX_To_CSV import matlab_datenum_to_datetime
 
 # OMX ACC block is N x 4: datenum time + three accel axes (same layout as Mobilise-D CSV export).
@@ -229,3 +234,125 @@ def select_segments_for_auto_analysis(per_chunk_results):
         )
     )
     return selected
+
+
+def _write_segment_analysis_csv(chunk_df, start_s, end_s, csv_path):
+    """Write one Tab-3–compatible CSV (Time, Ax, Ay, Az) for samples in [start_s, end_s).
+
+    ``start_s`` / ``end_s`` are seconds from the beginning of ``chunk_df`` (same as GSD).
+    Indices follow ``step_detection``: ``round(seconds * fs)`` with end index exclusive in ``iloc``.
+    """
+    n = len(chunk_df)
+    start_idx = int(round(float(start_s) * _FS))
+    end_idx = int(round(float(end_s) * _FS))
+    start_idx = max(0, min(start_idx, n))
+    end_idx = max(0, min(end_idx, n))
+    if end_idx <= start_idx:
+        raise ValueError(
+            f"segment sample range empty or invalid ({start_idx}:{end_idx} rows, n={n})"
+        )
+
+    sub = chunk_df.iloc[start_idx:end_idx]
+    out = pd.DataFrame(
+        {
+            "Time": sub["Time"].to_numpy(),
+            "Ax": sub["X"].to_numpy(),
+            "Ay": sub["Y"].to_numpy(),
+            "Az": sub["Z"].to_numpy(),
+        }
+    )
+    out.to_csv(csv_path, index=False)
+
+
+def run_segment_batch_analysis(data_chunks, selected_segments, assume_walking=True):
+    """Tab 3 linear + nonlinear analysis for each selected long segment.
+
+    Each segment becomes a temporary CSV (one bout per file). ``assume_walking=True``
+    treats the whole slice as walking, matching Tab 3’s checkbox when the bout is
+    already chosen by GSD.
+
+    Runs on the caller’s thread (GUI may freeze for long batches). Destroys temp
+    files when finished.
+
+    Returns:
+        List of dicts: ``chunk_index``, ``segment_index``, ``segment``, optional
+        ``error`` (str if failed), else ``linear_df`` and ``nonlinear_df``.
+    """
+    if not selected_segments:
+        return []
+
+    results = []
+    tmpdir = tempfile.mkdtemp(prefix="mcroberts_tab4_")
+    try:
+        for k, sel in enumerate(selected_segments):
+            chunk_idx = sel["chunk_index"]
+            seg = sel["segment"]
+            chunk_df = data_chunks[chunk_idx]
+            if chunk_df is None or chunk_df.empty:
+                results.append(
+                    {
+                        "chunk_index": chunk_idx,
+                        "segment_index": sel["segment_index"],
+                        "segment": seg,
+                        "error": "empty day chunk",
+                        "linear_df": None,
+                        "nonlinear_df": None,
+                    }
+                )
+                continue
+
+            path = os.path.join(tmpdir, f"c{chunk_idx}_s{sel['segment_index']}_{k}.csv")
+            try:
+                _write_segment_analysis_csv(
+                    chunk_df,
+                    seg.get("Start", 0),
+                    seg.get("End", 0),
+                    path,
+                )
+            except Exception as ex:
+                results.append(
+                    {
+                        "chunk_index": chunk_idx,
+                        "segment_index": sel["segment_index"],
+                        "segment": seg,
+                        "error": str(ex),
+                        "linear_df": None,
+                        "nonlinear_df": None,
+                    }
+                )
+                continue
+
+            try:
+                lin_df, _plots = linear_analysis(
+                    path, None, assume_walking, build_plots=False
+                )
+                nlin_df, _raw = nonlinear_analysis(
+                    path, assume_walking, progress_callback=None
+                )
+            except Exception as ex:
+                results.append(
+                    {
+                        "chunk_index": chunk_idx,
+                        "segment_index": sel["segment_index"],
+                        "segment": seg,
+                        "error": str(ex),
+                        "linear_df": None,
+                        "nonlinear_df": None,
+                    }
+                )
+                continue
+
+            results.append(
+                {
+                    "chunk_index": chunk_idx,
+                    "segment_index": sel["segment_index"],
+                    "segment": seg,
+                    "error": None,
+                    "linear_df": lin_df,
+                    "nonlinear_df": nlin_df,
+                }
+            )
+    finally:
+        shutil.rmtree(tmpdir, ignore_errors=True)
+
+    return results

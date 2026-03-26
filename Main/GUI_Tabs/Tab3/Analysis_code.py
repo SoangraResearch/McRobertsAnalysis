@@ -19,7 +19,7 @@ from Non_GUI.Analysis_Code.non_linear_functions.lye_W import LyE_W
 from Non_GUI.Analysis_Code.non_linear_functions.rqa import RQA
 from Non_GUI.Analysis_Code.non_linear_functions.ent_Samp import Ent_Samp
 
-def linear_analysis(filename, plot_frame, assume_walking=False):
+def linear_analysis(filename, plot_frame, assume_walking=False, build_plots=True):
     fs = 100
 
     accleration = pd.read_csv(filename)
@@ -130,13 +130,15 @@ def linear_analysis(filename, plot_frame, assume_walking=False):
 
         if len(hs_selected_idx_new) < 2 or len(to_selected_idx_new) < 1:
             print(f"Warning: Walking bout {i} has insufficient HS ({len(hs_selected_idx_new)}) or TO ({len(to_selected_idx_new)}) detections. Skipping.")
-            fig = linear_plot(time_vector, acc_ap_pp, acc_wave_detrended, acc_wave_2, hs_times, hs_selected_idx, to_times, to_selected_idx, invalid_hs_idx, invalid_hs_times, plot_frame, i)
-            plots.append(fig)
+            if build_plots:
+                fig = linear_plot(time_vector, acc_ap_pp, acc_wave_detrended, acc_wave_2, hs_times, hs_selected_idx, to_times, to_selected_idx, invalid_hs_idx, invalid_hs_times, plot_frame, i)
+                plots.append(fig)
             continue
 
         df = gait_parameters(hs_selected_idx_new,to_selected_idx_new,df,i,walk_start,walk_end,cad,fs,fs_HS_TO)
-        fig = linear_plot(time_vector, acc_ap_pp, acc_wave_detrended, acc_wave_2, hs_times, hs_selected_idx, to_times, to_selected_idx, invalid_hs_idx, invalid_hs_times, plot_frame, i)
-        plots.append(fig)
+        if build_plots:
+            fig = linear_plot(time_vector, acc_ap_pp, acc_wave_detrended, acc_wave_2, hs_times, hs_selected_idx, to_times, to_selected_idx, invalid_hs_idx, invalid_hs_times, plot_frame, i)
+            plots.append(fig)
 
     return df, plots
 
