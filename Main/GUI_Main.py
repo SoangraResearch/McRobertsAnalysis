@@ -50,7 +50,7 @@ tab3_controller = Tab3Controller(tab3)
 tab_control.add(tab3, text="Analysis")
 
 tab4 = tk.Frame(tab_control)
-tab_control.add(tab4, text="Auto-Analysis (WIP)")
+tab_control.add(tab4, text="Auto-Analysis")
 
 tab_control.pack(expand=1, fill='both')
 
@@ -267,11 +267,13 @@ def run_auto_analysis():
         )
 
         progress_text.update_progress("Segment Analysis")
-        # Temp CSV per bout; Tab 3 analysis on main thread (UI may pause for large batches).
+        # Temp CSV per bout; Tab 3 analysis on main thread.
+        # The "assume_walking" behavior is controlled by a Tab 4 checkbox (separate
+        # from GSD's "force walking" flag).
         auto_analysis_batch_results = run_segment_batch_analysis(
             data_chunks,
             auto_analysis_selected_segments,
-            assume_walking=True,
+            assume_walking=assume_data_as_walking_tab4.get(),
         )
 
         progress_text.update_progress("Output")
@@ -403,6 +405,11 @@ for lbl in ["Healthy(GSDA)", "Patient(GSDB)"]:
 # Optional flag: forces the “walking” behavior inside the GSD/segment logic.
 force_data_as_walking_tab4 = tk.BooleanVar(value=False)
 tk.Checkbutton(tab4, text="Force Data as Walking", variable=force_data_as_walking_tab4).pack(pady=5)
+
+# Independent flag for the Tab 3 segment analysis:
+# when enabled, Tab 3 skips "find_walking" detection and treats the segment slice as one walking period.
+assume_data_as_walking_tab4 = tk.BooleanVar(value=True)
+tk.Checkbutton(tab4, text="Assume Data is Walking (Tab 3)", variable=assume_data_as_walking_tab4).pack(pady=2)
 
 # Offer save dialogs for Mobilise-D–style CSVs (Plots still require Tab 2.)
 save_tab2_auto_results = tk.BooleanVar(value=False)
