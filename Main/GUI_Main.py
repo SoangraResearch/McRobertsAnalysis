@@ -200,6 +200,20 @@ tk.Button(button_frame, text="Save All Non-Linear Analysis Plots", command=lambd
 tk.Button(tab3, text="Save All", command=lambda: tab3_controller.save_all_output()).pack(pady=5)
 
 # -------------------------Tab 4 Methods (OMX → day chunks → GSD; no controller class yet) ---------------------------------
+def _tab4_resolve_output_folder_path(chosen_path):
+    """Save-As path → folder path for CSV bundle (same dialog style as other tabs).
+
+    If the user picks a name ending in .csv/.txt, treat it as a folder name and strip
+    the extension so we create a directory, not overwrite a CSV by mistake.
+    """
+    if not chosen_path:
+        return None
+    p = chosen_path.strip()
+    if p.lower().endswith((".csv", ".txt")):
+        return os.path.splitext(p)[0]
+    return p
+
+
 def load_auto_analysis_file():
     global auto_analysis_file
     file_path = filedialog.askopenfilename(filetypes=[("OMX file", "*.OMX")])
@@ -294,75 +308,69 @@ def run_auto_analysis():
         saved_paths = []
         tab2_export_note = ""
 
-        # Optional Tab 2–style export:
-        # If the checkbox is enabled, we prompt the user to save CSVs that mirror
-        # Tab 2 outputs (GSD gait sequences and step counts), but combined across
-        # all day-chunks processed in this Tab 4 run.
         if save_tab2_auto_results.get():
             gsd_all_df, step_all_df = combine_tab2_per_chunk_export_tables(
                 auto_analysis_per_chunk_results
             )
-            # Save GSD results for all day chunks (stacked into one table).
-            if not gsd_all_df.empty:
-                default_gsd = f"{base_name}_tab4_GSD_results.csv"
-                gsd_path = filedialog.asksaveasfilename(
-                    defaultextension=".csv",
-                    filetypes=[("CSV files", "*.csv")],
-                    initialdir=base_dir,
-                    initialfile=default_gsd,
-                    title="Save Tab 2–style GSD results (all day chunks)",
-                )
-                if gsd_path:
-                    gsd_all_df.to_csv(gsd_path, index=False)
-                    saved_any = True
-                    saved_paths.append(os.path.basename(gsd_path))
-            # Save step counts for all day chunks (stacked into one table).
-            if not step_all_df.empty:
-                default_steps = f"{base_name}_tab4_step_counts.csv"
-                step_path = filedialog.asksaveasfilename(
-                    defaultextension=".csv",
-                    filetypes=[("CSV files", "*.csv")],
-                    initialdir=base_dir,
-                    initialfile=default_steps,
-                    title="Save Tab 2–style step counts (all day chunks)",
-                )
-                if step_path:
-                    step_all_df.to_csv(step_path, index=False)
-                    saved_any = True
-                    saved_paths.append(os.path.basename(step_path))
-            # If both tables are empty, show a short note in the final summary.
             if gsd_all_df.empty and step_all_df.empty:
                 tab2_export_note = (
                     "Tab 2 export: no GSD/step rows (all day chunks empty or skipped).\n\n"
                 )
+        else:
+            gsd_all_df, step_all_df = None, None
 
-        if not linear_all_df.empty:
-            default_linear = f"{base_name}_tab4_linear_segments.csv"
-            linear_path = filedialog.asksaveasfilename(
-                defaultextension=".csv",
-                filetypes=[("CSV files", "*.csv")],
-                initialdir=base_dir,
-                initialfile=default_linear,
-                title="Save Tab4 Linear Segments (CSV)",
-            )
-            if linear_path:
-                linear_all_df.to_csv(linear_path, index=False)
-                saved_any = True
-                saved_paths.append(os.path.basename(linear_path))
+        # One folder pick, then write every non-empty table with fixed names (no per-file popups).
+        want_tab2_gsd = (
+            save_tab2_auto_results.get()
+            and gsd_all_df is not None
+            and not gsd_all_df.empty
+        )
+        want_tab2_steps = (
+            save_tab2_auto_results.get()
+            and step_all_df is not None
+            and not step_all_df.empty
+        )
+        want_linear = not linear_all_df.empty
+        want_nonlinear = not nonlinear_all_df.empty
+        anything_to_save = want_tab2_gsd or want_tab2_steps or want_linear or want_nonlinear
 
-        if not nonlinear_all_df.empty:
-            default_nonlinear = f"{base_name}_tab4_nonlinear_segments.csv"
-            nonlinear_path = filedialog.asksaveasfilename(
-                defaultextension=".csv",
-                filetypes=[("CSV files", "*.csv")],
+        # Same style as Tab 1/3: Save-As dialog to pick location + folder name, then
+        # create that folder and write all CSVs inside (no per-file popups).
+        output_dir = None
+        if anything_to_save:
+            chosen = filedialog.asksaveasfilename(
                 initialdir=base_dir,
-                initialfile=default_nonlinear,
-                title="Save Tab4 Nonlinear Segments (CSV)",
+                initialfile=f"{base_name}_AutoAnalysis",
+                title="Save Auto-Analysis output folder",
+                defaultextension="",
+                filetypes=[("All files", "*.*")],
             )
-            if nonlinear_path:
-                nonlinear_all_df.to_csv(nonlinear_path, index=False)
-                saved_any = True
-                saved_paths.append(os.path.basename(nonlinear_path))
+            output_dir = _tab4_resolve_output_folder_path(chosen)
+            if output_dir:
+                try:
+                    os.makedirs(output_dir, exist_ok=True)
+                    if want_tab2_gsd:
+                        p = os.path.join(output_dir, f"{base_name}_tab4_GSD_results.csv")
+                        gsd_all_df.to_csv(p, index=False)
+                        saved_any = True
+                        saved_paths.append(p)
+                    if want_tab2_steps:
+                        p = os.path.join(output_dir, f"{base_name}_tab4_step_counts.csv")
+                        step_all_df.to_csv(p, index=False)
+                        saved_any = True
+                        saved_paths.append(p)
+                    if want_linear:
+                        p = os.path.join(output_dir, f"{base_name}_tab4_linear_segments.csv")
+                        linear_all_df.to_csv(p, index=False)
+                        saved_any = True
+                        saved_paths.append(p)
+                    if want_nonlinear:
+                        p = os.path.join(output_dir, f"{base_name}_tab4_nonlinear_segments.csv")
+                        nonlinear_all_df.to_csv(p, index=False)
+                        saved_any = True
+                        saved_paths.append(p)
+                except OSError as e:
+                    messagebox.showerror("Save Error", str(e))
 
         summary_msg = tab2_export_note + (
             f"Day chunks: {len(data_chunks)}\n"
@@ -370,12 +378,16 @@ def run_auto_analysis():
             f"Analyzed OK: {n_ok}, failed: {n_fail}\n"
         )
         if saved_any:
-            summary_msg += "Saved:\n" + "\n".join(saved_paths)
+            summary_msg += "Saved to folder:\n" + output_dir + "\n\nFiles:\n" + "\n".join(
+                os.path.basename(p) for p in saved_paths
+            )
         else:
-            if (linear_all_df.empty) and (nonlinear_all_df.empty):
-                summary_msg += "\nNo successful segment outputs to save."
+            if not anything_to_save:
+                summary_msg += "\nNo CSV outputs to write (all tables empty)."
+            elif not output_dir:
+                summary_msg += "\nNo CSVs saved (output location cancelled)."
             else:
-                summary_msg += "\nNo CSVs saved (prompts cancelled)."
+                summary_msg += "\nNo CSVs saved."
 
         messagebox.showinfo("Auto Analysis", summary_msg)
 
@@ -411,11 +423,11 @@ tk.Checkbutton(tab4, text="Force Data as Walking", variable=force_data_as_walkin
 assume_data_as_walking_tab4 = tk.BooleanVar(value=True)
 tk.Checkbutton(tab4, text="Assume Data is Walking (Tab 3)", variable=assume_data_as_walking_tab4).pack(pady=2)
 
-# Offer save dialogs for Mobilise-D–style CSVs (Plots still require Tab 2.)
+# Include Tab 2–style GSD + step CSVs in the same output folder (no Tab 2 plots).
 save_tab2_auto_results = tk.BooleanVar(value=False)
 tk.Checkbutton(
     tab4,
-    text="After run: offer to save Tab 2 results (GSD + step counts CSV)",
+    text="Save Tab 2 results (GSD + step counts CSV)",
     variable=save_tab2_auto_results,
 ).pack(pady=2)
 
