@@ -1,9 +1,39 @@
 # -*- mode: python ; coding: utf-8 -*-
 # Build the .app with: pyinstaller "McRoberts Analysis.spec" --clean
+#
+# Run PyInstaller with the same Python interpreter / venv / conda env that has
+# octave_kernel, oct2py, ssqueezepy, and the rest of the app dependencies.
 
+import importlib.util
 import os
+from pathlib import Path
 
 PROJECT_ROOT = os.path.abspath('.')
+
+
+def _pkg_root(pkg_name: str) -> Path:
+    spec = importlib.util.find_spec(pkg_name)
+    if spec is None:
+        raise RuntimeError(
+            f"Package '{pkg_name}' is not installed in this Python environment. "
+            "Activate the env with your project dependencies, then rebuild."
+        )
+    if spec.submodule_search_locations:
+        return Path(list(spec.submodule_search_locations)[0])
+    if spec.origin:
+        return Path(spec.origin).parent
+    raise RuntimeError(f"Cannot locate install path for '{pkg_name}'.")
+
+
+def _require_pkg_file(pkg_name: str, *relative_parts: str) -> str:
+    path = _pkg_root(pkg_name).joinpath(*relative_parts)
+    if not path.is_file():
+        raise FileNotFoundError(
+            f"Expected file missing: {path}\n"
+            f"Reinstall or upgrade the '{pkg_name}' package in this environment."
+        )
+    return str(path)
+
 
 a = Analysis(
     ['Main/GUI_Main.py'],
@@ -14,16 +44,22 @@ a = Analysis(
         ('Mobilise-D-TVS-Recommended-Algorithms-master/ICDA/Library/FIR-2-3Hz-40.mat',
          'Mobilise-D-TVS-Recommended-Algorithms-master/ICDA/Library'),
         ('DynaportCompany_Codes_new/source', 'DynaportCompany_Codes_new/source'),
-        ('Non_GUI/Analysis_Code/gait_functions', 'Non_GUI/Analysis_Code/gait_functions'),
+        # Only the two gait modules are used; gait_functions/forest-develop is an unused vendored
+        # tree that also triggered shutil copy failures (errno 89) on some macOS setups.
+        (
+            os.path.join(PROJECT_ROOT, 'Non_GUI/Analysis_Code/gait_functions/walking.py'),
+            'Non_GUI/Analysis_Code/gait_functions',
+        ),
+        (
+            os.path.join(PROJECT_ROOT, 'Non_GUI/Analysis_Code/gait_functions/hs_to_detection.py'),
+            'Non_GUI/Analysis_Code/gait_functions',
+        ),
         ('Non_GUI/Analysis_Code/non_linear_functions', 'Non_GUI/Analysis_Code/non_linear_functions'),
         ('Non_GUI/Analysis_Code/forest_develop/src/forest', 'Non_GUI/Analysis_Code/forest_develop/src/forest'),
-        # Package files PyInstaller misses
-        ('/opt/anaconda3/envs/research_env/lib/python3.14/site-packages/octave_kernel/kernel.json',
-         'octave_kernel'),
-        ('/opt/anaconda3/envs/research_env/lib/python3.14/site-packages/ssqueezepy/configs.ini',
-         'ssqueezepy'),
-        ('/opt/anaconda3/envs/research_env/lib/python3.14/site-packages/oct2py/_pyeval.m',
-         'oct2py'),
+        # Package files PyInstaller misses (paths resolved from the active interpreter)
+        (_require_pkg_file('octave_kernel', 'kernel.json'), 'octave_kernel'),
+        (_require_pkg_file('ssqueezepy', 'configs.ini'), 'ssqueezepy'),
+        (_require_pkg_file('oct2py', '_pyeval.m'), 'oct2py'),
     ],
     hiddenimports=[
         # All imports listed explicitly (no __init__.py files in project)
