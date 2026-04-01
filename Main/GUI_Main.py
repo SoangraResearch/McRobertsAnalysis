@@ -56,7 +56,7 @@ heavy_job_status_frame.pack(side=tk.BOTTOM, fill=tk.X)
 heavy_job = HeavyJobRunner(root, heavy_job_status_frame)
 
 tab1_controller = Tab1Controller(tab1, heavy_job)
-tab2_controller = Tab2Controller(tab2, heavy_job)
+tab2_controller = Tab2Controller(tab2)
 tab3_controller = Tab3Controller(tab3, heavy_job)
 
 tab_control.pack(expand=1, fill="both")
@@ -493,7 +493,6 @@ heavy_job.register_disable_widgets(
     tab1_load_file_button,
     tab1_export_csv_button,
     tab1_export_plot_button,
-    tab2_run_gsd_button,
     tab3_linear_button,
     tab3_nonlinear_button,
     run_auto_analysis_button,
