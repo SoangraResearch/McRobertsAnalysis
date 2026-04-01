@@ -21,6 +21,7 @@ from Main.GUI_Tabs.Tab4.Auto_analysis_code import (
 )
 
 # Each tab’s behavior is in its controller; this module mostly wires widgets and callbacks.
+from Main.GUI_Tabs.heavy_job_runner import HeavyJobRunner
 from Main.GUI_Tabs.Tab1.Tab1Controller import Tab1Controller
 from Main.GUI_Tabs.Tab2.Tab2Controller import Tab2Controller
 from Main.GUI_Tabs.Tab3.Tab3Controller import Tab3Controller
@@ -38,21 +39,27 @@ root.geometry("1000x600")
 tab_control = ttk.Notebook(root)
 
 tab1 = tk.Frame(tab_control)
-tab1_controller = Tab1Controller(tab1)
 tab_control.add(tab1, text="Select Data")
 
 tab2 = tk.Frame(tab_control)
-tab2_controller = Tab2Controller(tab2)
 tab_control.add(tab2, text="Mobilise-D")
 
 tab3 = tk.Frame(tab_control)
-tab3_controller = Tab3Controller(tab3)
 tab_control.add(tab3, text="Analysis")
 
 tab4 = tk.Frame(tab_control)
 tab_control.add(tab4, text="Auto-Analysis")
 
-tab_control.pack(expand=1, fill='both')
+# Status strip for HeavyJobRunner (pack bottom first so the notebook fills the rest).
+heavy_job_status_frame = ttk.Frame(root)
+heavy_job_status_frame.pack(side=tk.BOTTOM, fill=tk.X)
+heavy_job = HeavyJobRunner(root, heavy_job_status_frame)
+
+tab1_controller = Tab1Controller(tab1, heavy_job)
+tab2_controller = Tab2Controller(tab2, heavy_job)
+tab3_controller = Tab3Controller(tab3, heavy_job)
+
+tab_control.pack(expand=1, fill="both")
 
 # --- Shared / legacy GUI state (mostly Tab 1–3). Controllers also keep their own file paths. ---
 plot_frame_OMX = None
@@ -89,8 +96,10 @@ def export_csv():
     
 # -------------------------Tab 1 Select Data---------------------------------
 
-load_file_button = tk.Button(tab1, text="Load OMX File", command=lambda: tab1_controller.load_file(plot_frame_OMX))
-load_file_button.pack(pady=10)
+tab1_load_file_button = tk.Button(
+    tab1, text="Load OMX File", command=lambda: tab1_controller.load_file(plot_frame_OMX)
+)
+tab1_load_file_button.pack(pady=10)
 
 plot_frame_OMX = tk.Frame(tab1, height=350)
 plot_frame_OMX.pack_propagate(False)
@@ -102,11 +111,17 @@ plot_frame_OMX.pack(fill="both", expand=True)
 button_frame = tk.Frame(tab1)
 button_frame.pack(pady=10)
 
-Export_Button = tk.Button(button_frame, text="Export To CSV", command=lambda: export_csv())
-Export_Button.pack(side="left", padx=5)
+tab1_export_csv_button = tk.Button(
+    button_frame, text="Export To CSV", command=lambda: export_csv()
+)
+tab1_export_csv_button.pack(side="left", padx=5)
 
-Export_Button = tk.Button(button_frame, text="Export Plot", command=lambda: tab1_controller.export_acceleration_plot())
-Export_Button.pack(side="left", padx=5)
+tab1_export_plot_button = tk.Button(
+    button_frame,
+    text="Export Plot",
+    command=lambda: tab1_controller.export_acceleration_plot(),
+)
+tab1_export_plot_button.pack(side="left", padx=5)
 
 # -------------------------Tab 2 Methods---------------------------------
 
@@ -133,8 +148,18 @@ for lbl in ["Healthy(GSDA)", "Patient(GSDB)"]:
 gsd_frame = tk.Frame(tab2)
 gsd_frame.pack(pady=15)
 
-# button
-tk.Button(gsd_frame, text="Run GSD Detection", command=lambda: tab2_controller.process_GSD(label_var_MobiliseD.get(), force_data_as_walking.get(), plot_left_GSD, plot_right_GSD, extra_plots=1)).pack(side="left", padx=10) #set extra plots to 1 to display plots
+tab2_run_gsd_button = tk.Button(
+    gsd_frame,
+    text="Run GSD Detection",
+    command=lambda: tab2_controller.process_GSD(
+        label_var_MobiliseD.get(),
+        force_data_as_walking.get(),
+        plot_left_GSD,
+        plot_right_GSD,
+        extra_plots=1,
+    ),
+)
+tab2_run_gsd_button.pack(side="left", padx=10)  # extra_plots=1 to display plots
 
 # Shared with Tab 4 auto analysis so GSD uses the same “force walking” flag as Mobilise-D.
 force_data_as_walking = tk.BooleanVar(value=False)
@@ -182,8 +207,24 @@ analysis_frame.pack(pady=5)
 assume_walking_var = tk.BooleanVar(value=False)
 plot_frame_analysis = tk.Frame(tab3, height=300)
 
-tk.Button(analysis_frame, text="Linear Analysis", width=15, command=lambda: tab3_controller.do_linear_analysis(plot_frame_analysis, assume_walking_var)).pack(side="left", padx=10)
-tk.Button(analysis_frame, text="Non-Linear Analysis", width=15, command=lambda: tab3_controller.do_nonlinear_analysis(plot_frame_analysis, assume_walking_var)).pack(side="left", padx=10)
+tab3_linear_button = tk.Button(
+    analysis_frame,
+    text="Linear Analysis",
+    width=15,
+    command=lambda: tab3_controller.do_linear_analysis(
+        plot_frame_analysis, assume_walking_var
+    ),
+)
+tab3_linear_button.pack(side="left", padx=10)
+tab3_nonlinear_button = tk.Button(
+    analysis_frame,
+    text="Non-Linear Analysis",
+    width=15,
+    command=lambda: tab3_controller.do_nonlinear_analysis(
+        plot_frame_analysis, assume_walking_var
+    ),
+)
+tab3_nonlinear_button.pack(side="left", padx=10)
 
 tk.Checkbutton(analysis_frame, text="Assume data is walking", variable=assume_walking_var).pack(side="left", padx=10)
 
@@ -435,7 +476,17 @@ run_auto_analysis_button = tk.Button(tab4, text="Run Auto Analysis", command=run
 run_auto_analysis_button.pack(pady=10)
 
 progress_text = auto_analysis_progress(tab4, font_size=10)
-progress_text.clear() 
+progress_text.clear()
+
+heavy_job.register_disable_widgets(
+    tab1_load_file_button,
+    tab1_export_csv_button,
+    tab1_export_plot_button,
+    tab2_run_gsd_button,
+    tab3_linear_button,
+    tab3_nonlinear_button,
+    run_auto_analysis_button,
+)
 
 # -------------------------Running the GUI---------------------------------
 root.mainloop()

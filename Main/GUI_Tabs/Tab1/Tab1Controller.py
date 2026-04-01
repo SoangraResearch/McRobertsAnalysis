@@ -8,8 +8,9 @@ from Main.GUI_Tabs.Tab1.Acceleration_Plot import PlotOMX
 from datetime import datetime
 
 class Tab1Controller:
-    def __init__(self, tab_frame):
+    def __init__(self, tab_frame, heavy_job=None):
         self.tab = tab_frame
+        self.heavy_job = heavy_job
 
         self.data = None
         self.filename = None

@@ -9,8 +9,9 @@ from GSD_plots import plot_GSDA, plot_GSDB, plot_steps
 from ICDA_code import filter_and_print_long_segments, step_detection
 
 class Tab2Controller:
-    def __init__(self, tab_frame):
+    def __init__(self, tab_frame, heavy_job=None):
         self.tab = tab_frame
+        self.heavy_job = heavy_job
 
         #files
         self.file = None

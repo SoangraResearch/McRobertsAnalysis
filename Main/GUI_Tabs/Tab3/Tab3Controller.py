@@ -8,8 +8,9 @@ from Main.GUI_Tabs.Tab3.Analysis_code import linear_analysis, nonlinear_analysis
 from Main.GUI_Tabs.Tab3.Analysis_Plots import display_combined_plots, get_current_selected_plot, nonlinear_plot
 
 class Tab3Controller:
-    def __init__(self, tab_frame):
+    def __init__(self, tab_frame, heavy_job=None):
         self.tab = tab_frame
+        self.heavy_job = heavy_job
 
         #plot frame
         self.plot_frame = None
