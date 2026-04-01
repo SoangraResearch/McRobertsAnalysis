@@ -36,26 +36,34 @@ class Tab1Controller:
         file_path = filedialog.askopenfilename(filetypes=[("OMX file", "*.OMX")])
         if not file_path:
             return
-        
-        selected_file = file_path
 
-        self.data, self.filename = process_omx_file(selected_file)
+        def apply_loaded(result):
+            self.data, self.filename = result
+            self.acceleration_plot = PlotOMX(self.data, self.filename, plot_frame_OMX)
+            self._update_time_vars()
+            start_dt, stop_dt = self.acceleration_plot.get_current_bounds()
+            self.file_start_time.set(start_dt.strftime("%Y-%m-%d %H:%M:%S"))
+            self.file_stop_time.set(stop_dt.strftime("%Y-%m-%d %H:%M:%S"))
+            self.acceleration_plot.register_view_change_callback(self._update_time_vars)
 
-        self.acceleration_plot = PlotOMX(self.data, self.filename, plot_frame_OMX)
-        self._update_time_vars()
-
-        start_dt, stop_dt = self.acceleration_plot.get_current_bounds()
-        self.file_start_time.set(start_dt.strftime('%Y-%m-%d %H:%M:%S'))
-        self.file_stop_time.set(stop_dt.strftime('%Y-%m-%d %H:%M:%S'))
-
-        #updates timestamps when plot is moved/zoomed
-        self.acceleration_plot.register_view_change_callback(self._update_time_vars)
+        if self.heavy_job:
+            self.heavy_job.run(
+                "Loading OMX file…",
+                lambda: process_omx_file(file_path),
+                on_success=apply_loaded,
+            )
+        else:
+            apply_loaded(process_omx_file(file_path))
 
     def create_time_labels(self):
         self._create_max_time_labels()
         self._create_current_time_labels()
 
-    def export_csv(self):
+    def export_csv(self, after_export=None):
+        if self.data is None:
+            messagebox.showerror("Error", "No data loaded.")
+            return False
+
         self._create_tab1_export_folder()
 
         output_path = self._get_csv_output_path()
@@ -64,20 +72,20 @@ class Tab1Controller:
 
         starttime = datetime.strptime(self.current_start_time.get(), "%Y-%m-%d %H:%M:%S")
         stoptime = datetime.strptime(self.current_stop_time.get(), "%Y-%m-%d %H:%M:%S")
+        acc_data = self.data["ACC"]
 
-        #getting rows in the specified range
-        filtered_rows = [row for row in self.data['ACC'] if starttime <= matlab_datenum_to_datetime(row[0]) <= stoptime]
-        total_rows = len(filtered_rows)
-        if total_rows == 0:
-            messagebox.showinfo("Info", "No data in the specified time range.")
-            return False
-
-        #exporting data to file
-        try:
-            with open(output_path, 'w', newline='') as f:
-                writer = csv.writer(f, delimiter=',')
-                writer.writerow(['Time', 'Ax', 'Ay', 'Az'])
-
+        def write_csv_worker():
+            filtered_rows = [
+                row
+                for row in acc_data
+                if starttime <= matlab_datenum_to_datetime(row[0]) <= stoptime
+            ]
+            if len(filtered_rows) == 0:
+                return {"status": "empty"}
+            with open(output_path, "w", newline="") as f:
+                writer = csv.writer(f, delimiter=",")
+                writer.writerow(["Time", "Ax", "Ay", "Az"])
+                total_rows = len(filtered_rows)
                 last_reported_percent = 0
                 for i, row in enumerate(filtered_rows, start=1):
                     writer.writerow(row)
@@ -85,23 +93,57 @@ class Tab1Controller:
                     if percent_complete // 10 > last_reported_percent // 10:
                         last_reported_percent = percent_complete
                         print(f"{(percent_complete // 10) * 10}% converted...")
-                        
-            messagebox.showinfo("Success", f"File saved to:\n{output_path}")
+            return {"status": "ok", "path": output_path}
+
+        def on_csv_done(payload):
+            if payload["status"] == "empty":
+                messagebox.showinfo("Info", "No data in the specified time range.")
+            else:
+                messagebox.showinfo("Success", f"File saved to:\n{payload['path']}")
+                if after_export:
+                    after_export()
+
+        if self.heavy_job:
+            return self.heavy_job.run(
+                "Exporting CSV…",
+                write_csv_worker,
+                on_success=on_csv_done,
+            )
+
+        try:
+            payload = write_csv_worker()
+            on_csv_done(payload)
+            return payload["status"] == "ok"
         except Exception as e:
             messagebox.showerror("Error", f"Failed to save file: {e}")
             return False
 
     def export_acceleration_plot(self):
+        if self.acceleration_plot is None:
+            messagebox.showerror("Error", "No acceleration plot to export.")
+            return
+
         self._create_tab1_export_folder()
 
         output_path = self._get_plot_output_path()
+        if not output_path:
+            return
 
-        if output_path:
+        def save_on_main(path):
             try:
-                self.acceleration_plot.fig.savefig(output_path, dpi=300)
-                messagebox.showinfo("Success", f"File saved to:\n{output_path}")
+                self.acceleration_plot.fig.savefig(path, dpi=300)
+                messagebox.showinfo("Success", f"File saved to:\n{path}")
             except Exception as e:
                 messagebox.showerror("Error", f"Failed to save file: {e}")
+
+        if self.heavy_job:
+            self.heavy_job.run(
+                "Saving acceleration plot…",
+                lambda p=output_path: p,
+                on_success=save_on_main,
+            )
+        else:
+            save_on_main(output_path)
     
 # -------------------------Private/Helper Methods---------------------------------
 

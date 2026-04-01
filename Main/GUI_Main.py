@@ -87,12 +87,23 @@ auto_analysis_batch_results = None  # per-segment Tab 3 linear + nonlinear outpu
 # -------------------------Tab 1 Methods---------------------------------
 
 def export_csv():
-    tab1_controller.export_csv()
-    # Point Mobilise-D Tab and Analysis Tab at the same exported CSV name/path.
-    mobilised_path_var.set(f"File loaded: {tab1_controller.export_filename}")
-    tab2_controller.set_file(os.path.join(tab1_controller.export_folder, tab1_controller.export_filename + ".csv"))
-    analysis_code_path_var.set(f"File loaded: {tab1_controller.export_filename}")
-    tab3_controller.set_file(os.path.join(tab1_controller.export_folder, tab1_controller.export_filename + ".csv"))
+    def _after_tab1_csv_export():
+        mobilised_path_var.set(f"File loaded: {tab1_controller.export_filename}")
+        tab2_controller.set_file(
+            os.path.join(
+                tab1_controller.export_folder,
+                tab1_controller.export_filename + ".csv",
+            )
+        )
+        analysis_code_path_var.set(f"File loaded: {tab1_controller.export_filename}")
+        tab3_controller.set_file(
+            os.path.join(
+                tab1_controller.export_folder,
+                tab1_controller.export_filename + ".csv",
+            )
+        )
+
+    tab1_controller.export_csv(after_export=_after_tab1_csv_export)
     
 # -------------------------Tab 1 Select Data---------------------------------
 
