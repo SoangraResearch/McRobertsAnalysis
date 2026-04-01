@@ -24,22 +24,17 @@ def linear_analysis(
     plot_frame=None,
     assume_walking=False,
     build_plots=True,
-    progress_callback=None,
 ):
     """Linear gait analysis.
 
     If build_plots is True, plot_frame must be set and figures are created in the loop.
-    If build_plots is False, returns (df, list[dict]) with kwargs for linear_plot (main thread).
-
-    progress_callback: optional callable(str) for UI status (call from worker must be
-    scheduled onto the Tk main thread by the caller).
+    If build_plots is False (e.g. Tab 4 batch), returns (df, list[dict]) for linear_plot
+    payloads; plots are discarded by callers that only need the dataframe.
     """
     fs = 100
 
     accleration = pd.read_csv(filename)
     print("file " + filename)
-    if progress_callback:
-        progress_callback("Linear: loading data…")
 
     accleration['TgF'] = np.sqrt(accleration['Ax']**2+accleration['Ay']**2+accleration['Az']**2)
     R_acc = accleration['TgF'] - 1 #resultant acceleration adjusted with gravity
@@ -88,8 +83,6 @@ def linear_analysis(
         walking = np.array([[0, len(vm) * fs_HS_TO // fs]])
         cad = np.array([])
     else:
-        if progress_callback:
-            progress_callback("Linear: detecting walking periods…")
         cad = find_walking(vm_bout, 10, min_amp, step_freq, alpha, beta, T, delta)
         walking = _walking_period_detection(cad, fs_HS_TO)
         print("cadence: ")
@@ -130,10 +123,6 @@ def linear_analysis(
 
     n_walk = len(walking)
     for i in range(n_walk):
-        if progress_callback:
-            progress_callback(
-                f"Linear: bout {i + 1}/{n_walk} — wavelet & HS/TO…"
-            )
         walk_start = walking[i,0]
         walk_end= walking[i,1]
         walk = resampled_az[walk_start:walk_end]
@@ -174,10 +163,6 @@ def linear_analysis(
                 )
             continue
 
-        if progress_callback:
-            progress_callback(
-                f"Linear: bout {i + 1}/{n_walk} — gait parameters…"
-            )
         df = gait_parameters(hs_selected_idx_new,to_selected_idx_new,df,i,walk_start,walk_end,cad,fs,fs_HS_TO)
         if build_plots:
             fig = linear_plot(time_vector, acc_ap_pp, acc_wave_detrended, acc_wave_2, hs_times, hs_selected_idx, to_times, to_selected_idx, invalid_hs_idx, invalid_hs_times, plot_frame, i)

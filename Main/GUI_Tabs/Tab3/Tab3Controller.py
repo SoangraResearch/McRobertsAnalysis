@@ -71,7 +71,6 @@ class Tab3Controller:
                 plot_frame,
                 assume_walking.get(),
                 build_plots=True,
-                progress_callback=None,
             )
         except Exception as e:
             traceback.print_exc()
