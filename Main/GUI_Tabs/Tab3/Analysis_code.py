@@ -19,11 +19,27 @@ from Non_GUI.Analysis_Code.non_linear_functions.lye_W import LyE_W
 from Non_GUI.Analysis_Code.non_linear_functions.rqa import RQA
 from Non_GUI.Analysis_Code.non_linear_functions.ent_Samp import Ent_Samp
 
-def linear_analysis(filename, plot_frame, assume_walking=False, build_plots=True):
+def linear_analysis(
+    filename,
+    plot_frame=None,
+    assume_walking=False,
+    build_plots=True,
+    progress_callback=None,
+):
+    """Linear gait analysis.
+
+    If build_plots is True, plot_frame must be set and figures are created in the loop.
+    If build_plots is False, returns (df, list[dict]) with kwargs for linear_plot (main thread).
+
+    progress_callback: optional callable(str) for UI status (call from worker must be
+    scheduled onto the Tk main thread by the caller).
+    """
     fs = 100
 
     accleration = pd.read_csv(filename)
     print("file " + filename)
+    if progress_callback:
+        progress_callback("Linear: loading data…")
 
     accleration['TgF'] = np.sqrt(accleration['Ax']**2+accleration['Ay']**2+accleration['Az']**2)
     R_acc = accleration['TgF'] - 1 #resultant acceleration adjusted with gravity
@@ -72,6 +88,8 @@ def linear_analysis(filename, plot_frame, assume_walking=False, build_plots=True
         walking = np.array([[0, len(vm) * fs_HS_TO // fs]])
         cad = np.array([])
     else:
+        if progress_callback:
+            progress_callback("Linear: detecting walking periods…")
         cad = find_walking(vm_bout, 10, min_amp, step_freq, alpha, beta, T, delta)
         walking = _walking_period_detection(cad, fs_HS_TO)
         print("cadence: ")
@@ -110,7 +128,12 @@ def linear_analysis(filename, plot_frame, assume_walking=False, build_plots=True
 
     plots = []
 
-    for i in range(len(walking)):
+    n_walk = len(walking)
+    for i in range(n_walk):
+        if progress_callback:
+            progress_callback(
+                f"Linear: bout {i + 1}/{n_walk} — wavelet & HS/TO…"
+            )
         walk_start = walking[i,0]
         walk_end= walking[i,1]
         walk = resampled_az[walk_start:walk_end]
@@ -133,14 +156,78 @@ def linear_analysis(filename, plot_frame, assume_walking=False, build_plots=True
             if build_plots:
                 fig = linear_plot(time_vector, acc_ap_pp, acc_wave_detrended, acc_wave_2, hs_times, hs_selected_idx, to_times, to_selected_idx, invalid_hs_idx, invalid_hs_times, plot_frame, i)
                 plots.append(fig)
+            else:
+                plots.append(
+                    _linear_plot_payload(
+                        i,
+                        time_vector,
+                        acc_ap_pp,
+                        acc_wave_detrended,
+                        acc_wave_2,
+                        hs_times,
+                        hs_selected_idx,
+                        to_times,
+                        to_selected_idx,
+                        invalid_hs_idx,
+                        invalid_hs_times,
+                    )
+                )
             continue
 
+        if progress_callback:
+            progress_callback(
+                f"Linear: bout {i + 1}/{n_walk} — gait parameters…"
+            )
         df = gait_parameters(hs_selected_idx_new,to_selected_idx_new,df,i,walk_start,walk_end,cad,fs,fs_HS_TO)
         if build_plots:
             fig = linear_plot(time_vector, acc_ap_pp, acc_wave_detrended, acc_wave_2, hs_times, hs_selected_idx, to_times, to_selected_idx, invalid_hs_idx, invalid_hs_times, plot_frame, i)
             plots.append(fig)
+        else:
+            plots.append(
+                _linear_plot_payload(
+                    i,
+                    time_vector,
+                    acc_ap_pp,
+                    acc_wave_detrended,
+                    acc_wave_2,
+                    hs_times,
+                    hs_selected_idx,
+                    to_times,
+                    to_selected_idx,
+                    invalid_hs_idx,
+                    invalid_hs_times,
+                )
+            )
 
     return df, plots
+
+
+def _linear_plot_payload(
+    plot_num,
+    time_vector,
+    acc_ap_pp,
+    acc_wave_detrended,
+    acc_wave_2,
+    hs_times,
+    hs_selected_idx,
+    to_times,
+    to_selected_idx,
+    invalid_hs_idx,
+    invalid_hs_times,
+):
+    return {
+        "plot_num": plot_num,
+        "time_vector": time_vector,
+        "acc_ap_pp": acc_ap_pp,
+        "acc_wave_detrended": acc_wave_detrended,
+        "acc_wave_2": acc_wave_2,
+        "hs_times": hs_times,
+        "hs_selected_idx": hs_selected_idx,
+        "to_times": to_times,
+        "to_selected_idx": to_selected_idx,
+        "invalid_hs_idx": invalid_hs_idx,
+        "invalid_hs_times": invalid_hs_times,
+    }
 
 def nonlinear_analysis(filename, assume_walking=False, progress_callback=None):
     """Runs nonlinear analysis on a background thread.
@@ -249,7 +336,7 @@ def nonlinear_analysis(filename, assume_walking=False, progress_callback=None):
         MaxDim = 30
         Rtol = 15
         Atol = 2
-        speed = 1  # Stop early once optimal dimension is found (speed=0 computes all 30)
+        speed = 0 # default speed to 0 so that it doesn't affect the dimension calculation but can be changed if needed
         ans = FNN(data, delay, MaxDim, Rtol, Atol, speed)
         print("FNN calculated")
         dim = ans[1]  #dimension
