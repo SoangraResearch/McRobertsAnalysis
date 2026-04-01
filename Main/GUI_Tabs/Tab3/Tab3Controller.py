@@ -1,11 +1,15 @@
 import os
 import re
-import threading
+import sys
 import traceback
 import tkinter as tk
 from tkinter import filedialog, messagebox
 from Main.GUI_Tabs.Tab3.Analysis_code import linear_analysis, nonlinear_analysis
-from Main.GUI_Tabs.Tab3.Analysis_Plots import display_combined_plots, get_current_selected_plot, nonlinear_plot
+from Main.GUI_Tabs.Tab3.Analysis_Plots import (
+    display_combined_plots,
+    get_current_selected_plot,
+    nonlinear_plot,
+)
 
 class Tab3Controller:
     def __init__(self, tab_frame, heavy_job=None):
@@ -26,7 +30,6 @@ class Tab3Controller:
         self.linear_plots = None
         self.nonlinear_df = None
         self.nonlinear_plots = None
-        self._analysis_running = False  # Prevents multiple concurrent analysis runs
 
 # -------------------------Public Methods---------------------------------
 
@@ -54,57 +57,75 @@ class Tab3Controller:
         self._reset_tab()
 
     def do_linear_analysis(self, plot_frame, assume_walking):
-        self.linear_df, self.linear_plots = linear_analysis(self.file, plot_frame, assume_walking.get())
-        self._load_save_plot_buttons(plot_frame)
-        messagebox.showinfo("Linear Analysis", f"Linear analysis complete")
-        if(self.nonlinear_plots != None):
-            display_combined_plots(self.linear_plots, self.nonlinear_plots, plot_frame)
-        self.plot_frame = plot_frame
-
-    def do_nonlinear_analysis(self, plot_frame, assume_walking):
-        """Run nonlinear analysis on a background thread to keep the GUI responsive."""
-        if self._analysis_running:
-            messagebox.showwarning("In Progress", "Nonlinear analysis is already running.")
-            return
+        """Linear analysis on the main thread (fast); no HeavyJobRunner / indeterminate bar."""
         if self.file is None:
             messagebox.showerror("Error", "No file loaded.")
             return
 
-        self._analysis_running = True
+        for widget in plot_frame.winfo_children():
+            widget.destroy()
+
+        try:
+            self.linear_df, self.linear_plots = linear_analysis(
+                self.file,
+                plot_frame,
+                assume_walking.get(),
+                build_plots=True,
+                progress_callback=None,
+            )
+        except Exception as e:
+            traceback.print_exc()
+            messagebox.showerror("Linear Analysis Error", str(e))
+            return
+
+        self._load_save_plot_buttons(plot_frame)
+        messagebox.showinfo("Linear Analysis", "Linear analysis complete")
+        if self.nonlinear_plots is not None:
+            display_combined_plots(self.linear_plots, self.nonlinear_plots, plot_frame)
+        self.plot_frame = plot_frame
+
+    def do_nonlinear_analysis(self, plot_frame, assume_walking):
+        """Run nonlinear analysis on a background thread; status in the bottom bar."""
+        if self.file is None:
+            messagebox.showerror("Error", "No file loaded.")
+            return
 
         for widget in plot_frame.winfo_children():
             widget.destroy()
 
-        # Live status label — updated from the background thread via after()
-        self._progress_label = tk.Label(plot_frame, text="Starting nonlinear analysis...", font=("Arial", 12))
-        self._progress_label.pack(pady=20)
-        plot_frame.update_idletasks()
-
-        # Thread-safe: schedules GUI label updates on the main thread
         def update_progress(text):
-            plot_frame.after(0, lambda t=text: self._progress_label.config(text=t))
+            if self.heavy_job:
+                self.heavy_job.schedule_status_message(f"Nonlinear: {text}")
 
         def worker():
+            return nonlinear_analysis(
+                self.file,
+                assume_walking.get(),
+                progress_callback=update_progress if self.heavy_job else None,
+            )
+
+        def on_success(result):
+            df, plot_data_list = result
+            self._on_nonlinear_complete(plot_frame, df, plot_data_list)
+
+        def on_error(msg):
+            messagebox.showerror("Analysis Error", msg)
+
+        if self.heavy_job:
+            if not self.heavy_job.run(
+                "Nonlinear analysis…",
+                worker,
+                on_success=on_success,
+                on_error=on_error,
+            ):
+                return
+        else:
             try:
-                # nonlinear_analysis returns raw data (no GUI objects) — safe for background thread
-                df, plot_data_list = nonlinear_analysis(
-                    self.file, assume_walking.get(), progress_callback=update_progress
-                )
-                plot_frame.after(0, lambda: self._on_nonlinear_complete(plot_frame, df, plot_data_list))
-            except Exception as e:
+                result = worker()
+                on_success(result)
+            except Exception:
                 traceback.print_exc()
-                # Capture as string now — e is deleted when the except block ends,
-                # so the lambda would get a NameError if it referenced e directly
-                err_msg = str(e)
-                plot_frame.after(0, lambda: self._on_nonlinear_error(err_msg))
-
-        thread = threading.Thread(target=worker, daemon=True)
-        thread.start()
-
-    def _on_nonlinear_error(self, err_msg):
-        """Called on main thread if the background analysis raises an exception."""
-        self._analysis_running = False
-        messagebox.showerror("Analysis Error", err_msg)
+                on_error(str(sys.exc_info()[1]))
 
     def _on_nonlinear_complete(self, plot_frame, df, plot_data_list):
         """Called on main thread after analysis finishes.
@@ -112,11 +133,7 @@ class Tab3Controller:
         Converts raw plot data dicts into Matplotlib figures here because
         Tkinter widgets can only be created on the main thread.
         """
-        self._analysis_running = False
         self.nonlinear_df = df
-
-        if hasattr(self, '_progress_label') and self._progress_label.winfo_exists():
-            self._progress_label.destroy()
 
         # Build Matplotlib figures from the raw data collected in nonlinear_analysis()
         self.nonlinear_plots = []

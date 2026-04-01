@@ -493,7 +493,6 @@ heavy_job.register_disable_widgets(
     tab1_load_file_button,
     tab1_export_csv_button,
     tab1_export_plot_button,
-    tab3_linear_button,
     tab3_nonlinear_button,
     run_auto_analysis_button,
 )
