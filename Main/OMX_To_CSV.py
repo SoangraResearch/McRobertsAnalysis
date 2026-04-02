@@ -1,6 +1,8 @@
+import inspect
 import sys
 import os
 import atexit
+import shutil
 import time
 import numpy as np
 import matplotlib.pyplot as plt
@@ -8,6 +10,53 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolb
 from matplotlib.figure import Figure
 from datetime import datetime, timedelta
 from oct2py import Oct2Py
+
+
+def _resolve_octave_executable():
+    """Path to Octave for Oct2Py.
+
+    macOS .app bundles started from Finder inherit a minimal PATH, so Homebrew
+    Octave is often invisible unless we probe standard locations or the user
+    sets OCTAVE_EXECUTABLE (see Main/README.md).
+    """
+    for key in ("OCTAVE_EXECUTABLE", "OCTAVE"):
+        p = os.environ.get(key)
+        if not p:
+            continue
+        if os.path.isfile(p):
+            return p
+        found = shutil.which(p)
+        if found:
+            return found
+
+    for cmd in ("octave-cli", "octave"):
+        found = shutil.which(cmd)
+        if found:
+            return found
+
+    if sys.platform == "darwin":
+        for path in (
+            "/opt/homebrew/bin/octave-cli",
+            "/usr/local/bin/octave-cli",
+            "/opt/homebrew/bin/octave",
+            "/usr/local/bin/octave",
+            "/Applications/Octave.app/Contents/Resources/usr/bin/octave-cli",
+        ):
+            if os.path.isfile(path):
+                return path
+
+    if sys.platform == "win32":
+        gnu_root = os.path.join(os.environ.get("ProgramFiles", r"C:\Program Files"), "GNU Octave")
+        if os.path.isdir(gnu_root):
+            try:
+                for dirpath, _, filenames in os.walk(gnu_root):
+                    if "octave-cli.exe" in filenames:
+                        return os.path.join(dirpath, "octave-cli.exe")
+            except OSError:
+                pass
+
+    return None
+
 
 def process_omx_file(filepath: str):
     
@@ -18,8 +67,29 @@ def process_omx_file(filepath: str):
         os.chdir(os.path.dirname(os.path.abspath(__file__)))
         base_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..')
 
-    #Initializing Oct2Py
-    oc = Oct2Py()
+    exe = _resolve_octave_executable()
+    if exe:
+        # Older oct2py (common in conda) has no `executable=` kwarg; it reads
+        # OCTAVE_EXECUTABLE. Newer oct2py accepts both.
+        os.environ.setdefault("OCTAVE_EXECUTABLE", exe)
+
+    try:
+        params = inspect.signature(Oct2Py.__init__).parameters
+    except (TypeError, ValueError):
+        params = {}
+
+    try:
+        if exe and "executable" in params:
+            oc = Oct2Py(executable=exe)
+        else:
+            oc = Oct2Py()
+    except Exception as e:
+        raise RuntimeError(
+            "GNU Octave was not found or could not start. OMX files require Octave "
+            "(see Main/README.md). If Octave is installed, set the environment variable "
+            "OCTAVE_EXECUTABLE to the full path of octave-cli (on macOS, apps opened "
+            "from Finder do not use your shell PATH)."
+        ) from e
     atexit.register(oc.exit)
 
     #Adding necessary filepath

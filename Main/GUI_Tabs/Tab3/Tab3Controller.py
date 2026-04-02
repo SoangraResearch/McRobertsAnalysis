@@ -92,15 +92,20 @@ class Tab3Controller:
         for widget in plot_frame.winfo_children():
             widget.destroy()
 
+        heavy = self.heavy_job
+        can_status = heavy is not None and callable(
+            getattr(heavy, "schedule_status_message", None)
+        )
+
         def update_progress(text):
-            if self.heavy_job:
-                self.heavy_job.schedule_status_message(f"Nonlinear: {text}")
+            if can_status:
+                heavy.schedule_status_message(f"Nonlinear: {text}")
 
         def worker():
             return nonlinear_analysis(
                 self.file,
                 assume_walking.get(),
-                progress_callback=update_progress if self.heavy_job else None,
+                progress_callback=update_progress if can_status else None,
             )
 
         def on_success(result):
