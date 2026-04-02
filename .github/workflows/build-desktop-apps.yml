@@ -59,9 +59,13 @@ jobs:
       - name: PyInstaller
         run: python -m PyInstaller "McRoberts Analysis.spec" --clean
 
+      # Keeps the outer .app bundle when users unzip the artifact (plain folder upload can look like "just Contents/").
+      - name: Zip macOS app
+        run: ditto -c -k --keepParent "dist/McRoberts Analysis.app" "dist/McRoberts-Analysis-macOS.zip"
+
       - name: Upload macOS build
         uses: actions/upload-artifact@v4
         with:
           name: McRoberts-Analysis-macOS
-          path: "dist/McRoberts Analysis.app"
+          path: dist/McRoberts-Analysis-macOS.zip
           if-no-files-found: error
