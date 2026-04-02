@@ -37,10 +37,43 @@ def _require_pkg_file(pkg_name: str, *relative_parts: str) -> str:
     return str(path)
 
 
+# macOS .app: Tk often exits immediately if Tcl/Tk data is not fully bundled (GitHub Actions / framework Python).
+_extra_binaries = []
+_extra_datas = []
+if sys.platform == 'darwin':
+    try:
+        from PyInstaller.utils.hooks import collect_all
+
+        _tk_d, _tk_b, _ = collect_all('tkinter')
+        _extra_datas.extend(_tk_d)
+        _extra_binaries.extend(_tk_b)
+    except Exception as e:
+        print(f"[McRoberts Analysis.spec] tkinter collect_all failed: {e}", file=sys.stderr)
+
+# oct2py (and similar) call importlib.metadata.version(...) at import time; PyInstaller omits .dist-info unless copied.
+def _copy_pkg_metadata(*pkg_names: str) -> list:
+    from PyInstaller.utils.hooks import copy_metadata
+
+    out = []
+    for name in pkg_names:
+        try:
+            out.extend(copy_metadata(name))
+        except Exception as e:
+            print(f"[McRoberts Analysis.spec] copy_metadata({name}) failed: {e}", file=sys.stderr)
+    return out
+
+
+_metadata_datas = _copy_pkg_metadata(
+    "oct2py",
+    "octave_kernel",
+    "ssqueezepy",
+    "metakernel",  # oct2py → metakernel; __init__ calls importlib.metadata.version("metakernel")
+)
+
 a = Analysis(
     ['Main/GUI_Main.py'],
     pathex=[PROJECT_ROOT, os.path.join(PROJECT_ROOT, 'Main')],
-    binaries=[],
+    binaries=_extra_binaries,
     datas=[
         # Data files the app needs at runtime
         ('Mobilise-D-TVS-Recommended-Algorithms-master/ICDA/Library/FIR-2-3Hz-40.mat',
@@ -62,7 +95,9 @@ a = Analysis(
         (_require_pkg_file('octave_kernel', 'kernel.json'), 'octave_kernel'),
         (_require_pkg_file('ssqueezepy', 'configs.ini'), 'ssqueezepy'),
         (_require_pkg_file('oct2py', '_pyeval.m'), 'oct2py'),
-    ],
+    ]
+    + _extra_datas
+    + _metadata_datas,
     hiddenimports=[
         # All imports listed explicitly (no __init__.py files in project)
         'Main.ICDA_code',

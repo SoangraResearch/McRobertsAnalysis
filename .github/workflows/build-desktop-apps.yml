@@ -59,6 +59,12 @@ jobs:
       - name: PyInstaller
         run: python -m PyInstaller "McRoberts Analysis.spec" --clean
 
+      # Confirms runner arch vs app binary (arm64-only CI builds do not run on Intel Macs).
+      - name: Show macOS binary architecture
+        run: |
+          uname -m
+          file "dist/McRoberts Analysis.app/Contents/MacOS/McRoberts Analysis"
+
       # Keeps the outer .app bundle when users unzip the artifact (plain folder upload can look like "just Contents/").
       - name: Zip macOS app
         run: ditto -c -k --keepParent "dist/McRoberts Analysis.app" "dist/McRoberts-Analysis-macOS.zip"
