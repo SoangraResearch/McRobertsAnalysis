@@ -1,11 +1,13 @@
 # -*- mode: python ; coding: utf-8 -*-
-# Build the .app with: pyinstaller "McRoberts Analysis.spec" --clean
+# macOS .app: pyinstaller "McRoberts Analysis.spec" --clean
+# Windows folder + .exe: same command (BUNDLE runs only on darwin).
 #
 # Run PyInstaller with the same Python interpreter / venv / conda env that has
 # octave_kernel, oct2py, ssqueezepy, and the rest of the app dependencies.
 
 import importlib.util
 import os
+import sys
 from pathlib import Path
 
 PROJECT_ROOT = os.path.abspath('.')
@@ -157,9 +159,10 @@ coll = COLLECT(
     upx_exclude=[],
     name='McRoberts Analysis',
 )
-app = BUNDLE(
-    coll,
-    name='McRoberts Analysis.app',
-    icon=None,
-    bundle_identifier='com.mcroberts.analysis',
-)
+if sys.platform == 'darwin':
+    app = BUNDLE(
+        coll,
+        name='McRoberts Analysis.app',
+        icon=None,
+        bundle_identifier='com.mcroberts.analysis',
+    )
