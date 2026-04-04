@@ -3,7 +3,6 @@ import numpy.polynomial.polynomial as poly
 import numpy.matlib as nmp
 import matplotlib.pyplot as plt
 import sys
-from scipy.spatial import cKDTree
 
 def LyE_R(X,name, Fs,tau,dim,*args):
     """
@@ -39,6 +38,14 @@ def LyE_R(X,name, Fs,tau,dim,*args):
       Future Work
       - It may be possible to sped it up conciderably by re-organizing the for
         loops. A database for the matched points would need to be created.
+      - Optional speed/memory variant (not merged here; validate before use):
+        build scipy.spatial.cKDTree on embedded points Y and, for each index i,
+        query k-nearest neighbors with increasing k until the first index
+        outside the temporal exclusion window (same role as masking distances
+        with 1e5 then argsort); then accumulate mean log-divergence with
+        per-step sum/count vectors instead of allocating the full M×M DM
+        matrix. Intended to match this baseline in spirit but not guaranteed
+        byte-identical (e.g. exclusion-window boundaries, distance ties).
       References
       - Rosentein, Collins and De Luca; "A practical method for calculating
         largest Lyapunov exponents from small data sets;" 1992
@@ -99,57 +106,47 @@ def LyE_R(X,name, Fs,tau,dim,*args):
             Y[:,j]=X[:,0+j*tau:M+j*tau]
     # Find nearest neighbors
 
-    # KD-tree gives nearest-neighbor candidates much faster than all-pairs distances.
-    tree = cKDTree(Y)
-    IND2 = np.zeros((M,), dtype=int)
-    exclude_halfwidth = int(round(tau * 0.8))
+    IND2=np.zeros((1,M),dtype=int)
     for i in range(M):
-        # Exclude temporally adjacent samples: |j - i| <= exclude_halfwidth.
-        lo = max(0, i - exclude_halfwidth)
-        hi = min(M - 1, i + exclude_halfwidth)
-
-        # Query progressively more neighbors until one is outside the exclusion window.
-        k = 8
-        chosen = None
-        while True:
-            k_eff = min(k, M)
-            dists, idxs = tree.query(Y[i], k=k_eff)
-            idxs = np.atleast_1d(idxs)
-            for cand in idxs:
-                if (cand < lo) or (cand > hi):
-                    chosen = int(cand)
-                    break
-            if chosen is not None:
-                break
-            if k_eff == M:
-                # Fallback should be extremely rare; keep function robust.
-                chosen = int(i)
-                break
-            k *= 2
-
-        IND2[i] = chosen
-    out = np.vstack((np.arange(M), IND2))
+        # Find nearest neighbor.
+        Yinit = nmp.repmat(Y[i],M,1)
+        Ydiff = (Yinit-Y[0:M,:])**2
+        Ydisti = np.sqrt(np.sum(Ydiff,axis=1))
+        
+        # Exclude points too close based on dominant frequency.
+        range_exclude = np.arange(round((i+1)-tau*0.8-1),round((i+1)+tau*0.8))
+        range_exclude = range_exclude[(range_exclude>=0) & (range_exclude<M)]
+        Ydisti[range_exclude] = 1e5
+        
+        # find minimum distance point for first pair
+        IND2[0,i] = np.argsort(Ydisti)[0]
+        
+    out = np.vstack((np.arange(M), np.ndarray.flatten(IND2)))
 
     # Calculate distances between matched pairs.
-    # Stream accumulation avoids allocating the full MxM DM matrix.
-    sum_log = np.zeros(M, dtype=float)
-    count_log = np.zeros(M, dtype=np.int64)
-    for i in range(M):
-        j = IND2[i]
-        end_itl = min(M - j, M - i)
-        if end_itl <= 0:
-            continue
+    DM = np.zeros((M,M))
 
-        d = np.sqrt(np.sum((Y[i:i + end_itl, :] - Y[j:j + end_itl, :]) ** 2, axis=1))
-        nz = np.where(d > 0)[0]
-        if nz.size > 0:
-            sum_log[nz] += np.log(d[nz])
-            count_log[nz] += 1
+    IND2len = np.shape(IND2)[1]
 
-    # Same output statistic as before: row-wise mean(log(distance>0)).
-    AveLnDiv = np.zeros(M, dtype=float)
-    valid = count_log > 0
-    AveLnDiv[valid] = sum_log[valid] / count_log[valid]
+    for i in range(IND2len):
+    # The data can only be propagated so far from the matched pair.
+        EndITL=M-IND2[:,i][0]
+        if (M-IND2[:,i][0])>(M-i):
+            EndITL=M-i
+
+        # Finds the distance between the matched paris and their propagated
+        # points to the end of the useable data.
+        DM[0:EndITL,i] = np.sqrt(np.sum((Y[i:EndITL+i,:]-Y[IND2[:,i][0]:EndITL+IND2[:,i][0],:])**2,axis=1))
+        
+    # Calculates the average line divergence.
+    r,_ = np.shape(DM)
+
+    AveLnDiv = np.zeros(len(DM))
+    # NOTE: MATLAB version does not preallocate AveLnDiv, we could preallocate that.
+    for i in range(r):
+        distanceM = DM[i,:]
+        if np.sum(distanceM) != 0:
+            AveLnDiv[i]=np.mean(np.log(distanceM[distanceM>0])) 
 
     out = np.vstack((out,AveLnDiv))
 
