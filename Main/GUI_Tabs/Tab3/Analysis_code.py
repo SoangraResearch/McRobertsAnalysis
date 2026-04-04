@@ -409,7 +409,7 @@ def nonlinear_analysis(filename, assume_walking=False, progress_callback=None):
         r = 0.2
         m=2
 
-        result = Ent_MS_Plus(data, tau, m, r, compute_gmse_msfe=False)
+        result = Ent_MS_Plus(data, tau, m, r)
         print("ENT_MS_Plus calculated")
 
         RCMSE =result[0]

@@ -1,12 +1,20 @@
-import numpy as np
-from scipy.spatial import cKDTree
+"""
+Multiscale and composite multiscale entropy (Ent_MS_Plus) and helpers.
 
-def Ent_MS_Plus(x, tau, m, r, compute_gmse_msfe=True):
-    """
-    compute_gmse_msfe: If False, skip GMSE and MSFE (fuzzy entropy), which are
-    not used by Tab3 but cost O(N^2) per scale. Default True preserves full
-    outputs for scripts/notebooks; the GUI passes False for speed.
-    """
+Future work (optional extensions; not in the current baseline implementation)
+  - Speed / GUI: add a flag such as compute_gmse_msfe to skip GMSE and MSFE
+    (fuzzy multiscale entropy) when callers only need RCMSE/CMSE/MSE — those
+    two branches are heavy per scale and may be unused in some pipelines.
+  - Samp_Ent: replace the nested-loop template matching with a spatial index —
+    e.g. scipy.spatial.cKDTree on sliding-window embeddings and
+    query_ball_point(..., p=np.inf, r=R) to count Chebyshev (L∞) neighbors,
+    matching the original max-|difference| criterion; strip NaNs first and
+    guard empty/short series and invalid Bmr/Amr before -log(Amr/Bmr).
+    Validate parity against this file's loop implementation before adopting.
+"""
+import numpy as np
+
+def Ent_MS_Plus(x, tau, m, r):
 
     R = r*np.std(x)
     N = len(x)
@@ -18,19 +26,18 @@ def Ent_MS_Plus(x, tau, m, r, compute_gmse_msfe=True):
     RCMSE = np.zeros(tau, dtype=object)
 
     for i in range(1,tau):
+        # Coarse-graining for GMSE
         Ndivi = int(N/i) # defining this now because we use it a lot later on.
-        if compute_gmse_msfe:
-            o2 = np.zeros((i, Ndivi))
-            for j in range(Ndivi):
-                for k in range(i):
-                    try:
-                        o2[k,j] = np.var(x[(j-1)*i+k:j*i+k])
-                    except:
-                        o2[k,j] = np.nan
-            GMSE[i] = Samp_Ent(o2[0,:], m, r)
-        else:
-            GMSE[i] = np.nan
-
+        o2 = np.zeros((i, Ndivi))
+        for j in range(Ndivi):
+            for k in range(i):
+                try:
+                    # NOTE: May have a one off issue.
+                    o2[k,j] = np.var(x[(j-1)*i+k:j*i+k])
+                except:
+                    o2[k,j] = np.nan
+        GMSE[i] = Samp_Ent(o2[0,:],m,r)
+        
         # Coarse-graining for MSE and derivatives
         y_tau_kj = np.zeros((i,Ndivi))
         for j in range(Ndivi):
@@ -44,10 +51,7 @@ def Ent_MS_Plus(x, tau, m, r, compute_gmse_msfe=True):
         # Multiscale Entropy (MSE)
         MSE[i] = Samp_Ent(y_tau_kj[0, valid_indices], m, R)        
         #Multiscale Fuzzy Entropy (MFE)
-        if compute_gmse_msfe:
-            MSFE[i] = Fuzzy_Ent(y_tau_kj[0, valid_indices], m, R, 2)
-        else:
-            MSFE[i] = np.nan
+        MSFE[i] = Fuzzy_Ent(y_tau_kj[0, valid_indices], m, R, 2)
         
         # Composite Multiscale Entropy (CMSE)
         CMSE[i] = 0
@@ -91,36 +95,37 @@ def Samp_Ent(data, m, r):
     W Denton August, 2017 (Made count total number of matches for each vector length, necessary for CMSE and RCMSE)
     """
 
-    data = np.asarray(data, dtype=float).reshape(-1)
-    data = data[~np.isnan(data)]
-    N = len(data)
-    if N == 0:
-        return (np.nan, 0.0, 0.0)
-
     R = r * np.std(data)
-    n = N - m
-    if n <= 0:
-        return (np.nan, 0.0, 0.0)
+    N = len(data)
 
-    emb_m = np.lib.stride_tricks.sliding_window_view(data, m)[:n]
-    emb_m1 = np.lib.stride_tricks.sliding_window_view(data, m + 1)[:n]
+    data = np.array(data)
 
-    tree_m = cKDTree(emb_m)
-    tree_m1 = cKDTree(emb_m1)
-    counts_m = tree_m.query_ball_point(emb_m, r=R, p=np.inf, return_length=True)
-    counts_m1 = tree_m1.query_ball_point(emb_m1, r=R, p=np.inf, return_length=True)
+    dij = np.zeros((N-m,m+1))
+    dj =  np.zeros((N-m,1))
+    dj1 = np.zeros((N-m,1))
+    Bm = np.zeros((N-m,1))
+    Am = np.zeros((N-m,1))
 
-    Bm = counts_m.astype(float) / n
-    Am = counts_m1.astype(float) / n
-    Bmr = np.sum(Bm) / n
-    Amr = np.sum(Am) / n
+    sum_nm = 0
+    sum_nm1 = 0
+    for i in range(N-m):
+        for k in range(m+1):
+            dij[:,k] = np.abs(data[k:N-m+k]-data[i+k]) 
+        dj = np.max(dij[:,0:m],axis=1)
+        dj1 = np.max(dij,axis=1)
+        d = np.where(dj <= R) 
+        d1 = np.where(dj1 <= R)
+        nm = d[0].shape[0]
+        sum_nm = sum_nm + nm
+        Bm[i] = nm/(N-m)
+        nm1 = d1[0].shape[0]
+        sum_nm1 = sum_nm1 + nm1
+        Am[i] = nm1/(N-m)
+    
+    Bmr = np.sum(Bm)/(N-m)
+    Amr = np.sum(Am)/(N-m)
 
-    sum_nm = float(np.sum(counts_m))
-    sum_nm1 = float(np.sum(counts_m1))
-
-    if Bmr <= 0 or Amr <= 0 or Amr / Bmr <= 0:
-        return (np.nan, sum_nm, sum_nm1)
-    return (-np.log(Amr / Bmr), sum_nm, sum_nm1)
+    return (-np.log(Amr/Bmr), sum_nm, sum_nm1)
 
 def Fuzzy_Ent(series, dim, r, n):
     N = len(series)
