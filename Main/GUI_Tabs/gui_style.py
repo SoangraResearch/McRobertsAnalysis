@@ -1,6 +1,7 @@
 """Application-wide ttk look (clam): action buttons, notebook tab focus, tab-bar cursor.
 
 - Sets theme and App.TButton (gray idle, white hover, pointer cursor on macOS).
+- make_radiobutton / make_checkbutton: ttk + clam (indicator colors work on macOS); pointer cursor; generous pack() padx/pady.
 - Optional notebook helpers: pointer over tabs, suppress dotted focus ring on the tab row."""
 
 from __future__ import annotations
@@ -76,6 +77,51 @@ def ensure_gui_style(root: tk.Misc) -> None:
     except tk.TclError:
         pass
 
+    # ttk radios/checks under clam so indicator colors are honored (unlike native tk on macOS).
+    try:
+        _choice_bg = style.lookup("TFrame", "background")
+        if not _choice_bg or not str(_choice_bg).strip():
+            _choice_bg = "#dcdad5"
+    except tk.TclError:
+        _choice_bg = "#dcdad5"
+
+    for _rb_name in ("App.TRadiobutton", "App.TCheckbutton"):
+        style.configure(
+            _rb_name,
+            background=_choice_bg,
+            foreground=_FG,
+            focuscolor="none",
+        )
+        try:
+            style.configure(_rb_name, focusthickness=0)
+        except tk.TclError:
+            pass
+
+    style.map(
+        "App.TRadiobutton",
+        indicatorcolor=[
+            ("disabled", _DISABLED_BG),
+            ("selected", _HOVER_BG),
+            ("!selected", _IDLE_BG),
+        ],
+        foreground=[
+            ("disabled", _DISABLED_FG),
+            ("!disabled", _FG),
+        ],
+    )
+    style.map(
+        "App.TCheckbutton",
+        indicatorcolor=[
+            ("disabled", _DISABLED_BG),
+            ("selected", _HOVER_BG),
+            ("!selected", _IDLE_BG),
+        ],
+        foreground=[
+            ("disabled", _DISABLED_FG),
+            ("!disabled", _FG),
+        ],
+    )
+
 
 def make_action_button(master, **kwargs) -> ttk.Button:
     """Styled ttk.Button: gray idle, white hover, pointer cursor on macOS."""
@@ -85,6 +131,31 @@ def make_action_button(master, **kwargs) -> ttk.Button:
     kwargs.setdefault("takefocus", False)
     kwargs.setdefault("cursor", _pointer_cursor())
     return ttk.Button(master, **kwargs)
+
+
+def pointer_cursor() -> str:
+    """Hand / pointing cursor used for action buttons and choice controls."""
+    return _pointer_cursor()
+
+
+def make_radiobutton(master, **kwargs) -> ttk.Radiobutton:
+    """ttk.Radiobutton (clam): white indicator when selected, pointer cursor."""
+    kwargs.pop("selectcolor", None)
+    root = master.winfo_toplevel()
+    ensure_gui_style(root)
+    kwargs.setdefault("style", "App.TRadiobutton")
+    kwargs.setdefault("cursor", _pointer_cursor())
+    return ttk.Radiobutton(master, **kwargs)
+
+
+def make_checkbutton(master, **kwargs) -> ttk.Checkbutton:
+    """ttk.Checkbutton (clam): white indicator when checked, pointer cursor."""
+    kwargs.pop("selectcolor", None)
+    root = master.winfo_toplevel()
+    ensure_gui_style(root)
+    kwargs.setdefault("style", "App.TCheckbutton")
+    kwargs.setdefault("cursor", _pointer_cursor())
+    return ttk.Checkbutton(master, **kwargs)
 
 
 def apply_notebook_tab_pointer_cursor(notebook: ttk.Notebook) -> None:

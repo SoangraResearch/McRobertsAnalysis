@@ -25,6 +25,8 @@ from Main.GUI_Tabs.gui_style import (
     apply_notebook_tab_pointer_cursor,
     ensure_gui_style,
     make_action_button,
+    make_checkbutton,
+    make_radiobutton,
 )
 from Main.GUI_Tabs.heavy_job_runner import HeavyJobRunner
 from Main.GUI_Tabs.Tab1.Tab1Controller import Tab1Controller
@@ -158,9 +160,11 @@ label_var_MobiliseD = tk.StringVar()
 label_var_MobiliseD.set("None")
 tk.Label(tab2, text="Select Type").pack(pady=(20, 5))
 label_frame = tk.Frame(tab2)
-label_frame.pack()
+label_frame.pack(pady=(0, 4))
 for lbl in ["Healthy(GSDA)", "Patient(GSDB)"]:
-    tk.Radiobutton(label_frame, text=lbl, variable=label_var_MobiliseD, value=lbl).pack(side="left", padx=20)
+    make_radiobutton(label_frame, text=lbl, variable=label_var_MobiliseD, value=lbl).pack(
+        side="left", padx=(16, 16), pady=8, ipadx=4, ipady=4
+    )
 
 # container frame for button + checkbox
 gsd_frame = tk.Frame(tab2)
@@ -181,8 +185,9 @@ tab2_run_gsd_button.pack(side="left", padx=10)  # extra_plots=1 to display plots
 
 # Shared with Tab 4 auto analysis so GSD uses the same “force walking” flag as Mobilise-D.
 force_data_as_walking = tk.BooleanVar(value=False)
-tk.Checkbutton(gsd_frame, text="Force Data as Walking",
-               variable=force_data_as_walking).pack(side="left", padx=10)
+make_checkbutton(gsd_frame, text="Force Data as Walking", variable=force_data_as_walking).pack(
+    side="left", padx=(14, 10), pady=4, ipadx=4, ipady=4
+)
 
 plot_frame_GSD = tk.Frame(tab2, height=300)
 plot_frame_GSD.pack(fill="both", expand=True)
@@ -244,7 +249,9 @@ tab3_nonlinear_button = make_action_button(
 )
 tab3_nonlinear_button.pack(side="left", padx=10)
 
-tk.Checkbutton(analysis_frame, text="Assume data is walking", variable=assume_walking_var).pack(side="left", padx=10)
+make_checkbutton(analysis_frame, text="Assume data is walking", variable=assume_walking_var).pack(
+    side="left", padx=(12, 12), pady=6, ipadx=4, ipady=4
+)
 
 plot_frame_analysis.pack(fill="both", expand=True)
 
@@ -469,26 +476,32 @@ label_var_auto_analysis = tk.StringVar()
 label_var_auto_analysis.set("None")
 tk.Label(tab4, text="Select Type").pack(pady=(20, 5))
 label_frame = tk.Frame(tab4)
-label_frame.pack()
+label_frame.pack(pady=(0, 4))
 for lbl in ["Healthy(GSDA)", "Patient(GSDB)"]:
-    tk.Radiobutton(label_frame, text=lbl, variable=label_var_auto_analysis, value=lbl).pack(side="left", padx=20)
+    make_radiobutton(label_frame, text=lbl, variable=label_var_auto_analysis, value=lbl).pack(
+        side="left", padx=(16, 16), pady=8, ipadx=4, ipady=4
+    )
 
 # Optional flag: forces the “walking” behavior inside the GSD/segment logic.
 force_data_as_walking_tab4 = tk.BooleanVar(value=False)
-tk.Checkbutton(tab4, text="Force Data as Walking", variable=force_data_as_walking_tab4).pack(pady=5)
+make_checkbutton(tab4, text="Force Data as Walking", variable=force_data_as_walking_tab4).pack(
+    pady=(10, 6), ipadx=4, ipady=4
+)
 
 # Independent flag for the Tab 3 segment analysis:
 # when enabled, Tab 3 skips "find_walking" detection and treats the segment slice as one walking period.
 assume_data_as_walking_tab4 = tk.BooleanVar(value=True)
-tk.Checkbutton(tab4, text="Assume Data is Walking (Tab 3)", variable=assume_data_as_walking_tab4).pack(pady=2)
+make_checkbutton(tab4, text="Assume Data is Walking (Tab 3)", variable=assume_data_as_walking_tab4).pack(
+    pady=(4, 6), ipadx=4, ipady=4
+)
 
 # Include Tab 2–style GSD + step CSVs in the same output folder (no Tab 2 plots).
 save_tab2_auto_results = tk.BooleanVar(value=False)
-tk.Checkbutton(
+make_checkbutton(
     tab4,
     text="Save Tab 2 results (GSD + step counts CSV)",
     variable=save_tab2_auto_results,
-).pack(pady=2)
+).pack(pady=(4, 6), ipadx=4, ipady=4)
 
 run_auto_analysis_button = make_action_button(tab4, text="Run Auto Analysis", command=run_auto_analysis)
 run_auto_analysis_button.pack(pady=10)
