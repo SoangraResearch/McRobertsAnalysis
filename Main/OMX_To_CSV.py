@@ -1,3 +1,13 @@
+"""
+OMX file reading via GNU Octave and Oct2Py.
+
+Packaging note (PyInstaller / macOS .app): ``sys.frozen``, ``sys._MEIPASS``,
+``base_path`` resolution, and ``_resolve_octave_executable`` exist only so the
+same code runs inside a bundled app (minimal PATH, bundled Dynaport sources).
+They do not change OMX parsing or numeric outputs relative to a normal dev
+install when Octave is available and the same ``DynaportCompany_Codes_new``
+tree is used—only how the process finds Octave and those files on disk.
+"""
 import inspect
 import sys
 import os
@@ -13,11 +23,12 @@ from oct2py import Oct2Py
 
 
 def _resolve_octave_executable():
-    """Path to Octave for Oct2Py.
+    """Path to Octave for Oct2Py (.app / GUI convenience only).
 
-    macOS .app bundles started from Finder inherit a minimal PATH, so Homebrew
-    Octave is often invisible unless we probe standard locations or the user
-    sets OCTAVE_EXECUTABLE (see Main/README.md).
+    Does not alter OMX results—only which Octave binary is launched. macOS .app
+    bundles started from Finder inherit a minimal PATH, so Homebrew Octave is
+    often invisible unless we probe standard locations or the user sets
+    OCTAVE_EXECUTABLE (see Main/README.md).
     """
     for key in ("OCTAVE_EXECUTABLE", "OCTAVE"):
         p = os.environ.get(key)
@@ -59,8 +70,8 @@ def _resolve_octave_executable():
 
 
 def process_omx_file(filepath: str):
-    
-    # .app support: use bundled path when running as .app
+    # .app support: resolve repo/bundle root for oc.addpath only (same MATLAB
+    # code; no change to extracted acceleration values vs dev when paths match).
     if getattr(sys, 'frozen', False):
         base_path = sys._MEIPASS
     else:

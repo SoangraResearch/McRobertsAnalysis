@@ -1,3 +1,12 @@
+"""
+ICDA-related step detection and filtering.
+
+Packaging note (PyInstaller / macOS .app): ``find_mcroberts_root()`` uses
+``sys.frozen`` / ``sys._MEIPASS`` or parent-directory search only to locate the
+repository root and thus ``Mobilise-D-TVS-Recommended-Algorithms-master/...``
+resource files (e.g. FIR .mat). It does not change the signal-processing
+math—only where static assets are loaded from on disk.
+"""
 from scipy.signal import filtfilt
 from scipy.interpolate import interp1d
 from scipy.signal import convolve
@@ -10,8 +19,8 @@ import matplotlib.pyplot as plt
 
 from pathlib import Path
 
-# .app support: use bundled path when running as .app
 def find_mcroberts_root():
+    """Project root for bundled data files (.app / dev); does not affect algorithms."""
     if getattr(sys, 'frozen', False):
         return Path(sys._MEIPASS)
     current = Path(__file__).resolve()
