@@ -1,5 +1,4 @@
 import warnings, sys, string
-import os
 import tempfile
 import numpy as np
 from skimage.transform import rotate
@@ -7,31 +6,6 @@ from sklearn.metrics import pairwise_distances
 from scipy import stats as st
 from scipy.spatial import distance as spd
 import matplotlib.pyplot as plt
-
-# Large-N RQA fallback (blockwise recurrence, no full float N×N distance matrix):
-# - Default strict: each block uses sklearn.pairwise_distances, matching the dense code path
-#   (threshold is d <= radius, equivalent to -|d| >= -radius after the original abs()).
-# - Fast mode (optional): use ||x-y||^2 <= radius^2 — usually identical; can differ at the
-#   threshold in rare floating-point edge cases. Enable with: RQA_LARGE_N_FAST=1
-RQA_LARGE_N_FAST = os.environ.get("RQA_LARGE_N_FAST", "0").strip().lower() in ("1", "true", "yes")
-
-
-def _run_lengths(binary_vec):
-    """Vectorized run-length extraction from a 0/1 array.
-    Returns float array of lengths of consecutive-1 runs (empty if none)."""
-    n = len(binary_vec)
-    if n == 0:
-        return np.array([], dtype=float)
-    padded = np.empty(n + 2, dtype=np.int8)
-    padded[0] = 0
-    padded[-1] = 0
-    padded[1:-1] = binary_vec
-    diffs = np.diff(padded)
-    starts = np.flatnonzero(diffs == 1)
-    ends = np.flatnonzero(diffs == -1)
-    if len(starts) == 0:
-        return np.array([], dtype=float)
-    return (ends - starts).astype(float)
 
 
 def RQA(DATA,TYPE,EMB,DEL,ZSCORE,NORM,LINELENGTH,SETPARA,SETVALUE,PLOTOPTION, column, nargout):
@@ -297,163 +271,23 @@ def RQA(DATA,TYPE,EMB,DEL,ZSCORE,NORM,LINELENGTH,SETPARA,SETVALUE,PLOTOPTION, co
         DATA = tempDATA
         tempDATA = np.delete(tempDATA,np.s_[::]) # deletes everything from array.
 
-    # ---------------- Memory-safe RQA fallback (large N) ----------------
-    # The original implementation calls sklearn.pairwise_distances which builds an
-    # NxN float matrix. For long bouts this can be killed by the OS.
-    #
-    # For the Tab3 use-case (TYPE='RQA', NORM='NON', SETPARA='radius') we compute
-    # recurrence in row blocks. Strict (default): same distances as sklearn per block.
-    # EntrW uses column sums of the binarized recurrence — same as RQA_WeightedEntropy(a)
-    # after rqaPerRec() (a is 0/1), not sums of raw negative distances.
-    if (
-        TYPE == 'RQA'
-        and 'NON' in str(NORM).upper()
-        and (SETPARA == 'radius' or SETPARA == 'rad' or SETPARA == 1)
-        and runSetRad == 0
-    ):
-        # For embedded RQA, the recurrence plot size is based on the number of
-        # embedded vectors (columns after embedding).
-        if EMB > 1:
-            n_embed = int(DATA.shape[1])
-            pairs = DATA.T.copy()  # shape: (n_embed, EMB)
-        else:
-            # EMB == 1 means vectors are scalars.
-            n_embed = int(np.size(DATA))
-            pairs = np.asarray(DATA, dtype=float).reshape(-1, 1)
-
-        # Estimate dense NxN float memory (pairwise_distances output).
-        # If it's too large, switch to the block recurrence backend.
-        dense_bytes = n_embed * n_embed * 8  # float64
-        MAX_DENSE_BYTES = 500 * 1024 * 1024  # ~500MB safety threshold
-
-        if n_embed > 0 and dense_bytes > MAX_DENSE_BYTES:
-            # ---- Streaming RQA: no full NxN matrix stored ----
-            # Two O(N^2) passes with O(N) peak memory each:
-            #   Pass 1 (diagonals): diagonal run-length histogram
-            #   Pass 2 (columns):   vertical histogram + perRec + column sums for EntrW
-            radius_f = float(radius)
-            X = np.asarray(pairs, dtype=float)
-
-            # ---- Pass 1: diagonal histogram ----
-            # Diagonal k has elements (i, i+k). Distance is symmetric, so
-            # diagonals +k and -k have identical recurrence patterns.
-            # Compare squared distances to radius² (avoids N² sqrt operations).
-            radius_sq = radius_f * radius_f
-            diag_runs = []
-            for k in range(n_embed):
-                if k == 0:
-                    # Main diagonal: self-distance is 0, always recurrent.
-                    rec_diag = np.ones(n_embed, dtype=np.uint8)
-                else:
-                    diff = X[:-k] - X[k:]
-                    dist2 = np.einsum('ij,ij->i', diff, diff)
-                    rec_diag = (dist2 <= radius_sq).astype(np.uint8)
-                runs = _run_lengths(rec_diag)
-                if len(runs) > 0:
-                    diag_runs.append(runs)
-                    if k > 0:
-                        # Symmetric diagonal -k has the same run pattern.
-                        diag_runs.append(runs)
-
-            diag_hist = np.concatenate(diag_runs) if diag_runs else np.array([0.0])
-
-            # Remove line of identity (same rule as the dense path).
-            if 'CRQA' not in TYPE:
-                if len(diag_hist) > 0 and np.max(diag_hist) > 0:
-                    diag_hist = diag_hist[diag_hist < np.max(diag_hist)]
-                if len(diag_hist) == 0:
-                    diag_hist = np.array([0.0])
-
-            # ---- Pass 2: columns -> vertical histogram + perRec + EntrW ----
-            total_rec = 0
-            col_sums = np.zeros(n_embed, dtype=float)
-            vert_runs = []
-
-            # Column block size: cap the temporary (N x block) float buffer at ~120 MB.
-            col_bs = max(1, min(2000, int((120 * 1024 * 1024 / 8) // max(1, n_embed))))
-            x_norm2 = np.sum(X * X, axis=1)
-
-            for j0 in range(0, n_embed, col_bs):
-                j1 = min(n_embed, j0 + col_bs)
-                # Squared-distance comparison via expanded form: avoids sqrt.
-                xb_n2 = x_norm2[j0:j1]
-                dist2 = x_norm2[:, None] + xb_n2[None, :] - 2.0 * (X @ X[j0:j1].T)
-                np.maximum(dist2, 0.0, out=dist2)
-                rec_block = (dist2 <= radius_sq)
-
-                total_rec += int(rec_block.sum())
-                col_sums[j0:j1] = rec_block.sum(axis=0).astype(float)
-
-                # Vertical run lengths per column in this block.
-                for jj in range(rec_block.shape[1]):
-                    runs = _run_lengths(rec_block[:, jj].astype(np.uint8))
-                    if len(runs) > 0:
-                        vert_runs.append(runs)
-
-            vertical_hist = np.concatenate(vert_runs) if vert_runs else np.array([0.0])
-
-            # Percent recurrence (same formula as rqaPerRec for RQA type).
-            if n_embed > 1:
-                perRec = 100.0 * (total_rec - n_embed) / (n_embed ** 2 - n_embed)
-            else:
-                perRec = float('inf')
-
-            entrW = RQA_WeightedEntropy_from_col_sums(col_sums)
-
-            # ---- Build RESULTS (same keys/formulas as the dense path) ----
-            RESULTS = {
-                "DIM": DIM,
-                "EMB": EMB,
-                "DEL": DEL,
-                "RADIUS": radius_f,
-                "NORM": NORM,
-                "ZSCORE": ZSCORE,
-                "SIZE": n_embed,
-                "REC": perRec,
-            }
-
-            if RESULTS["REC"] > 0:
-                RESULTS["DET"] = 100 * np.sum(diag_hist[diag_hist > LINELENGTH]) / np.sum(diag_hist)
-                RESULTS["MeanL"] = np.mean(diag_hist[diag_hist > LINELENGTH])
-                RESULTS["MaxL"] = np.max(diag_hist)
-
-                (count, bins) = np.histogram(diag_hist[diag_hist > LINELENGTH])
-                total = np.sum(count)
-                p = np.divide(count, total)
-                zero_indices = np.where(count == 0)
-                p = np.delete(p, zero_indices)
-                RESULTS["EntrL"] = np.negative(np.sum(np.multiply(p, np.log2(p))))
-
-                RESULTS["LAM"] = 100 * np.sum(vertical_hist[vertical_hist > LINELENGTH]) / np.sum(vertical_hist)
-                RESULTS["MeanV"] = np.mean(vertical_hist[vertical_hist > LINELENGTH])
-                RESULTS["MaxV"] = np.max(vertical_hist)
-
-                (count, bins) = np.histogram(vertical_hist[vertical_hist > LINELENGTH])
-                total = np.sum(count)
-                p = np.divide(count, total)
-                zero_indices = np.where(count == 0)
-                p = np.delete(p, zero_indices)
-                RESULTS["EntrV"] = np.negative(np.sum(np.multiply(p, np.log2(p))))
-
-                RESULTS["EntrW"] = entrW
-            else:
-                RESULTS["DET"] = np.nan
-                RESULTS["MeanL"] = np.nan
-                RESULTS["MaxL"] = np.nan
-                RESULTS["EntrL"] = np.nan
-                RESULTS["LAM"] = np.nan
-                RESULTS["MeanV"] = np.nan
-                RESULTS["MaxV"] = np.nan
-                RESULTS["EntrV"] = np.nan
-                RESULTS["EntrW"] = np.nan
-
-            if nargout == 1:
-                out = [RESULTS]
-            elif nargout == 2:
-                warnings.warn("Full recurrence plot unavailable in streaming mode; returning RESULTS only.")
-                out = [RESULTS]
-
-            return out
+    # Optional memory-safe path (see module bottom): only when dense N×N would exceed budget.
+    _ms_out = _try_optional_memory_safe_rqa(
+        DATA,
+        TYPE,
+        DIM,
+        EMB,
+        DEL,
+        ZSCORE,
+        NORM,
+        LINELENGTH,
+        SETPARA,
+        runSetRad,
+        radius,
+        nargout,
+    )
+    if _ms_out is not None:
+        return _ms_out
 
     a = [i for i in range(r)]    
     if TYPE == 'RQA':
@@ -877,45 +711,6 @@ def RQA_WeightedEntropy(WRP):
     return Swrp
 
 
-def RQA_WeightedEntropy_from_col_sums(col_sums):
-    """
-    Same math as RQA_WeightedEntropy(), but avoids needing the full recurrence
-    matrix in memory. Weighted entropy depends only on per-column sums.
-    """
-    si = np.asarray(col_sums, dtype=float).reshape(-1)
-    N = len(si)
-    if N == 0:
-        return np.nan
-
-    mi = float(np.min(si))
-    ma = float(np.max(si))
-    m = (ma - mi) / 49.0
-    S = float(np.sum(si))
-
-    # Replicate the original binning loop behavior exactly.
-    p1 = np.array([])
-    step = m
-    if S == 0.0:
-        # Original code would divide by zero; keep that behavior as nan.
-        return np.nan
-
-    P = np.sum(si[(si >= mi) & (si < (mi + step))])
-    p1 = np.append(p1, P / S)
-
-    m = m + mi
-    while m < ma:
-        P = np.sum(si[(si >= m) & (si < (m + step))])
-        p1 = np.append(p1, P / S)
-        m += step
-
-    pp = np.zeros(len(p1))
-    for i in range(len(p1)):
-        pp[i] = p1[i] * np.log(p1[i])
-    pp[np.isnan(pp)] = 0
-    Swrp = -1 * np.sum(pp)
-    return Swrp
-
-
 def rqaHistograms_from_recurrence(recurrence_matrix, TYPE, LINELENGTH):
     """
     Compute (diag_hist, vertical_hist) from an already-thresholded recurrence
@@ -986,4 +781,231 @@ def label_components(bimg):
             # if we encounter a 0, then we are not in_component.
             in_component = False
     return bimg
+
+
+# ---------------------------------------------------------------------------
+# OPTIONAL memory-safe RQA (large N) — not part of the original dense path
+# ---------------------------------------------------------------------------
+# This block is an optional extension for long time series: it avoids building
+# the full N×N float distance matrix from sklearn.pairwise_distances, which
+# can exhaust RAM. It is only entered when TYPE is univariate RQA with fixed
+# radius, NORM 'non', and estimated dense storage exceeds ~500 MB.
+#
+# The recurrence criterion remains Euclidean distance ≤ radius (implemented
+# via squared distances). Summaries in RESULTS mirror the dense pipeline’s
+# formulas for that case.
+#
+# Limitations:
+#   - Not guaranteed byte-identical to the dense path: floating-point order
+#     and algebra (e.g. ‖x−y‖² via expansion vs explicit Euclidean) can
+#     disagree for pairs lying exactly on the radius threshold.
+#   - When nargout == 2, the full recurrence plot matrix is not available;
+#     only RESULTS are returned (a warning is issued).
+# ---------------------------------------------------------------------------
+
+
+def _run_lengths(binary_vec):
+    """Run lengths of consecutive 1s in a 0/1 vector (used by optional streaming RQA)."""
+    n = len(binary_vec)
+    if n == 0:
+        return np.array([], dtype=float)
+    padded = np.empty(n + 2, dtype=np.int8)
+    padded[0] = 0
+    padded[-1] = 0
+    padded[1:-1] = binary_vec
+    diffs = np.diff(padded)
+    starts = np.flatnonzero(diffs == 1)
+    ends = np.flatnonzero(diffs == -1)
+    if len(starts) == 0:
+        return np.array([], dtype=float)
+    return (ends - starts).astype(float)
+
+
+def RQA_WeightedEntropy_from_col_sums(col_sums):
+    """
+    Weighted entropy from per-column sums of the binarized recurrence matrix.
+
+    Same math as RQA_WeightedEntropy() but without materializing the full
+    matrix; used only by the optional memory-safe RQA path below.
+    """
+    si = np.asarray(col_sums, dtype=float).reshape(-1)
+    N = len(si)
+    if N == 0:
+        return np.nan
+
+    mi = float(np.min(si))
+    ma = float(np.max(si))
+    m = (ma - mi) / 49.0
+    S = float(np.sum(si))
+
+    p1 = np.array([])
+    step = m
+    if S == 0.0:
+        return np.nan
+
+    P = np.sum(si[(si >= mi) & (si < (mi + step))])
+    p1 = np.append(p1, P / S)
+
+    m = m + mi
+    while m < ma:
+        P = np.sum(si[(si >= m) & (si < (m + step))])
+        p1 = np.append(p1, P / S)
+        m += step
+
+    pp = np.zeros(len(p1))
+    for i in range(len(p1)):
+        pp[i] = p1[i] * np.log(p1[i])
+    pp[np.isnan(pp)] = 0
+    Swrp = -1 * np.sum(pp)
+    return Swrp
+
+
+def _try_optional_memory_safe_rqa(
+    DATA,
+    TYPE,
+    DIM,
+    EMB,
+    DEL,
+    ZSCORE,
+    NORM,
+    LINELENGTH,
+    SETPARA,
+    runSetRad,
+    radius,
+    nargout,
+):
+    """
+    Optionally compute RQA without a full N×N distance matrix.
+
+    Returns a result list like the main RQA() when this path applies, else None
+    so the caller falls through to the original dense implementation.
+    """
+    if not (
+        TYPE == 'RQA'
+        and 'NON' in str(NORM).upper()
+        and (SETPARA == 'radius' or SETPARA == 'rad' or SETPARA == 1)
+        and runSetRad == 0
+    ):
+        return None
+
+    if EMB > 1:
+        n_embed = int(DATA.shape[1])
+        pairs = DATA.T.copy()
+    else:
+        n_embed = int(np.size(DATA))
+        pairs = np.asarray(DATA, dtype=float).reshape(-1, 1)
+
+    dense_bytes = n_embed * n_embed * 8
+    MAX_DENSE_BYTES = 500 * 1024 * 1024
+
+    if not (n_embed > 0 and dense_bytes > MAX_DENSE_BYTES):
+        return None
+
+    radius_f = float(radius)
+    X = np.asarray(pairs, dtype=float)
+    radius_sq = radius_f * radius_f
+
+    diag_runs = []
+    for k in range(n_embed):
+        if k == 0:
+            rec_diag = np.ones(n_embed, dtype=np.uint8)
+        else:
+            diff = X[:-k] - X[k:]
+            dist2 = np.einsum('ij,ij->i', diff, diff)
+            rec_diag = (dist2 <= radius_sq).astype(np.uint8)
+        runs = _run_lengths(rec_diag)
+        if len(runs) > 0:
+            diag_runs.append(runs)
+            if k > 0:
+                diag_runs.append(runs)
+
+    diag_hist = np.concatenate(diag_runs) if diag_runs else np.array([0.0])
+
+    if 'CRQA' not in TYPE:
+        if len(diag_hist) > 0 and np.max(diag_hist) > 0:
+            diag_hist = diag_hist[diag_hist < np.max(diag_hist)]
+        if len(diag_hist) == 0:
+            diag_hist = np.array([0.0])
+
+    total_rec = 0
+    col_sums = np.zeros(n_embed, dtype=float)
+    vert_runs = []
+    col_bs = max(1, min(2000, int((120 * 1024 * 1024 / 8) // max(1, n_embed))))
+    x_norm2 = np.sum(X * X, axis=1)
+
+    for j0 in range(0, n_embed, col_bs):
+        j1 = min(n_embed, j0 + col_bs)
+        xb_n2 = x_norm2[j0:j1]
+        dist2 = x_norm2[:, None] + xb_n2[None, :] - 2.0 * (X @ X[j0:j1].T)
+        np.maximum(dist2, 0.0, out=dist2)
+        rec_block = (dist2 <= radius_sq)
+
+        total_rec += int(rec_block.sum())
+        col_sums[j0:j1] = rec_block.sum(axis=0).astype(float)
+
+        for jj in range(rec_block.shape[1]):
+            runs = _run_lengths(rec_block[:, jj].astype(np.uint8))
+            if len(runs) > 0:
+                vert_runs.append(runs)
+
+    vertical_hist = np.concatenate(vert_runs) if vert_runs else np.array([0.0])
+
+    if n_embed > 1:
+        perRec = 100.0 * (total_rec - n_embed) / (n_embed ** 2 - n_embed)
+    else:
+        perRec = float('inf')
+
+    entrW = RQA_WeightedEntropy_from_col_sums(col_sums)
+
+    RESULTS = {
+        "DIM": DIM,
+        "EMB": EMB,
+        "DEL": DEL,
+        "RADIUS": radius_f,
+        "NORM": NORM,
+        "ZSCORE": ZSCORE,
+        "SIZE": n_embed,
+        "REC": perRec,
+    }
+
+    if RESULTS["REC"] > 0:
+        RESULTS["DET"] = 100 * np.sum(diag_hist[diag_hist > LINELENGTH]) / np.sum(diag_hist)
+        RESULTS["MeanL"] = np.mean(diag_hist[diag_hist > LINELENGTH])
+        RESULTS["MaxL"] = np.max(diag_hist)
+
+        (count, bins) = np.histogram(diag_hist[diag_hist > LINELENGTH])
+        total = np.sum(count)
+        p = np.divide(count, total)
+        zero_indices = np.where(count == 0)
+        p = np.delete(p, zero_indices)
+        RESULTS["EntrL"] = np.negative(np.sum(np.multiply(p, np.log2(p))))
+
+        RESULTS["LAM"] = 100 * np.sum(vertical_hist[vertical_hist > LINELENGTH]) / np.sum(vertical_hist)
+        RESULTS["MeanV"] = np.mean(vertical_hist[vertical_hist > LINELENGTH])
+        RESULTS["MaxV"] = np.max(vertical_hist)
+
+        (count, bins) = np.histogram(vertical_hist[vertical_hist > LINELENGTH])
+        total = np.sum(count)
+        p = np.divide(count, total)
+        zero_indices = np.where(count == 0)
+        p = np.delete(p, zero_indices)
+        RESULTS["EntrV"] = np.negative(np.sum(np.multiply(p, np.log2(p))))
+
+        RESULTS["EntrW"] = entrW
+    else:
+        RESULTS["DET"] = np.nan
+        RESULTS["MeanL"] = np.nan
+        RESULTS["MaxL"] = np.nan
+        RESULTS["EntrL"] = np.nan
+        RESULTS["LAM"] = np.nan
+        RESULTS["MeanV"] = np.nan
+        RESULTS["MaxV"] = np.nan
+        RESULTS["EntrV"] = np.nan
+        RESULTS["EntrW"] = np.nan
+
+    if nargout == 2:
+        warnings.warn(
+            "Full recurrence plot unavailable in streaming mode; returning RESULTS only."
+        )
+    return [RESULTS]
 
