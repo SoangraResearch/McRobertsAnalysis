@@ -1,5 +1,17 @@
+"""
+Approximate entropy (ApEn) via Ent_Ap.
+
+Future work (optional extensions; not in the current baseline implementation)
+  - Replace the per-template nested loops with a spatial index: build embeddings
+    with numpy sliding_window_view (or equivalent), use scipy.spatial.cKDTree and
+    query_ball_point(..., p=np.inf, r=r) so Chebyshev (max absolute component)
+    matches within tolerance — same criterion as the loop over rows of
+    |data_mat - data_mat[i,:]|. Use return_length=True to avoid huge neighbor
+    lists on long series. Coerce data to a 1-D float array before r = r*std(data);
+    reject N - m + 1 <= 0 with a clear error. Validate parity against this
+    file's loop implementation before adopting.
+"""
 import numpy as np
-from scipy.spatial import cKDTree
 
 def Ent_Ap(data, dim, r):
     """
@@ -32,25 +44,20 @@ def Ent_Ap(data, dim, r):
     """
 
 
-    data = np.asarray(data, dtype=float).reshape(-1)
-    r = r * np.std(data)
+    r = r*np.std(data)
     N = len(data)
-    phim = np.zeros(2, dtype=float)
-
+    phim = np.zeros(2)
     for j in range(2):
-        m = dim + j
-        n = N - m + 1
-        if n <= 0:
-            raise ValueError("Embedding dimension is too large for input length.")
-
-        data_mat = np.lib.stride_tricks.sliding_window_view(data, m)
-        tree = cKDTree(data_mat)
-
-        # Match original behavior exactly: include self-matches and use <= r
-        # Count neighbors without materializing full index lists (prevents OOM on long bouts).
-        counts = tree.query_ball_point(data_mat, r=r, p=np.inf, return_length=True)
-        phi = counts.astype(float) / n
-        phim[j] = np.sum(np.log(phi)) / n
-
+        m = dim+j
+        phi = np.zeros(N-m+1)
+        data_mat = np.zeros((N-m+1,m))
+        for i in range(m):
+            data_mat[:,i] = data[i:N-m+i+1]
+        for i in range(N-m+1):
+            temp_mat = np.abs(data_mat - data_mat[i,:])
+            AorB = np.unique(np.where(temp_mat > r)[0])
+            AorB = len(temp_mat) - len(AorB)
+            phi[i] = AorB/(N-m+1)
+        phim[j] = np.sum(np.log(phi))/(N-m+1)
     AE = phim[0] - phim[1]
     return AE
