@@ -1,4 +1,6 @@
 import tkinter as tk
+
+from Main.GUI_Tabs.hover_button import make_hover_button
 import numpy as np
 import matplotlib.ticker as mticker
 import matplotlib.dates as mdates
@@ -101,7 +103,7 @@ class PlotOMX:
         self.fig.canvas.mpl_connect('scroll_event', self._update_edge_labels)
 
         # Reset view button
-        reset_button = tk.Button(self.container, text="⟳ Reset View", command=self._reset_view)
+        reset_button = make_hover_button(self.container, text="⟳ Reset View", command=self._reset_view)
         reset_button.place(x=10, y=10)
 
     # -------------------------Public Methods---------------------------------

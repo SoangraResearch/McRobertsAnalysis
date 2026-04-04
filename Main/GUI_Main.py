@@ -21,6 +21,7 @@ from Main.GUI_Tabs.Tab4.Auto_analysis_code import (
 )
 
 # Each tab’s behavior is in its controller; this module mostly wires widgets and callbacks.
+from Main.GUI_Tabs.hover_button import make_hover_button
 from Main.GUI_Tabs.heavy_job_runner import HeavyJobRunner
 from Main.GUI_Tabs.Tab1.Tab1Controller import Tab1Controller
 from Main.GUI_Tabs.Tab2.Tab2Controller import Tab2Controller
@@ -34,7 +35,7 @@ os.chdir(os.path.dirname(os.path.abspath(__file__)))
 # Create the main window
 root = tk.Tk()
 root.title("McRoberts Analysis")
-root.geometry("1000x600")
+root.geometry("1000x700")
 
 tab_control = ttk.Notebook(root)
 
@@ -107,7 +108,7 @@ def export_csv():
     
 # -------------------------Tab 1 Select Data---------------------------------
 
-tab1_load_file_button = tk.Button(
+tab1_load_file_button = make_hover_button(
     tab1, text="Load OMX File", command=lambda: tab1_controller.load_file(plot_frame_OMX)
 )
 tab1_load_file_button.pack(pady=10)
@@ -122,12 +123,12 @@ plot_frame_OMX.pack(fill="both", expand=True)
 button_frame = tk.Frame(tab1)
 button_frame.pack(pady=10)
 
-tab1_export_csv_button = tk.Button(
+tab1_export_csv_button = make_hover_button(
     button_frame, text="Export To CSV", command=lambda: export_csv()
 )
 tab1_export_csv_button.pack(side="left", padx=5)
 
-tab1_export_plot_button = tk.Button(
+tab1_export_plot_button = make_hover_button(
     button_frame,
     text="Export Plot",
     command=lambda: tab1_controller.export_acceleration_plot(),
@@ -141,7 +142,7 @@ def load_mobiliseD_file():
 
 # -------------------------Tab 2 Mobilise D---------------------------------
 
-tk.Button(tab2, text="Load CSV File", command=lambda: load_mobiliseD_file()).pack(pady=10)
+make_hover_button(tab2, text="Load CSV File", command=lambda: load_mobiliseD_file()).pack(pady=10)
 
 mobilised_path_var = tk.StringVar(value="File loaded: (none)")
 MobiliseD_file_label = tk.Label(tab2, textvariable=mobilised_path_var)
@@ -159,7 +160,7 @@ for lbl in ["Healthy(GSDA)", "Patient(GSDB)"]:
 gsd_frame = tk.Frame(tab2)
 gsd_frame.pack(pady=15)
 
-tab2_run_gsd_button = tk.Button(
+tab2_run_gsd_button = make_hover_button(
     gsd_frame,
     text="Run GSD Detection",
     command=lambda: tab2_controller.process_GSD(
@@ -192,12 +193,12 @@ button_frame = tk.Frame(tab2)
 button_frame.pack(pady=5)
 
 # Add buttons side by side
-tk.Button(button_frame, text="Save GSD Result", command=lambda: tab2_controller.save_GSD_results(True)).pack(side="left", padx=5)
-tk.Button(button_frame, text="Save GSD plot", command=lambda: tab2_controller.save_GSD_plot(True)).pack(side="left", padx=5)
-tk.Button(button_frame, text="Save Step Counts", command=lambda: tab2_controller.save_step_counts(True)).pack(side="left", padx=5)
-tk.Button(button_frame, text="Save Steps plot", command=lambda: tab2_controller.save_steps_plot(True)).pack(side="left", padx=5)
+make_hover_button(button_frame, text="Save GSD Result", command=lambda: tab2_controller.save_GSD_results(True)).pack(side="left", padx=5)
+make_hover_button(button_frame, text="Save GSD plot", command=lambda: tab2_controller.save_GSD_plot(True)).pack(side="left", padx=5)
+make_hover_button(button_frame, text="Save Step Counts", command=lambda: tab2_controller.save_step_counts(True)).pack(side="left", padx=5)
+make_hover_button(button_frame, text="Save Steps plot", command=lambda: tab2_controller.save_steps_plot(True)).pack(side="left", padx=5)
 
-tk.Button(tab2, text="Save All", command=lambda: tab2_controller.save_all_GSD()).pack(pady=5)
+make_hover_button(tab2, text="Save All", command=lambda: tab2_controller.save_all_GSD()).pack(pady=5)
 
 # -------------------------Tab 3 Methods---------------------------------
 
@@ -206,7 +207,7 @@ def load_analysis_code_file():
 
 # -------------------------Tab 3 Analysis---------------------------------
 
-tk.Button(tab3, text="Load CSV File", command=load_analysis_code_file).pack(pady=10)
+make_hover_button(tab3, text="Load CSV File", command=load_analysis_code_file).pack(pady=10)
 
 analysis_code_path_var = tk.StringVar(value="File loaded: (none)")
 analysis_file_label = tk.Label(tab3, textvariable=analysis_code_path_var)
@@ -218,7 +219,7 @@ analysis_frame.pack(pady=5)
 assume_walking_var = tk.BooleanVar(value=False)
 plot_frame_analysis = tk.Frame(tab3, height=300)
 
-tab3_linear_button = tk.Button(
+tab3_linear_button = make_hover_button(
     analysis_frame,
     text="Linear Analysis",
     width=15,
@@ -227,7 +228,7 @@ tab3_linear_button = tk.Button(
     ),
 )
 tab3_linear_button.pack(side="left", padx=10)
-tab3_nonlinear_button = tk.Button(
+tab3_nonlinear_button = make_hover_button(
     analysis_frame,
     text="Non-Linear Analysis",
     width=15,
@@ -244,12 +245,12 @@ plot_frame_analysis.pack(fill="both", expand=True)
 button_frame = tk.Frame(tab3)
 button_frame.pack(pady=5)
 
-tk.Button(button_frame, text="Save Linear Analysis", command=lambda: tab3_controller.save_linear_analysis(True)).pack(side="left", padx=5)
-tk.Button(button_frame, text="Save Non-Linear Analysis", command=lambda: tab3_controller.save_nonlinear_analysis(True)).pack(side="left", padx=5)
-tk.Button(button_frame, text="Save All Linear Analysis Plots", command=lambda: tab3_controller.save_all_linear_analysis_plots(True)).pack(side="left", padx=5)
-tk.Button(button_frame, text="Save All Non-Linear Analysis Plots", command=lambda: tab3_controller.save_all_nonlinear_analysis_plots(True)).pack(side="left", padx=5)
+make_hover_button(button_frame, text="Save Linear Analysis", command=lambda: tab3_controller.save_linear_analysis(True)).pack(side="left", padx=5)
+make_hover_button(button_frame, text="Save Non-Linear Analysis", command=lambda: tab3_controller.save_nonlinear_analysis(True)).pack(side="left", padx=5)
+make_hover_button(button_frame, text="Save All Linear Analysis Plots", command=lambda: tab3_controller.save_all_linear_analysis_plots(True)).pack(side="left", padx=5)
+make_hover_button(button_frame, text="Save All Non-Linear Analysis Plots", command=lambda: tab3_controller.save_all_nonlinear_analysis_plots(True)).pack(side="left", padx=5)
 
-tk.Button(tab3, text="Save All", command=lambda: tab3_controller.save_all_output()).pack(pady=5)
+make_hover_button(tab3, text="Save All", command=lambda: tab3_controller.save_all_output()).pack(pady=5)
 
 # -------------------------Tab 4 Methods (OMX → day chunks → GSD; no controller class yet) ---------------------------------
 def _tab4_resolve_output_folder_path(chosen_path):
@@ -451,7 +452,7 @@ def run_auto_analysis():
         messagebox.showerror("Auto Analysis Error", str(e))
 
 # -------------------------Tab 4 Auto Analysis UI ---------------------------------
-load_file_button = tk.Button(tab4, text="Load OMX File", command=load_auto_analysis_file)
+load_file_button = make_hover_button(tab4, text="Load OMX File", command=load_auto_analysis_file)
 load_file_button.pack(pady=10)
 
 auto_analysis_path_var = tk.StringVar(value="File loaded: (none)")
@@ -483,7 +484,7 @@ tk.Checkbutton(
     variable=save_tab2_auto_results,
 ).pack(pady=2)
 
-run_auto_analysis_button = tk.Button(tab4, text="Run Auto Analysis", command=run_auto_analysis)
+run_auto_analysis_button = make_hover_button(tab4, text="Run Auto Analysis", command=run_auto_analysis)
 run_auto_analysis_button.pack(pady=10)
 
 progress_text = auto_analysis_progress(tab4, font_size=10)
