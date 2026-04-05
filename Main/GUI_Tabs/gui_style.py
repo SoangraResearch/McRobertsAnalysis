@@ -208,3 +208,35 @@ def apply_notebook_tab_pointer_cursor(notebook: ttk.Notebook) -> None:
 
     notebook.bind("<Motion>", on_motion, add="+")
     notebook.bind("<Leave>", on_leave, add="+")
+
+
+def restore_main_window_focus(widget_or_root: tk.Misc) -> None:
+    """Raise the app and take focus after a native file dialog closes.
+
+    On macOS especially, Tk often stays behind Finder; hover cursors and tab styling
+    then do not update until the user clicks the window again.
+    """
+    root = widget_or_root.winfo_toplevel()
+
+    def _restore() -> None:
+        try:
+            root.lift()
+            root.update_idletasks()
+            if sys.platform == "darwin":
+                try:
+                    root.attributes("-topmost", True)
+                    root.update_idletasks()
+                    root.attributes("-topmost", False)
+                except tk.TclError:
+                    pass
+            try:
+                root.focus_force()
+            except tk.TclError:
+                pass
+        except tk.TclError:
+            pass
+
+    try:
+        root.after_idle(_restore)
+    except tk.TclError:
+        pass

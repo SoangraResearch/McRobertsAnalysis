@@ -4,6 +4,7 @@ import matplotlib.dates as mdates
 import tkinter as tk
 from tkinter import filedialog, messagebox
 from OMX_To_CSV import process_omx_file, matlab_datenum_to_datetime
+from Main.GUI_Tabs.gui_style import restore_main_window_focus
 from Main.GUI_Tabs.Tab1.Acceleration_Plot import PlotOMX
 from datetime import datetime
 
@@ -34,6 +35,7 @@ class Tab1Controller:
 
     def load_file(self, plot_frame_OMX):
         file_path = filedialog.askopenfilename(filetypes=[("OMX file", "*.OMX")])
+        restore_main_window_focus(self.tab)
         if not file_path:
             return
 
@@ -147,6 +149,16 @@ class Tab1Controller:
     
 # -------------------------Private/Helper Methods---------------------------------
 
+    def _register_busy_lock_entries(self) -> None:
+        if self.heavy_job is None:
+            return
+        self.heavy_job.register_disable_widgets(
+            self._file_start_entry,
+            self._file_stop_entry,
+            self._current_start_entry,
+            self._current_stop_entry,
+        )
+
     def _update_time_vars(self):
         if self.acceleration_plot is not None:
             start_dt, stop_dt = self.acceleration_plot.get_current_bounds()
@@ -166,14 +178,20 @@ class Tab1Controller:
         start_group.pack(side="left", padx=40)
 
         tk.Label(start_group, text="File Start Time:", width=32, anchor='center').pack()
-        tk.Entry(start_group, textvariable=self.file_start_time, state='readonly', width=20).pack()
+        self._file_start_entry = tk.Entry(
+            start_group, textvariable=self.file_start_time, state="readonly", width=20
+        )
+        self._file_start_entry.pack()
 
         # Stop time group
         stop_group = tk.Frame(time_frame)
         stop_group.pack(side="left", padx=40)
 
         tk.Label(stop_group, text="File Stop Time:", width=32, anchor='center').pack()
-        tk.Entry(stop_group, textvariable=self.file_stop_time, state='readonly', width=20).pack()
+        self._file_stop_entry = tk.Entry(
+            stop_group, textvariable=self.file_stop_time, state="readonly", width=20
+        )
+        self._file_stop_entry.pack()
 
     def _create_current_time_labels(self):
         #frame for current start and stop time
@@ -185,18 +203,22 @@ class Tab1Controller:
         current_start_group.pack(side="left", padx=40)
 
         tk.Label(current_start_group, text="Start Time (YYYY-MM-DD HH:MM:SS):", width=32, anchor='w').pack()
-        tk.Entry(current_start_group, textvariable=self.current_start_time).pack()
+        self._current_start_entry = tk.Entry(current_start_group, textvariable=self.current_start_time)
+        self._current_start_entry.pack()
 
         # Stop time group
         current_stop_group = tk.Frame(current_time_frame)
         current_stop_group.pack(side="left", padx=40)
 
         tk.Label(current_stop_group, text="Stop Time (YYYY-MM-DD HH:MM:SS):", width=32, anchor='w').pack()
-        tk.Entry(current_stop_group, textvariable=self.current_stop_time).pack()
+        self._current_stop_entry = tk.Entry(current_stop_group, textvariable=self.current_stop_time)
+        self._current_stop_entry.pack()
 
         #adding label updating
         self.current_start_time.trace_add("write", self._on_time_var_changed)
         self.current_stop_time.trace_add("write", self._on_time_var_changed)
+
+        self._register_busy_lock_entries()
 
     def _on_time_var_changed(self, *args):
         if self.acceleration_plot is not None:
@@ -231,6 +253,7 @@ class Tab1Controller:
             initialfile=self.export_filename,
             title="Save CSV File"
             )
+        restore_main_window_focus(self.tab)
         return output_path
     
     def _get_plot_output_path(self):
@@ -241,4 +264,5 @@ class Tab1Controller:
             initialfile=self.export_filename + "_acceleration_plot",
             title="Save Acceleration Plot"
         )
+        restore_main_window_focus(self.tab)
         return output_path

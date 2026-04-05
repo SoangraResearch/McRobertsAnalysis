@@ -11,7 +11,7 @@ import threading
 import traceback
 import tkinter as tk
 from tkinter import messagebox, ttk
-from typing import Any, Callable, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 # How long to show the green check after a successful heavy job (indeterminate bar).
 _SUCCESS_FLASH_MS = 3000
@@ -37,6 +37,7 @@ class HeavyJobRunner:
 
         self._busy = False
         self._disable_widgets: List[tk.Widget] = []
+        self._entry_state_restore: Dict[int, str] = {}
         self._success_after_id: Optional[str] = None
 
     def register_disable_widgets(self, *widgets: tk.Widget) -> None:
@@ -203,6 +204,17 @@ class HeavyJobRunner:
     def _apply_widget_states(self, *, disabled: bool) -> None:
         for w in self._disable_widgets:
             try:
+                if isinstance(w, tk.Entry):
+                    wid = id(w)
+                    if disabled:
+                        if wid not in self._entry_state_restore:
+                            self._entry_state_restore[wid] = str(w.cget("state"))
+                        w.configure(state=tk.DISABLED)
+                    else:
+                        prev = self._entry_state_restore.pop(wid, tk.NORMAL)
+                        w.configure(state=prev)
+                    continue
+
                 if hasattr(w, "state") and callable(w.state):
                     # ttk.* uses state(['disabled']) / state(['!disabled'])
                     w.state(["disabled"] if disabled else ["!disabled"])

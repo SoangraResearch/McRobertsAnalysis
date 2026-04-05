@@ -2,6 +2,8 @@ import os
 import pandas as pd
 import numpy as np
 from tkinter import filedialog, messagebox
+
+from Main.GUI_Tabs.gui_style import restore_main_window_focus
 from OMX_To_CSV import matlab_datenum_to_datetime
 from GSDA_code import gsd_iluz
 from GSDB_code import gsd_low_back_acc
@@ -37,6 +39,7 @@ class Tab2Controller:
 
     def load_file(self):
         file_path = filedialog.askopenfilename(filetypes=[("CSV/JSON files", "*.csv *.json")])
+        restore_main_window_focus(self.tab)
         if not file_path:
             return
 
@@ -262,6 +265,7 @@ class Tab2Controller:
             initialfile=self.filename + file_end,
             title=output_title
             )
+        restore_main_window_focus(self.tab)
         return output_path
     
     def _get_plot_output_path(self, file_end, output_title):
@@ -272,4 +276,5 @@ class Tab2Controller:
             initialfile=self.filename + file_end,
             title=output_title
         )
+        restore_main_window_focus(self.tab)
         return output_path

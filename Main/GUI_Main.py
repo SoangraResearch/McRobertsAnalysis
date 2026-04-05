@@ -27,6 +27,7 @@ from Main.GUI_Tabs.gui_style import (
     make_action_button,
     make_checkbutton,
     make_radiobutton,
+    restore_main_window_focus,
 )
 from Main.GUI_Tabs.heavy_job_runner import HeavyJobRunner
 from Main.GUI_Tabs.Tab1.Tab1Controller import Tab1Controller
@@ -150,7 +151,10 @@ def load_mobiliseD_file():
 
 # -------------------------Tab 2 Mobilise D---------------------------------
 
-make_action_button(tab2, text="Load CSV File", command=lambda: load_mobiliseD_file()).pack(pady=10)
+tab2_load_csv_button = make_action_button(
+    tab2, text="Load CSV File", command=lambda: load_mobiliseD_file()
+)
+tab2_load_csv_button.pack(pady=10)
 
 mobilised_path_var = tk.StringVar(value="File loaded: (none)")
 MobiliseD_file_label = tk.Label(tab2, textvariable=mobilised_path_var)
@@ -161,10 +165,11 @@ label_var_MobiliseD.set("None")
 tk.Label(tab2, text="Select Type").pack(pady=(20, 5))
 label_frame = tk.Frame(tab2)
 label_frame.pack(pady=(0, 4))
+tab2_gsd_algorithm_radios = []
 for lbl in ["Healthy(GSDA)", "Patient(GSDB)"]:
-    make_radiobutton(label_frame, text=lbl, variable=label_var_MobiliseD, value=lbl).pack(
-        side="left", padx=(16, 16), pady=8, ipadx=4, ipady=4
-    )
+    rb = make_radiobutton(label_frame, text=lbl, variable=label_var_MobiliseD, value=lbl)
+    rb.pack(side="left", padx=(16, 16), pady=8, ipadx=4, ipady=4)
+    tab2_gsd_algorithm_radios.append(rb)
 
 # container frame for button + checkbox
 gsd_frame = tk.Frame(tab2)
@@ -185,9 +190,10 @@ tab2_run_gsd_button.pack(side="left", padx=10)  # extra_plots=1 to display plots
 
 # Shared with Tab 4 auto analysis so GSD uses the same “force walking” flag as Mobilise-D.
 force_data_as_walking = tk.BooleanVar(value=False)
-make_checkbutton(gsd_frame, text="Force Data as Walking", variable=force_data_as_walking).pack(
-    side="left", padx=(14, 10), pady=4, ipadx=4, ipady=4
+tab2_force_walking_check = make_checkbutton(
+    gsd_frame, text="Force Data as Walking", variable=force_data_as_walking
 )
+tab2_force_walking_check.pack(side="left", padx=(14, 10), pady=4, ipadx=4, ipady=4)
 
 plot_frame_GSD = tk.Frame(tab2, height=300)
 plot_frame_GSD.pack(fill="both", expand=True)
@@ -200,16 +206,38 @@ plot_right_GSD = tk.Frame(plot_frame_GSD, width=500)
 plot_right_GSD.pack(side='left', fill='both', expand=True)
 
 # Create a frame to hold the buttons horizontally
-button_frame = tk.Frame(tab2)
-button_frame.pack(pady=5)
+tab2_save_button_frame = tk.Frame(tab2)
+tab2_save_button_frame.pack(pady=5)
 
-# Add buttons side by side
-make_action_button(button_frame, text="Save GSD Result", command=lambda: tab2_controller.save_GSD_results(True)).pack(side="left", padx=5)
-make_action_button(button_frame, text="Save GSD plot", command=lambda: tab2_controller.save_GSD_plot(True)).pack(side="left", padx=5)
-make_action_button(button_frame, text="Save Step Counts", command=lambda: tab2_controller.save_step_counts(True)).pack(side="left", padx=5)
-make_action_button(button_frame, text="Save Steps plot", command=lambda: tab2_controller.save_steps_plot(True)).pack(side="left", padx=5)
+tab2_save_gsd_result_button = make_action_button(
+    tab2_save_button_frame,
+    text="Save GSD Result",
+    command=lambda: tab2_controller.save_GSD_results(True),
+)
+tab2_save_gsd_result_button.pack(side="left", padx=5)
+tab2_save_gsd_plot_button = make_action_button(
+    tab2_save_button_frame,
+    text="Save GSD plot",
+    command=lambda: tab2_controller.save_GSD_plot(True),
+)
+tab2_save_gsd_plot_button.pack(side="left", padx=5)
+tab2_save_step_counts_button = make_action_button(
+    tab2_save_button_frame,
+    text="Save Step Counts",
+    command=lambda: tab2_controller.save_step_counts(True),
+)
+tab2_save_step_counts_button.pack(side="left", padx=5)
+tab2_save_steps_plot_button = make_action_button(
+    tab2_save_button_frame,
+    text="Save Steps plot",
+    command=lambda: tab2_controller.save_steps_plot(True),
+)
+tab2_save_steps_plot_button.pack(side="left", padx=5)
 
-make_action_button(tab2, text="Save All", command=lambda: tab2_controller.save_all_GSD()).pack(pady=5)
+tab2_save_all_button = make_action_button(
+    tab2, text="Save All", command=lambda: tab2_controller.save_all_GSD()
+)
+tab2_save_all_button.pack(pady=5)
 
 # -------------------------Tab 3 Methods---------------------------------
 
@@ -218,7 +246,10 @@ def load_analysis_code_file():
 
 # -------------------------Tab 3 Analysis---------------------------------
 
-make_action_button(tab3, text="Load CSV File", command=load_analysis_code_file).pack(pady=10)
+tab3_load_csv_button = make_action_button(
+    tab3, text="Load CSV File", command=load_analysis_code_file
+)
+tab3_load_csv_button.pack(pady=10)
 
 analysis_code_path_var = tk.StringVar(value="File loaded: (none)")
 analysis_file_label = tk.Label(tab3, textvariable=analysis_code_path_var)
@@ -249,21 +280,45 @@ tab3_nonlinear_button = make_action_button(
 )
 tab3_nonlinear_button.pack(side="left", padx=10)
 
-make_checkbutton(analysis_frame, text="Assume data is walking", variable=assume_walking_var).pack(
-    side="left", padx=(12, 12), pady=6, ipadx=4, ipady=4
+tab3_assume_walking_check = make_checkbutton(
+    analysis_frame, text="Assume data is walking", variable=assume_walking_var
 )
+tab3_assume_walking_check.pack(side="left", padx=(12, 12), pady=6, ipadx=4, ipady=4)
 
 plot_frame_analysis.pack(fill="both", expand=True)
 
-button_frame = tk.Frame(tab3)
-button_frame.pack(pady=5)
+tab3_save_button_frame = tk.Frame(tab3)
+tab3_save_button_frame.pack(pady=5)
 
-make_action_button(button_frame, text="Save Linear Analysis", command=lambda: tab3_controller.save_linear_analysis(True)).pack(side="left", padx=5)
-make_action_button(button_frame, text="Save Non-Linear Analysis", command=lambda: tab3_controller.save_nonlinear_analysis(True)).pack(side="left", padx=5)
-make_action_button(button_frame, text="Save All Linear Analysis Plots", command=lambda: tab3_controller.save_all_linear_analysis_plots(True)).pack(side="left", padx=5)
-make_action_button(button_frame, text="Save All Non-Linear Analysis Plots", command=lambda: tab3_controller.save_all_nonlinear_analysis_plots(True)).pack(side="left", padx=5)
+tab3_save_linear_csv_button = make_action_button(
+    tab3_save_button_frame,
+    text="Save Linear Analysis",
+    command=lambda: tab3_controller.save_linear_analysis(True),
+)
+tab3_save_linear_csv_button.pack(side="left", padx=5)
+tab3_save_nonlinear_csv_button = make_action_button(
+    tab3_save_button_frame,
+    text="Save Non-Linear Analysis",
+    command=lambda: tab3_controller.save_nonlinear_analysis(True),
+)
+tab3_save_nonlinear_csv_button.pack(side="left", padx=5)
+tab3_save_all_linear_plots_button = make_action_button(
+    tab3_save_button_frame,
+    text="Save All Linear Analysis Plots",
+    command=lambda: tab3_controller.save_all_linear_analysis_plots(True),
+)
+tab3_save_all_linear_plots_button.pack(side="left", padx=5)
+tab3_save_all_nonlinear_plots_button = make_action_button(
+    tab3_save_button_frame,
+    text="Save All Non-Linear Analysis Plots",
+    command=lambda: tab3_controller.save_all_nonlinear_analysis_plots(True),
+)
+tab3_save_all_nonlinear_plots_button.pack(side="left", padx=5)
 
-make_action_button(tab3, text="Save All", command=lambda: tab3_controller.save_all_output()).pack(pady=5)
+tab3_save_all_output_button = make_action_button(
+    tab3, text="Save All", command=lambda: tab3_controller.save_all_output()
+)
+tab3_save_all_output_button.pack(pady=5)
 
 # -------------------------Tab 4 Methods (OMX → day chunks → GSD; no controller class yet) ---------------------------------
 def _tab4_resolve_output_folder_path(chosen_path):
@@ -283,6 +338,7 @@ def _tab4_resolve_output_folder_path(chosen_path):
 def load_auto_analysis_file():
     global auto_analysis_file
     file_path = filedialog.askopenfilename(filetypes=[("OMX file", "*.OMX")])
+    restore_main_window_focus(root)
     if not file_path:
         return
     
@@ -411,6 +467,7 @@ def run_auto_analysis():
                 defaultextension="",
                 filetypes=[("All files", "*.*")],
             )
+            restore_main_window_focus(root)
             output_dir = _tab4_resolve_output_folder_path(chosen)
             if output_dir:
                 try:
@@ -465,8 +522,10 @@ def run_auto_analysis():
         messagebox.showerror("Auto Analysis Error", str(e))
 
 # -------------------------Tab 4 Auto Analysis UI ---------------------------------
-load_file_button = make_action_button(tab4, text="Load OMX File", command=load_auto_analysis_file)
-load_file_button.pack(pady=10)
+tab4_load_omx_button = make_action_button(
+    tab4, text="Load OMX File", command=load_auto_analysis_file
+)
+tab4_load_omx_button.pack(pady=10)
 
 auto_analysis_path_var = tk.StringVar(value="File loaded: (none)")
 auto_analysis_file_label = tk.Label(tab4, textvariable=auto_analysis_path_var)
@@ -477,31 +536,35 @@ label_var_auto_analysis.set("None")
 tk.Label(tab4, text="Select Type").pack(pady=(20, 5))
 label_frame = tk.Frame(tab4)
 label_frame.pack(pady=(0, 4))
+tab4_gsd_algorithm_radios = []
 for lbl in ["Healthy(GSDA)", "Patient(GSDB)"]:
-    make_radiobutton(label_frame, text=lbl, variable=label_var_auto_analysis, value=lbl).pack(
-        side="left", padx=(16, 16), pady=8, ipadx=4, ipady=4
-    )
+    rb = make_radiobutton(label_frame, text=lbl, variable=label_var_auto_analysis, value=lbl)
+    rb.pack(side="left", padx=(16, 16), pady=8, ipadx=4, ipady=4)
+    tab4_gsd_algorithm_radios.append(rb)
 
 # Optional flag: forces the “walking” behavior inside the GSD/segment logic.
 force_data_as_walking_tab4 = tk.BooleanVar(value=False)
-make_checkbutton(tab4, text="Force Data as Walking", variable=force_data_as_walking_tab4).pack(
-    pady=(10, 6), ipadx=4, ipady=4
+tab4_force_walking_check = make_checkbutton(
+    tab4, text="Force Data as Walking", variable=force_data_as_walking_tab4
 )
+tab4_force_walking_check.pack(pady=(10, 6), ipadx=4, ipady=4)
 
 # Independent flag for the Tab 3 segment analysis:
 # when enabled, Tab 3 skips "find_walking" detection and treats the segment slice as one walking period.
 assume_data_as_walking_tab4 = tk.BooleanVar(value=True)
-make_checkbutton(tab4, text="Assume Data is Walking (Tab 3)", variable=assume_data_as_walking_tab4).pack(
-    pady=(4, 6), ipadx=4, ipady=4
+tab4_assume_walking_check = make_checkbutton(
+    tab4, text="Assume Data is Walking (Tab 3)", variable=assume_data_as_walking_tab4
 )
+tab4_assume_walking_check.pack(pady=(4, 6), ipadx=4, ipady=4)
 
 # Include Tab 2–style GSD + step CSVs in the same output folder (no Tab 2 plots).
 save_tab2_auto_results = tk.BooleanVar(value=False)
-make_checkbutton(
+tab4_save_tab2_results_check = make_checkbutton(
     tab4,
     text="Save Tab 2 results (GSD + step counts CSV)",
     variable=save_tab2_auto_results,
-).pack(pady=(4, 6), ipadx=4, ipady=4)
+)
+tab4_save_tab2_results_check.pack(pady=(4, 6), ipadx=4, ipady=4)
 
 run_auto_analysis_button = make_action_button(tab4, text="Run Auto Analysis", command=run_auto_analysis)
 run_auto_analysis_button.pack(pady=10)
@@ -510,11 +573,34 @@ progress_text = auto_analysis_progress(tab4, font_size=10)
 progress_text.clear()
 
 heavy_job.register_disable_widgets(
+    tab_control,
     tab1_load_file_button,
     tab1_export_csv_button,
     tab1_export_plot_button,
+    tab2_load_csv_button,
+    tab2_run_gsd_button,
+    tab2_force_walking_check,
+    tab2_save_gsd_result_button,
+    tab2_save_gsd_plot_button,
+    tab2_save_step_counts_button,
+    tab2_save_steps_plot_button,
+    tab2_save_all_button,
+    tab3_load_csv_button,
+    tab3_linear_button,
     tab3_nonlinear_button,
+    tab3_assume_walking_check,
+    tab3_save_linear_csv_button,
+    tab3_save_nonlinear_csv_button,
+    tab3_save_all_linear_plots_button,
+    tab3_save_all_nonlinear_plots_button,
+    tab3_save_all_output_button,
+    tab4_load_omx_button,
+    tab4_force_walking_check,
+    tab4_assume_walking_check,
+    tab4_save_tab2_results_check,
     run_auto_analysis_button,
+    *tab2_gsd_algorithm_radios,
+    *tab4_gsd_algorithm_radios,
 )
 
 # -------------------------Running the GUI---------------------------------

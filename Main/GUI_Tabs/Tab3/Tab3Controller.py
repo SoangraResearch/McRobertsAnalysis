@@ -4,7 +4,7 @@ import sys
 import traceback
 import tkinter as tk
 from tkinter import filedialog, messagebox
-from Main.GUI_Tabs.gui_style import make_action_button
+from Main.GUI_Tabs.gui_style import make_action_button, restore_main_window_focus
 from Main.GUI_Tabs.Tab3.Analysis_code import linear_analysis, nonlinear_analysis
 from Main.GUI_Tabs.Tab3.Analysis_Plots import (
     display_combined_plots,
@@ -36,6 +36,7 @@ class Tab3Controller:
 
     def load_file(self):
         file_path = filedialog.askopenfilename(filetypes=[("CSV/JSON files", "*.csv *.json")])
+        restore_main_window_focus(self.tab)
         if not file_path:
             return
         try:
@@ -303,6 +304,7 @@ class Tab3Controller:
             initialfile=self._shorten_filename(self.filename) + file_end,
             title=output_title
         )
+        restore_main_window_focus(self.tab)
         return output_path
     
     def _get_csv_output_path(self, file_end, output_title):
@@ -313,4 +315,5 @@ class Tab3Controller:
             initialfile=self._shorten_filename(self.filename) + file_end,
             title=output_title
             )
+        restore_main_window_focus(self.tab)
         return output_path
