@@ -9,12 +9,14 @@ from matplotlib.backends.backend_tkagg import NavigationToolbar2Tk
 active_notebook = None
 
 def display_combined_plots(linear_plots, nonlinear_plots, plot_frame):
+    global active_notebook
 
     for widget in plot_frame.winfo_children():
         widget.destroy()
 
     notebook = ttk.Notebook(plot_frame)
     notebook.pack(fill='both', expand=True)
+    active_notebook = notebook
 
     num_tabs = max(len(linear_plots), len(nonlinear_plots))
 
@@ -79,31 +81,29 @@ def get_current_selected_plot(plot_frame=None):
         print(f"Error getting current tab index: {e}")
         return 0
 
-def linear_plot(time_vector, acc_ap_pp, acc_wave_detrended, acc_wave_2, hs_times, hs_selected_idx, to_times, to_selected_idx, invalid_hs_idx, invalid_hs_times, plot_frame, plot_num):
+def linear_plot(
+    time_vector,
+    acc_ap_pp,
+    acc_wave_detrended,
+    acc_wave_2,
+    hs_times,
+    hs_selected_idx,
+    to_times,
+    to_selected_idx,
+    invalid_hs_idx,
+    invalid_hs_times,
+    plot_frame,
+    plot_num,
+    embed=True,
+):
     global active_notebook
 
     print("Plotting")
 
-    # If plot_num is 0, reset the notebook (remove previous tabs)
-    if plot_num == 0 or not hasattr(plot_frame, "notebook"):
-        print("removing previous tabs for linear plots")
-        for widget in plot_frame.winfo_children():
-            widget.destroy()
-        plot_frame.notebook = ttk.Notebook(plot_frame)
-        plot_frame.notebook.pack(fill='both', expand=True)
-
-    active_notebook = plot_frame.notebook
-
-    # Create a new tab for this plot
-    tab = ttk.Frame(plot_frame.notebook)
-    plot_frame.notebook.add(tab, text=f"Plot {plot_num + 1}")
-
-    # Create a matplotlib figure
     fig = Figure(figsize=(3.5, 3), dpi=100, constrained_layout=True)
     ax = fig.add_subplot(111)
     ax.tick_params(axis='both', labelsize=14)
 
-    # Plot data on the figure
     ax.plot(time_vector, acc_ap_pp, 'b--', label='acc_ap')
     ax.plot(time_vector, acc_wave_detrended, color="grey", linestyle="dotted", label='dcwt1')
     ax.plot(time_vector, acc_wave_2, 'k', label='dcwt2')
@@ -115,22 +115,71 @@ def linear_plot(time_vector, acc_ap_pp, acc_wave_detrended, acc_wave_2, hs_times
     ax.set_xlabel('Time [s]', fontsize=16)
     ax.legend(loc="upper right")
 
-    # Embed the figure into the new tab
+    if not embed:
+        return fig
+
+    if plot_frame is None:
+        return fig
+
+    if plot_num == 0 or not hasattr(plot_frame, "notebook"):
+        print("removing previous tabs for linear plots")
+        for widget in plot_frame.winfo_children():
+            widget.destroy()
+        plot_frame.notebook = ttk.Notebook(plot_frame)
+        plot_frame.notebook.pack(fill='both', expand=True)
+
+    active_notebook = plot_frame.notebook
+
+    tab = ttk.Frame(plot_frame.notebook)
+    plot_frame.notebook.add(tab, text=f"Plot {plot_num + 1}")
+
     canvas = FigureCanvasTkAgg(fig, master=tab)
     canvas.draw()
     canvas.get_tk_widget().pack(fill='both', expand=True)
 
-    # Auto-select the newly added tab
     plot_frame.notebook.select(tab)
 
     return fig
 
-def nonlinear_plot(time, AveLnDiv, LyES, timeS, LyESline, LyEL, timeL, LyELline, plot_frame, plot_num):
+def nonlinear_plot(
+    time,
+    AveLnDiv,
+    LyES,
+    timeS,
+    LyESline,
+    LyEL,
+    timeL,
+    LyELline,
+    plot_frame,
+    plot_num,
+    embed=True,
+):
     global active_notebook
 
     print("Plotting nonlinear")
-    
-    # If plot_num is 0, reset the notebook (remove previous tabs)
+
+    fig = Figure(figsize=(3.5, 3), dpi=100, constrained_layout=True)
+    ax = fig.add_subplot(111)
+    ax.tick_params(axis='both', labelsize=14)
+
+    ax.plot(time, AveLnDiv, color="black")
+    ax.set_title("LyE", fontsize=20)
+    ax.set_xlabel("Periods (s)", fontsize=16)
+    ax.set_ylabel("<ln(divergence)>", fontsize=16)
+
+    if not np.isnan(LyES):
+        ax.plot(timeS, LyESline, color="red", linewidth=3, label="LyE_Short = {}".format(LyES))
+    if not np.isnan(LyEL):
+        ax.plot(timeL, LyELline, color="green", linewidth=3, label="LyE_Long = {}".format(LyEL))
+
+    ax.legend(loc="best")
+
+    if not embed:
+        return fig
+
+    if plot_frame is None:
+        return fig
+
     if plot_num == 0 or not hasattr(plot_frame, "notebook"):
         print("removing previous tabs for nonlinear plots")
         for widget in plot_frame.winfo_children():
@@ -139,36 +188,14 @@ def nonlinear_plot(time, AveLnDiv, LyES, timeS, LyESline, LyEL, timeL, LyELline,
         plot_frame.notebook.pack(fill='both', expand=True)
 
     active_notebook = plot_frame.notebook
-    
-    # Create a new tab for this plot
+
     tab = ttk.Frame(plot_frame.notebook)
     plot_frame.notebook.add(tab, text=f"LyE Plot {plot_num + 1}")
-    
-    # Create a matplotlib figure
-    fig = Figure(figsize=(3.5, 3), dpi=100, constrained_layout=True)
-    ax = fig.add_subplot(111)
-    ax.tick_params(axis='both', labelsize=14)
-    
-    # Plot data on the figure
-    ax.plot(time, AveLnDiv, color="black")
-    ax.set_title("LyE", fontsize=20)
-    ax.set_xlabel("Periods (s)", fontsize=16)
-    ax.set_ylabel("<ln(divergence)>", fontsize=16)
-    
-    # Plot LyE lines if they exist (not NaN)
-    if not np.isnan(LyES):
-        ax.plot(timeS, LyESline, color="red", linewidth=3, label="LyE_Short = {}".format(LyES))
-    if not np.isnan(LyEL):
-        ax.plot(timeL, LyELline, color="green", linewidth=3, label="LyE_Long = {}".format(LyEL))
-    
-    ax.legend(loc="best")
-    
-    # Embed the figure into the new tab
+
     canvas = FigureCanvasTkAgg(fig, master=tab)
     canvas.draw()
     canvas.get_tk_widget().pack(fill='both', expand=True)
-    
-    # Auto-select the newly added tab
+
     plot_frame.notebook.select(tab)
-    
+
     return fig

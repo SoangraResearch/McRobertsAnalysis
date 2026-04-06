@@ -24,10 +24,13 @@ def linear_analysis(
     plot_frame=None,
     assume_walking=False,
     build_plots=True,
+    embed_plots=True,
 ):
     """Linear gait analysis.
 
-    If build_plots is True, plot_frame must be set and figures are created in the loop.
+    If build_plots is True, plot_frame must be set when embed_plots is True so figures
+    can be embedded in the GUI. If embed_plots is False, only Figure objects are
+    returned (e.g. before display_combined_plots with nonlinear results).
     If build_plots is False (e.g. Tab 4 batch), returns (df, list[dict]) for linear_plot
     payloads; plots are discarded by callers that only need the dataframe.
     """
@@ -143,7 +146,21 @@ def linear_analysis(
         if len(hs_selected_idx_new) < 2 or len(to_selected_idx_new) < 1:
             print(f"Warning: Walking bout {i} has insufficient HS ({len(hs_selected_idx_new)}) or TO ({len(to_selected_idx_new)}) detections. Skipping.")
             if build_plots:
-                fig = linear_plot(time_vector, acc_ap_pp, acc_wave_detrended, acc_wave_2, hs_times, hs_selected_idx, to_times, to_selected_idx, invalid_hs_idx, invalid_hs_times, plot_frame, i)
+                fig = linear_plot(
+                    time_vector,
+                    acc_ap_pp,
+                    acc_wave_detrended,
+                    acc_wave_2,
+                    hs_times,
+                    hs_selected_idx,
+                    to_times,
+                    to_selected_idx,
+                    invalid_hs_idx,
+                    invalid_hs_times,
+                    plot_frame,
+                    i,
+                    embed=embed_plots,
+                )
                 plots.append(fig)
             else:
                 plots.append(
@@ -165,7 +182,21 @@ def linear_analysis(
 
         df = gait_parameters(hs_selected_idx_new,to_selected_idx_new,df,i,walk_start,walk_end,cad,fs,fs_HS_TO)
         if build_plots:
-            fig = linear_plot(time_vector, acc_ap_pp, acc_wave_detrended, acc_wave_2, hs_times, hs_selected_idx, to_times, to_selected_idx, invalid_hs_idx, invalid_hs_times, plot_frame, i)
+            fig = linear_plot(
+                time_vector,
+                acc_ap_pp,
+                acc_wave_detrended,
+                acc_wave_2,
+                hs_times,
+                hs_selected_idx,
+                to_times,
+                to_selected_idx,
+                invalid_hs_idx,
+                invalid_hs_times,
+                plot_frame,
+                i,
+                embed=embed_plots,
+            )
             plots.append(fig)
         else:
             plots.append(

@@ -67,22 +67,25 @@ class Tab3Controller:
         for widget in plot_frame.winfo_children():
             widget.destroy()
 
+        combine_with_nonlinear = bool(self.nonlinear_plots)
+
         try:
             self.linear_df, self.linear_plots = linear_analysis(
                 self.file,
                 plot_frame,
                 assume_walking.get(),
                 build_plots=True,
+                embed_plots=not combine_with_nonlinear,
             )
         except Exception as e:
             traceback.print_exc()
             messagebox.showerror("Linear Analysis Error", str(e))
             return
 
+        if combine_with_nonlinear:
+            display_combined_plots(self.linear_plots, self.nonlinear_plots, plot_frame)
         self._load_save_plot_buttons(plot_frame)
         messagebox.showinfo("Linear Analysis", "Linear analysis complete")
-        if self.nonlinear_plots is not None:
-            display_combined_plots(self.linear_plots, self.nonlinear_plots, plot_frame)
         self.plot_frame = plot_frame
 
     def do_nonlinear_analysis(self, plot_frame, assume_walking):
@@ -141,33 +144,54 @@ class Tab3Controller:
         """
         self.nonlinear_df = df
 
-        # Build Matplotlib figures from the raw data collected in nonlinear_analysis()
         self.nonlinear_plots = []
+        show_combined = bool(self.linear_plots)
         for i, pd in enumerate(plot_data_list):
             fig = nonlinear_plot(
-                pd['time'], pd['AveLnDiv'], pd['LyES'], pd['timeS'], pd['lyESline'],
-                pd['LyEL'], pd['timeL'], pd['LyELline'], plot_frame, i
+                pd['time'],
+                pd['AveLnDiv'],
+                pd['LyES'],
+                pd['timeS'],
+                pd['lyESline'],
+                pd['LyEL'],
+                pd['timeL'],
+                pd['LyELline'],
+                plot_frame,
+                i,
+                embed=not show_combined,
             )
             self.nonlinear_plots.append(fig)
 
         print("nonlinear plots in main gui: " + str(len(self.nonlinear_plots)))
+        if show_combined:
+            display_combined_plots(self.linear_plots, self.nonlinear_plots, plot_frame)
         self._load_save_plot_buttons(plot_frame)
         messagebox.showinfo("Nonlinear Analysis", "Nonlinear analysis complete")
-
-        # If linear analysis was run earlier, show both side by side
-        if self.linear_plots:
-            plot_frame.after(100, lambda: display_combined_plots(self.linear_plots, self.nonlinear_plots, plot_frame))
         self.plot_frame = plot_frame
 
     def analyze_data(self, plot_frame, assume_walking):
-        self.linear_df, self.linear_plots = linear_analysis(self.file, plot_frame, assume_walking)
+        self.linear_df, self.linear_plots = linear_analysis(
+            self.file,
+            plot_frame,
+            assume_walking,
+            build_plots=True,
+            embed_plots=False,
+        )
         self.nonlinear_df, plot_data_list = nonlinear_analysis(self.file, assume_walking)
-        # Build figures from raw data on the main thread
         self.nonlinear_plots = []
         for i, pd in enumerate(plot_data_list):
             fig = nonlinear_plot(
-                pd['time'], pd['AveLnDiv'], pd['LyES'], pd['timeS'], pd['lyESline'],
-                pd['LyEL'], pd['timeL'], pd['LyELline'], plot_frame, i
+                pd['time'],
+                pd['AveLnDiv'],
+                pd['LyES'],
+                pd['timeS'],
+                pd['lyESline'],
+                pd['LyEL'],
+                pd['timeL'],
+                pd['LyELline'],
+                None,
+                i,
+                embed=False,
             )
             self.nonlinear_plots.append(fig)
         display_combined_plots(self.linear_plots, self.nonlinear_plots, plot_frame)
