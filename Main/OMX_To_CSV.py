@@ -57,14 +57,41 @@ def _resolve_octave_executable():
                 return path
 
     if sys.platform == "win32":
-        gnu_root = os.path.join(os.environ.get("ProgramFiles", r"C:\Program Files"), "GNU Octave")
-        if os.path.isdir(gnu_root):
+        # Double-clicked .exe gets a short PATH; oct2py often misses Octave unless
+        # OCTAVE_EXECUTABLE is set *for the whole user session* (setx + re-login).
+        # Probe typical install trees (installer default + a few alternates).
+        program_files = os.environ.get("ProgramFiles", r"C:\Program Files")
+        program_files_x86 = os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)")
+        local_app = os.environ.get("LOCALAPPDATA", "")
+        win_roots = [
+            os.path.join(program_files, "GNU Octave"),
+            os.path.join(program_files_x86, "GNU Octave"),
+        ]
+        if local_app:
+            win_roots.append(os.path.join(local_app, "Programs", "GNU Octave"))
+
+        def _first_octave_cli_under(root: str):
+            if not os.path.isdir(root):
+                return None
+            best = None
             try:
-                for dirpath, _, filenames in os.walk(gnu_root):
-                    if "octave-cli.exe" in filenames:
-                        return os.path.join(dirpath, "octave-cli.exe")
+                for dirpath, _, filenames in os.walk(root):
+                    if "octave-cli.exe" not in filenames:
+                        continue
+                    cand = os.path.join(dirpath, "octave-cli.exe")
+                    # Prefer ...\mingw64\bin\octave-cli.exe (standard layout)
+                    if r"mingw64\bin" in cand.replace("/", "\\").lower():
+                        return cand
+                    if best is None:
+                        best = cand
             except OSError:
-                pass
+                return None
+            return best
+
+        for gnu_root in win_roots:
+            found = _first_octave_cli_under(gnu_root)
+            if found:
+                return found
 
     return None
 
