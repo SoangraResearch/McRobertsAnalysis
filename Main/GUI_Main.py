@@ -403,13 +403,12 @@ def run_auto_analysis():
         )
 
         progress_text.update_progress("Segment Analysis")
-        # Temp CSV per bout; Tab 3 analysis on main thread.
-        # The "assume_walking" behavior is controlled by a Tab 4 checkbox (separate
-        # from GSD's "force walking" flag).
+        # Temp CSV per bout; Tab 3 analysis on main thread. GSD slices are already
+        # walking bouts, so always skip find_walking (same as assume_walking=True).
         auto_analysis_batch_results = run_segment_batch_analysis(
             data_chunks,
             auto_analysis_selected_segments,
-            assume_walking=assume_data_as_walking_tab4.get(),
+            assume_walking=True,
         )
 
         progress_text.update_progress("Output")
@@ -549,14 +548,6 @@ tab4_force_walking_check = make_checkbutton(
 )
 tab4_force_walking_check.pack(pady=(10, 6), ipadx=4, ipady=4)
 
-# Independent flag for the Tab 3 segment analysis:
-# when enabled, Tab 3 skips "find_walking" detection and treats the segment slice as one walking period.
-assume_data_as_walking_tab4 = tk.BooleanVar(value=True)
-tab4_assume_walking_check = make_checkbutton(
-    tab4, text="Assume Data is Walking (Tab 3)", variable=assume_data_as_walking_tab4
-)
-tab4_assume_walking_check.pack(pady=(4, 6), ipadx=4, ipady=4)
-
 # Include Tab 2–style GSD + step CSVs in the same output folder (no Tab 2 plots).
 save_tab2_auto_results = tk.BooleanVar(value=False)
 tab4_save_tab2_results_check = make_checkbutton(
@@ -596,7 +587,6 @@ heavy_job.register_disable_widgets(
     tab3_save_all_output_button,
     tab4_load_omx_button,
     tab4_force_walking_check,
-    tab4_assume_walking_check,
     tab4_save_tab2_results_check,
     run_auto_analysis_button,
     *tab2_gsd_algorithm_radios,
