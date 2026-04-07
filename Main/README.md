@@ -24,6 +24,49 @@ Make a note of where Octave is installed.
     This sets the path temporarily.
     To set it permanently, add the same line to your shell config file (e.g. ~/.zshrc or ~/.bash_profile):
 
+### Bundled app (`.exe` / `.app`) and Octave
+
+The PyInstaller builds **do not include GNU Octave**. You still need Octave installed on the computer.
+
+Double-clicking the **Windows `.exe`** or **macOS `.app`** starts a process with a **limited environment** (often a short `PATH`). If OMX load fails with an Octave error, set **`OCTAVE_EXECUTABLE`** to the full path of **`octave-cli`** (Windows: `octave-cli.exe`) as a **user-level** environment variable, then sign out and back in (or restart). The app also tries common install locations on Windows; see `Main/OMX_To_CSV.py` if you need details.
+
+## Desktop builds (PyInstaller)
+
+Standalone **Windows** and **macOS** packages are produced with [PyInstaller](https://pyinstaller.org/) using the spec file at the **repository root**: `McRoberts Analysis.spec`.
+
+### What each platform produces
+
+- **Windows:** Folder `dist/McRoberts Analysis/` containing `McRoberts Analysis.exe` and an `_internal/` directory. Run the `.exe` from that folder (or distribute the whole folder).
+- **macOS:** `dist/McRoberts Analysis.app` — a normal app bundle.
+
+### GitHub Actions
+
+Workflow: **`.github/workflows/build-desktop-apps.yml`** (“Build desktop apps”).
+
+- **When it runs:** On **push** to `main` or `master`, and when triggered manually (**Actions** → workflow → **Run workflow**).
+- **Artifacts:** After a successful run, open the run in the **Actions** tab and download:
+  - **McRoberts-Analysis-Windows** — Windows build folder (as uploaded from `dist/McRoberts Analysis/`).
+  - **McRoberts-Analysis-macOS** — **ZIP** of the `.app` (zip keeps the bundle intact when unzipping).
+
+**Note:** Workflow artifacts use GitHub’s **retention limit** (they expire after a set period). For long-lived download links, attach the same files to a **GitHub Release** when you publish a version.
+
+The CI jobs use **Python 3.11** and install PyInstaller plus the Python dependencies listed in that workflow file (they must stay in sync with what the GUI needs).
+
+### Local build (developers)
+
+From the **repository root**, using the same Python environment you use to run the GUI (with `oct2py`, `octave_kernel`, `ssqueezepy`, etc. installed):
+
+```bash
+python -m PyInstaller "McRoberts Analysis.spec" --clean
+```
+
+Use the **same interpreter** (venv or conda env) that can run `Main/GUI_Main.py`; the spec resolves package data from that environment.
+
+### macOS notes
+
+- CI builds on **Apple Silicon** runners; the `.app` matches that architecture (see the workflow step that prints `file` on the binary). Intel-only Macs need a build produced on Intel hardware or a universal/fat binary workflow, which this repo does not configure by default.
+- If Gatekeeper blocks the app, use **System Settings → Privacy & Security** or right-click → Open, as usual for unsigned local builds.
+
 ## Program Instructions
     - Run GUI_Main and in the Select Data tab, add the desired OMX file
     - Zoom in and pan on the plot or manually type in the desired time range.
