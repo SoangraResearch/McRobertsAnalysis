@@ -1,8 +1,12 @@
+import copy
+from typing import Any, Dict, Optional
+
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.signal import resample
 # nonlinear_plot moved to Tab3Controller — plots must be built on the main thread
+from Main import app_config
 from Main.GUI_Tabs.Tab3.Analysis_Plots import linear_plot
 from Non_GUI.Analysis_Code.gait_functions.walking import find_walking
 from Non_GUI.Analysis_Code.gait_functions.hs_to_detection import get_hs_to_wavelet # function to detect heal strike and toe off from the walking data
@@ -19,12 +23,21 @@ from Non_GUI.Analysis_Code.non_linear_functions.lye_W import LyE_W
 from Non_GUI.Analysis_Code.non_linear_functions.rqa import RQA
 from Non_GUI.Analysis_Code.non_linear_functions.ent_Samp import Ent_Samp
 
+SettingsDict = Dict[str, Any]
+
+
+def _settings_copy(settings: Optional[SettingsDict] = None) -> SettingsDict:
+    """Snapshot of effective settings (``app_config.current`` when ``settings`` is None)."""
+    return copy.deepcopy(app_config.current if settings is None else settings)
+
+
 def linear_analysis(
     filename,
     plot_frame=None,
     assume_walking=False,
     build_plots=True,
     embed_plots=True,
+    settings=None,
 ):
     """Linear gait analysis.
 
@@ -33,7 +46,13 @@ def linear_analysis(
     returned (e.g. before display_combined_plots with nonlinear results).
     If build_plots is False (e.g. Tab 4 batch), returns (df, list[dict]) for linear_plot
     payloads; plots are discarded by callers that only need the dataframe.
+
+    Args:
+        settings: Optional nested settings dict; defaults to :data:`Main.app_config.current`.
     """
+    cfg = _settings_copy(settings)
+    wcfg = cfg["walking"]
+
     fs = 100
 
     accleration = pd.read_csv(filename)
@@ -70,12 +89,14 @@ def linear_analysis(
     print("RMS of vm_bout:", np.sqrt(np.mean(vm_bout**2)))
 
     # parameters for find walking function
-    min_amp = 0.3 # amplitude threshold (in g ) 
-    T = 3 # minimum walking duration (in seconds)
-    delta = 20 #maximum difference between consecutive peaks (in multiplication of 0.05Hz)
-    alpha = 1.6 #maximum ratio between dominant peak below and within step frequency range
-    beta = 2.5 # maximum ratio between dominant peak above and within step frequency range
-    step_freq = (1.4,2.3) #step frequency range (in Hz or steps per second)
+    min_amp = wcfg["min_amp"]
+    T = wcfg["min_duration_s"]
+    delta = wcfg["delta"]
+    alpha = wcfg["alpha"]
+    beta = wcfg["beta"]
+    step_freq = (wcfg["step_freq_low"], wcfg["step_freq_high"])
+    wavelet_straight = wcfg["wavelet_type_straight"]
+    wavelet_turning = wcfg["wavelet_type_turning"]
 
     # heal strike toe off detection
     fs_HS_TO = 100 #sampling frequency needed by the function
@@ -131,7 +152,15 @@ def linear_analysis(
         walk = resampled_az[walk_start:walk_end]
 
         # Get heal strike and toe off
-        hs_selected_idx, to_selected_idx, invalid_hs_idx, time_vector, acc_ap_pp, acc_wave_detrended, acc_wave_2, hs_times, to_times, invalid_hs_times = get_hs_to_wavelet(walk, fs_HS_TO, turning, 0, "No plot name", wavelet_type_straight="gaus1", wavelet_type_turning="gaus1")
+        hs_selected_idx, to_selected_idx, invalid_hs_idx, time_vector, acc_ap_pp, acc_wave_detrended, acc_wave_2, hs_times, to_times, invalid_hs_times = get_hs_to_wavelet(
+            walk,
+            fs_HS_TO,
+            turning,
+            0,
+            "No plot name",
+            wavelet_type_straight=wavelet_straight,
+            wavelet_type_turning=wavelet_turning,
+        )
         # converted to float and dividing by 100 to get results in units of second
         hs_selected_idx_new = (hs_selected_idx.astype(float))/100
         to_selected_idx_new = (to_selected_idx.astype(float))/100
@@ -245,7 +274,7 @@ def _linear_plot_payload(
         "invalid_hs_times": invalid_hs_times,
     }
 
-def nonlinear_analysis(filename, assume_walking=False, progress_callback=None):
+def nonlinear_analysis(filename, assume_walking=False, progress_callback=None, settings=None):
     """Runs nonlinear analysis on a background thread.
 
     Returns raw plot data (dicts) instead of Matplotlib figures, because
@@ -256,10 +285,18 @@ def nonlinear_analysis(filename, assume_walking=False, progress_callback=None):
         filename: Path to CSV with acceleration data (Ax, Ay, Az).
         assume_walking: If True, treats the entire file as one walking period.
         progress_callback: Optional function(str) for live GUI status updates.
+        settings: Optional settings dict (defaults to :data:`Main.app_config.current`).
 
     Returns:
         (DataFrame, list[dict]): Results table and raw LyE plot data per period.
     """
+    cfg = _settings_copy(settings)
+    wcfg = cfg["walking"]
+    ps = cfg["phase_space"]
+    ent = cfg["entropy"]
+    ly = cfg["lyapunov"]
+    rq = cfg["rqa"]
+
     fs = 100 # sampling frequency of sensor
 
     accleration = pd.read_csv(filename)
@@ -278,12 +315,12 @@ def nonlinear_analysis(filename, assume_walking=False, progress_callback=None):
     vm_bout = vm_resample[:num_elements_to_use]
 
     # parameters for find walking function
-    min_amp = 0.3 # amplitude threshold (in g )
-    T = 3 # minimum walking duration (in seconds)
-    delta = 20 #maximum difference between consecutive peaks (in multiplication of 0.05Hz)
-    alpha = 1.6 #maximum ratio between dominant peak below and within step frequency range
-    beta = 2.5 # maximum ratio between dominant peak above and within step frequency range
-    step_freq = (1.4,2.3) #step frequency range (in Hz or steps per second)
+    min_amp = wcfg["min_amp"]
+    T = wcfg["min_duration_s"]
+    delta = wcfg["delta"]
+    alpha = wcfg["alpha"]
+    beta = wcfg["beta"]
+    step_freq = (wcfg["step_freq_low"], wcfg["step_freq_high"])
 
     fs_HS_TO = 100 #sampling frequency used for gait parameters and non linear analysis
 
@@ -342,33 +379,32 @@ def nonlinear_analysis(filename, assume_walking=False, progress_callback=None):
         if progress_callback:
             progress_callback(f"Period {i+1}/{num_periods}: Computing AMI...")
         #Calculate delay from Stergiou
-        tau, V_ami = AMI_Stergiou(data,35)
+        tau, V_ami = AMI_Stergiou(data, int(ps["ami_max_lag"]))
         print("AMI_Stergiou calculated")
         delay = int(tau[0][0])
         if progress_callback:
             progress_callback(f"Period {i+1}/{num_periods}: Computing FNN...")
         #Calculate dimensions from fnn
         # Parameters for fnn function
-        MaxDim = 30
-        Rtol = 15
-        Atol = 2
-        speed = 0 # default speed to 0 so that it doesn't affect the dimension calculation but can be changed if needed
+        MaxDim = int(ps["fnn_max_dim"])
+        Rtol = int(ps["fnn_rtol"])
+        Atol = int(ps["fnn_atol"])
+        speed = float(ps["fnn_speed"])
         ans = FNN(data, delay, MaxDim, Rtol, Atol, speed)
         print("FNN calculated")
         dim = ans[1]  #dimension
         if progress_callback:
             progress_callback(f"Period {i+1}/{num_periods}: Computing entropies...")
         # Approximate entropy
-        r = 0.2 #tolerance
+        r = float(ent["r"])
         AE = Ent_Ap(data, dim, r)
         print("ENT_AP calculated")
         # Sample Entropy
-        m = 2 # - m is generally recommendation as 2
-        #  - R is generally recommendation as 0.2
+        m = int(ent["m"])
         Samp_Ent = Ent_Samp(data, m, r)
         print("ENT_Samp calculated")
         #Symbolic Entropy
-        L = 2 #assuming
+        L = int(ent["symbolic_L"])
         #normalizing data
         data_normalized = (data - np.min(data)) / (np.max(data) - np.min(data))
         data_scaled = (data_normalized * 1.99).astype(int)
@@ -389,8 +425,8 @@ def nonlinear_analysis(filename, assume_walking=False, progress_callback=None):
             progress_callback(f"Period {i+1}/{num_periods}: Computing LyE_R...")
         #LyE_Rosenstein
         name = "test"
-        slope = [1,2,3,4]
-        MeanPeriod = 1
+        slope = [int(x) for x in ly["rosenstein_slope_periods"]]
+        MeanPeriod = int(ly["rosenstein_mean_period"])
         Plot = False
         # Use dim (FNN-determined embedding dimension), not m (entropy param which is always 2)
         (LyEl,LyEs,out), time, AveLnDiv, LyES, timeS, lyESline, LyEL, timeL, LyELline = LyE_R(data,name,fs_HS_TO,delay,dim,slope, MeanPeriod, Plot)
@@ -405,18 +441,18 @@ def nonlinear_analysis(filename, assume_walking=False, progress_callback=None):
         if progress_callback:
             progress_callback(f"Period {i+1}/{num_periods}: Computing LyE_W...")
         #largest lyapunov exponent
-        evolve = 2 # assuming
+        evolve = int(ly["wolf_evolve"])
         [out,lye] = LyE_W(data, fs_HS_TO, delay, dim, evolve)
         print("LYE_W calculated")
         if progress_callback:
             progress_callback(f"Period {i+1}/{num_periods}: Computing RQA...")
         # RQA
         TYPE = 'RQA'
-        ZSCORE = 1
-        NORM = 'NON'
-        LINELENGTH = 1
-        SETVALUE = 1
-        SETPARA = 'radius'
+        ZSCORE = int(rq["zscore"])
+        NORM = str(rq["norm"])
+        LINELENGTH = int(rq["line_length"])
+        SETVALUE = int(rq["set_value"])
+        SETPARA = str(rq["set_para"])
         PLOTOPTION = 0
         column = "1"
         nargout =1
@@ -436,11 +472,11 @@ def nonlinear_analysis(filename, assume_walking=False, progress_callback=None):
         if progress_callback:
             progress_callback(f"Period {i+1}/{num_periods}: Computing MSE...")
 
-        tau = 20
-        r = 0.2
-        m=2
+        mse_scale = int(ent["mse_max_scale"])
+        r_mse = float(ent["r"])
+        m_mse = int(ent["m"])
 
-        result = Ent_MS_Plus(data, tau, m, r)
+        result = Ent_MS_Plus(data, mse_scale, m_mse, r_mse)
         print("ENT_MS_Plus calculated")
 
         RCMSE =result[0]

@@ -9,6 +9,7 @@ import pandas as pd
 from GSDA_code import gsd_iluz
 from GSDB_code import gsd_low_back_acc
 from ICDA_code import filter_and_print_long_segments, step_detection
+from Main import app_config
 from Main.GUI_Tabs.Tab3.Analysis_code import linear_analysis, nonlinear_analysis
 from OMX_To_CSV import matlab_datenum_to_datetime
 
@@ -324,10 +325,17 @@ def run_segment_batch_analysis(data_chunks, selected_segments, assume_walking=Tr
 
             try:
                 lin_df, _plots = linear_analysis(
-                    path, None, assume_walking, build_plots=False
+                    path,
+                    None,
+                    assume_walking,
+                    build_plots=False,
+                    settings=app_config.current,
                 )
                 nlin_df, _raw = nonlinear_analysis(
-                    path, assume_walking, progress_callback=None
+                    path,
+                    assume_walking,
+                    progress_callback=None,
+                    settings=app_config.current,
                 )
             except Exception as ex:
                 results.append(

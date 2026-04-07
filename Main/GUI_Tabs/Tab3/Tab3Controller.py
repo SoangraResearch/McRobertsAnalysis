@@ -4,6 +4,7 @@ import sys
 import traceback
 import tkinter as tk
 from tkinter import filedialog, messagebox
+from Main import app_config
 from Main.GUI_Tabs.gui_style import make_action_button, restore_main_window_focus
 from Main.GUI_Tabs.Tab3.Analysis_code import linear_analysis, nonlinear_analysis
 from Main.GUI_Tabs.Tab3.Analysis_Plots import (
@@ -76,6 +77,7 @@ class Tab3Controller:
                 assume_walking.get(),
                 build_plots=True,
                 embed_plots=not combine_with_nonlinear,
+                settings=app_config.current,
             )
         except Exception as e:
             traceback.print_exc()
@@ -111,6 +113,7 @@ class Tab3Controller:
                 self.file,
                 assume_walking.get(),
                 progress_callback=update_progress if can_status else None,
+                settings=app_config.current,
             )
 
         def on_success(result):
@@ -176,8 +179,11 @@ class Tab3Controller:
             assume_walking,
             build_plots=True,
             embed_plots=False,
+            settings=app_config.current,
         )
-        self.nonlinear_df, plot_data_list = nonlinear_analysis(self.file, assume_walking)
+        self.nonlinear_df, plot_data_list = nonlinear_analysis(
+            self.file, assume_walking, settings=app_config.current
+        )
         self.nonlinear_plots = []
         for i, pd in enumerate(plot_data_list):
             fig = nonlinear_plot(
