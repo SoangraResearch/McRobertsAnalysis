@@ -451,7 +451,7 @@ def nonlinear_analysis(filename, assume_walking=False, progress_callback=None, s
         ZSCORE = int(rq["zscore"])
         NORM = str(rq["norm"])
         LINELENGTH = int(rq["line_length"])
-        SETVALUE = int(rq["set_value"])
+        SETVALUE = float(rq["set_value"])
         SETPARA = str(rq["set_para"])
         PLOTOPTION = 0
         column = "1"

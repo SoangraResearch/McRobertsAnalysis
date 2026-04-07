@@ -5,10 +5,11 @@ from __future__ import annotations
 import copy
 import sys
 import tkinter as tk
-from tkinter import ttk
-from typing import Any, Dict, List
+from tkinter import messagebox, ttk
+from typing import Any, Dict, List, Tuple
 
 from Main import app_config
+from Main.GUI_Tabs.gui_style import make_action_button
 
 
 class Tab5Controller:
@@ -31,18 +32,25 @@ class Tab5Controller:
         container = tk.Frame(self.tab)
         container.pack(fill=tk.BOTH, expand=True)
 
+        btn_frame = tk.Frame(container)
+        btn_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=12, pady=(4, 10))
+        self._build_button_row(btn_frame)
+
+        main = tk.Frame(container)
+        main.pack(fill=tk.BOTH, expand=True)
+
         try:
             canvas_bg = self.tab.cget("bg")
         except tk.TclError:
             canvas_bg = None
 
         canvas = tk.Canvas(
-            container,
+            main,
             highlightthickness=0,
             bd=0,
             background=canvas_bg,
         )
-        vsb = ttk.Scrollbar(container, orient=tk.VERTICAL, command=canvas.yview)
+        vsb = ttk.Scrollbar(main, orient=tk.VERTICAL, command=canvas.yview)
         canvas.configure(yscrollcommand=vsb.set)
         canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         vsb.pack(side=tk.RIGHT, fill=tk.Y)
@@ -76,7 +84,6 @@ class Tab5Controller:
             widget.bind("<Button-4>", _wheel)
             widget.bind("<Button-5>", _wheel)
 
-        # Classic tk frames match Tabs 1–4 (system background, not clam ttk gray).
         outer = tk.Frame(scrollable)
         outer.pack(fill=tk.BOTH, expand=True, padx=12, pady=12)
 
@@ -94,6 +101,294 @@ class Tab5Controller:
                 _bind_wheel_recursive(child)
 
         _bind_wheel_recursive(outer)
+
+    def _build_button_row(self, parent: tk.Frame) -> None:
+        make_action_button(
+            parent,
+            text="Apply & save",
+            command=self._on_apply_save,
+        ).pack(side=tk.LEFT, padx=(0, 8))
+        make_action_button(
+            parent,
+            text="Reset to defaults",
+            command=self._on_reset_defaults,
+        ).pack(side=tk.LEFT, padx=(0, 8))
+
+    def _on_apply_save(self) -> None:
+        try:
+            parsed = self._parse_all()
+        except ValueError as e:
+            messagebox.showerror("Invalid settings", str(e), parent=self.tab)
+            return
+        for key in app_config.DEFAULTS:
+            app_config.current[key] = copy.deepcopy(parsed[key])
+        try:
+            app_config.save(app_config.current)
+        except OSError as e:
+            messagebox.showerror("Save failed", str(e), parent=self.tab)
+            return
+        messagebox.showinfo("Settings", "Settings saved.", parent=self.tab)
+
+    def _on_reset_defaults(self) -> None:
+        for key in app_config.DEFAULTS:
+            app_config.current[key] = copy.deepcopy(app_config.DEFAULTS[key])
+        try:
+            app_config.save(app_config.current)
+        except OSError as e:
+            messagebox.showerror("Save failed", str(e), parent=self.tab)
+            return
+        self._load_widgets_from_config()
+        messagebox.showinfo(
+            "Settings", "Restored defaults and saved.", parent=self.tab
+        )
+
+    def _load_widgets_from_config(self) -> None:
+        w = app_config.current["walking"]
+        for key in (
+            "min_amp",
+            "min_duration_s",
+            "delta",
+            "alpha",
+            "beta",
+            "step_freq_low",
+            "step_freq_high",
+            "wavelet_type_straight",
+            "wavelet_type_turning",
+        ):
+            self._walking_vars[key].set(str(w[key]))
+
+        ps = app_config.current["phase_space"]
+        for key in ps:
+            self._phase_space_vars[key].set(str(ps[key]))
+
+        ent = app_config.current["entropy"]
+        for key in ent:
+            self._entropy_vars[key].set(str(ent[key]))
+
+        ly = app_config.current["lyapunov"]
+        slopes = ly["rosenstein_slope_periods"]
+        self._lyapunov_vars["rosenstein_slope_periods"].set(
+            ", ".join(str(x) for x in slopes)
+        )
+        self._lyapunov_vars["rosenstein_mean_period"].set(
+            str(ly["rosenstein_mean_period"])
+        )
+        self._lyapunov_vars["wolf_evolve"].set(str(ly["wolf_evolve"]))
+
+        rq = app_config.current["rqa"]
+        for key in rq:
+            self._rqa_vars[key].set(str(rq[key]))
+
+    @staticmethod
+    def _parse_float(label: str, raw: str) -> float:
+        raw = raw.strip()
+        if not raw:
+            raise ValueError(f"{label}: value is required.")
+        try:
+            return float(raw)
+        except ValueError as e:
+            raise ValueError(f"{label}: not a valid number.") from e
+
+    @staticmethod
+    def _parse_int(label: str, raw: str) -> int:
+        raw = raw.strip()
+        if not raw:
+            raise ValueError(f"{label}: value is required.")
+        try:
+            v = int(raw, 10)
+        except ValueError as e:
+            raise ValueError(f"{label}: must be a whole number.") from e
+        return v
+
+    def _parse_walking(self) -> Dict[str, Any]:
+        def g(key: str) -> str:
+            return self._walking_vars[key].get()
+
+        min_amp = self._parse_float("Walking / Min amplitude (g)", g("min_amp"))
+        if min_amp <= 0:
+            raise ValueError("Walking / Min amplitude (g): must be > 0.")
+
+        min_dur = self._parse_int("Walking / Min walking duration (s)", g("min_duration_s"))
+        if min_dur < 1:
+            raise ValueError("Walking / Min walking duration (s): must be >= 1.")
+
+        delta = self._parse_int("Walking / Peak difference", g("delta"))
+        if delta < 1:
+            raise ValueError("Walking / Peak difference: must be >= 1.")
+
+        alpha = self._parse_float("Walking / Alpha", g("alpha"))
+        if alpha <= 0:
+            raise ValueError("Walking / Alpha: must be > 0.")
+
+        beta = self._parse_float("Walking / Beta", g("beta"))
+        if beta <= 0:
+            raise ValueError("Walking / Beta: must be > 0.")
+
+        low = self._parse_float("Walking / Step frequency low (Hz)", g("step_freq_low"))
+        high = self._parse_float("Walking / Step frequency high (Hz)", g("step_freq_high"))
+        if low <= 0 or high <= 0:
+            raise ValueError("Walking / Step frequency: values must be > 0.")
+        if low >= high:
+            raise ValueError(
+                "Walking / Step frequency: low must be less than high."
+            )
+
+        wt_s = g("wavelet_type_straight").strip()
+        wt_t = g("wavelet_type_turning").strip()
+        if not wt_s or not wt_t:
+            raise ValueError("Walking / Wavelet: value is required.")
+
+        return {
+            "min_amp": min_amp,
+            "min_duration_s": min_dur,
+            "delta": delta,
+            "alpha": alpha,
+            "beta": beta,
+            "step_freq_low": low,
+            "step_freq_high": high,
+            "wavelet_type_straight": wt_s,
+            "wavelet_type_turning": wt_t,
+        }
+
+    def _parse_phase_space(self) -> Dict[str, Any]:
+        def g(key: str) -> str:
+            return self._phase_space_vars[key].get()
+
+        ami = self._parse_int("Phase-space / AMI max lag", g("ami_max_lag"))
+        if ami < 1:
+            raise ValueError("Phase-space / AMI max lag: must be >= 1.")
+
+        mx = self._parse_int("Phase-space / FNN max dimension", g("fnn_max_dim"))
+        if mx < 2:
+            raise ValueError("Phase-space / FNN max dimension: must be >= 2.")
+
+        rtol = self._parse_int("Phase-space / FNN Rtol", g("fnn_rtol"))
+        atol = self._parse_int("Phase-space / FNN Atol", g("fnn_atol"))
+        if rtol < 1 or atol < 1:
+            raise ValueError("Phase-space / FNN Rtol and Atol: must be >= 1.")
+
+        speed = self._parse_float("Phase-space / FNN speed", g("fnn_speed"))
+
+        return {
+            "ami_max_lag": ami,
+            "fnn_max_dim": mx,
+            "fnn_rtol": rtol,
+            "fnn_atol": atol,
+            "fnn_speed": speed,
+        }
+
+    def _parse_entropy(self) -> Dict[str, Any]:
+        def g(key: str) -> str:
+            return self._entropy_vars[key].get()
+
+        m = self._parse_int("Entropy / m", g("m"))
+        if m < 1:
+            raise ValueError("Entropy / m: must be >= 1.")
+
+        r = self._parse_float("Entropy / r", g("r"))
+        if r <= 0:
+            raise ValueError("Entropy / r: must be > 0.")
+
+        sym_l = self._parse_int("Entropy / Symbolic L", g("symbolic_L"))
+        if sym_l < 2:
+            raise ValueError("Entropy / Symbolic L: must be >= 2.")
+
+        mse_max = self._parse_int("Entropy / MSE max scale", g("mse_max_scale"))
+        if mse_max < 1:
+            raise ValueError("Entropy / MSE max scale: must be >= 1.")
+
+        return {
+            "m": m,
+            "r": r,
+            "symbolic_L": sym_l,
+            "mse_max_scale": mse_max,
+        }
+
+    def _parse_lyapunov(self) -> Dict[str, Any]:
+        raw_slopes = self._lyapunov_vars["rosenstein_slope_periods"].get()
+        parts = [p.strip() for p in raw_slopes.replace(";", ",").split(",") if p.strip()]
+        if not parts:
+            raise ValueError(
+                "Lyapunov / Rosenstein slope periods: enter at least one integer."
+            )
+        slopes: List[int] = []
+        for i, p in enumerate(parts):
+            try:
+                v = int(p, 10)
+            except ValueError as e:
+                raise ValueError(
+                    f"Lyapunov / Rosenstein slope periods: invalid integer «{p}»."
+                ) from e
+            if v < 1:
+                raise ValueError(
+                    "Lyapunov / Rosenstein slope periods: each value must be >= 1."
+                )
+            slopes.append(v)
+
+        mp = self._parse_int(
+            "Lyapunov / Rosenstein mean period",
+            self._lyapunov_vars["rosenstein_mean_period"].get(),
+        )
+        if mp < 1:
+            raise ValueError("Lyapunov / Rosenstein mean period: must be >= 1.")
+
+        ev = self._parse_int(
+            "Lyapunov / Wolf evolve",
+            self._lyapunov_vars["wolf_evolve"].get(),
+        )
+        if ev < 1:
+            raise ValueError("Lyapunov / Wolf evolve: must be >= 1.")
+
+        return {
+            "rosenstein_slope_periods": slopes,
+            "rosenstein_mean_period": mp,
+            "wolf_evolve": ev,
+        }
+
+    def _parse_rqa(self) -> Dict[str, Any]:
+        def g(key: str) -> str:
+            return self._rqa_vars[key].get()
+
+        z = self._parse_int("RQA / Z-score", g("zscore"))
+        if z not in (0, 1):
+            raise ValueError("RQA / Z-score: use 0 or 1.")
+
+        ll = self._parse_int("RQA / Line length", g("line_length"))
+        if ll < 1:
+            raise ValueError("RQA / Line length: must be >= 1.")
+
+        sv = self._parse_float("RQA / Threshold value", g("set_value"))
+        if sv <= 0:
+            raise ValueError("RQA / Threshold value: must be > 0.")
+
+        norm = g("norm").strip().upper()
+        if norm not in self._RQA_NORM_CHOICES:
+            raise ValueError(
+                f"RQA / Norm: must be one of {', '.join(self._RQA_NORM_CHOICES)}."
+            )
+
+        sp = g("set_para").strip().lower()
+        if sp not in self._RQA_SETPARA_CHOICES:
+            raise ValueError(
+                f"RQA / Threshold mode: must be one of {', '.join(self._RQA_SETPARA_CHOICES)}."
+            )
+
+        return {
+            "zscore": z,
+            "norm": norm,
+            "line_length": ll,
+            "set_para": sp,
+            "set_value": sv,
+        }
+
+    def _parse_all(self) -> Dict[str, Any]:
+        return {
+            "walking": self._parse_walking(),
+            "phase_space": self._parse_phase_space(),
+            "entropy": self._parse_entropy(),
+            "lyapunov": self._parse_lyapunov(),
+            "rqa": self._parse_rqa(),
+        }
 
     def _build_walking_section(self, outer: tk.Frame) -> None:
         walk = tk.LabelFrame(outer, text="Walking detection", padx=10, pady=10)
@@ -255,7 +550,7 @@ class Tab5Controller:
         add_entry("Minimum diagonal/vertical line length", "line_length")
         add_entry("Threshold value (radius / recurrence target)", "set_value")
 
-        def add_combo(label: str, key: str, choices: tuple[str, ...]) -> None:
+        def add_combo(label: str, key: str, choices: Tuple[str, ...]) -> None:
             nonlocal row
             tk.Label(lf, text=label).grid(
                 row=row, column=0, sticky=tk.W, padx=(0, 10), pady=4
