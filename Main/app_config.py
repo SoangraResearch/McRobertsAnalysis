@@ -97,6 +97,29 @@ def load(path: Optional[Union[str, Path]] = None) -> JsonDict:
     return effective(raw)
 
 
+def load_into_current(path: Optional[Union[str, Path]] = None) -> Optional[str]:
+    """Merge saved JSON into :data:`current`.
+
+    If there is no file, does nothing and returns ``None``. If the file exists but is
+    unreadable or not a JSON object, leaves :data:`current` unchanged and returns a
+    short message for a one-shot UI warning.
+    """
+    path = Path(path) if path else default_settings_path()
+    if not path.is_file():
+        return None
+    try:
+        with open(path, encoding="utf-8") as f:
+            raw = json.load(f)
+    except (json.JSONDecodeError, OSError):
+        return f"Could not read settings file; using defaults.\n\n{path}"
+    if not isinstance(raw, dict):
+        return f"Settings file must contain a JSON object; using defaults.\n\n{path}"
+    merged = effective(raw)
+    for key in DEFAULTS:
+        current[key] = copy.deepcopy(merged[key])
+    return None
+
+
 def save(settings: JsonDict, path: Optional[Union[str, Path]] = None) -> None:
     """Write ``settings`` to JSON (creates parent directory if needed)."""
     path = Path(path) if path else default_settings_path()

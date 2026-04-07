@@ -32,6 +32,7 @@ from Main.GUI_Tabs.gui_style import (
 from Main.GUI_Tabs.heavy_job_runner import HeavyJobRunner
 from Main.GUI_Tabs.Tab1.Tab1Controller import Tab1Controller
 from Main.GUI_Tabs.Tab2.Tab2Controller import Tab2Controller
+from Main import app_config
 from Main.GUI_Tabs.Tab3.Tab3Controller import Tab3Controller
 from Main.GUI_Tabs.Tab5.Tab5Controller import Tab5Controller
 
@@ -45,6 +46,10 @@ root = tk.Tk()
 root.title("McRoberts Analysis")
 root.geometry("1000x700")
 ensure_gui_style(root)
+
+_settings_warn = app_config.load_into_current()
+if _settings_warn:
+    messagebox.showwarning("Settings", _settings_warn, parent=root)
 
 tab_control = ttk.Notebook(root)
 
