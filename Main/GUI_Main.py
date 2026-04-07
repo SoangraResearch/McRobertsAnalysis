@@ -373,101 +373,132 @@ def load_auto_analysis_file():
 
 def run_auto_analysis():
     global auto_analysis_file, auto_analysis_per_chunk_results, auto_analysis_selected_segments, auto_analysis_batch_results
-    if (auto_analysis_file == "None"):
+    if auto_analysis_file == "None":
         messagebox.showerror("Error", "File not loaded")
         return
 
-    if (label_var_auto_analysis.get() == "None"):
+    if label_var_auto_analysis.get() == "None":
         messagebox.showerror("Error", "GSD algorithm not set")
         return
-    
+
+    file_path = auto_analysis_file
+    gsd_type = label_var_auto_analysis.get()
+    force_walk = force_data_as_walking_tab4.get()
+    save_tab2 = save_tab2_auto_results.get()
+
     progress_text.clear()
 
-    try:
-        # Drop any previous results so a failed run does not leave stale data.
-        auto_analysis_per_chunk_results = None
-        auto_analysis_selected_segments = None
-        auto_analysis_batch_results = None
-        progress_text.update_progress("Reading Data")
+    def sync_tab4_canvas(step_name: str) -> None:
+        def apply() -> None:
+            progress_text.update_progress(step_name)
 
-        auto_analysis_data, _filename = process_omx_file(auto_analysis_file)
-        timestamps = auto_analysis_data['ACC'][:, 0]
+        heavy_job.schedule_main(apply)
 
-        progress_text.update_progress("Splitting Data")
+    def notify_status(msg: str) -> None:
+        heavy_job.schedule_status_message(f"Auto analysis: {msg}")
 
+    def worker():
+        sync_tab4_canvas("Reading Data")
+        notify_status("Reading OMX file…")
+        auto_analysis_data, _filename = process_omx_file(file_path)
+        timestamps = auto_analysis_data["ACC"][:, 0]
+
+        sync_tab4_canvas("Splitting Data")
+        notify_status("Splitting data by day…")
         data_chunks = split_data_by_day(auto_analysis_data, timestamps)
 
-        progress_text.update_progress("Sequence Detection")
-
-        # Healthy vs Patient chooses gsd_iluz vs gsd_low_back_acc inside Auto_analysis_code.
-        auto_analysis_per_chunk_results = run_sequence_detection_per_chunk(
+        sync_tab4_canvas("Sequence Detection")
+        notify_status("Sequence detection (GSD per day chunk)…")
+        per_chunk = run_sequence_detection_per_chunk(
             data_chunks,
-            label_var_auto_analysis.get(),
-            # Tab 4 checkbox value (separate from Tab 2’s Mobilise-D checkbox).
-            force_data_as_walking_tab4.get(),
+            gsd_type,
+            force_walk,
         )
 
-        progress_text.update_progress("Segment Selection")
-        # One row per long bout: chunk_index + segment dict (Start/End relative to that chunk).
-        auto_analysis_selected_segments = select_segments_for_auto_analysis(
-            auto_analysis_per_chunk_results
-        )
+        sync_tab4_canvas("Segment Selection")
+        notify_status("Selecting long segments…")
+        selected = select_segments_for_auto_analysis(per_chunk)
 
-        progress_text.update_progress("Segment Analysis")
-        # Temp CSV per bout; Tab 3 analysis on main thread. GSD slices are already
-        # walking bouts, so always skip find_walking (same as assume_walking=True).
-        auto_analysis_batch_results = run_segment_batch_analysis(
+        sync_tab4_canvas("Segment Analysis")
+        batch_results = run_segment_batch_analysis(
             data_chunks,
-            auto_analysis_selected_segments,
+            selected,
             assume_walking=True,
+            progress_callback=notify_status,
         )
 
-        progress_text.update_progress("Output")
-
-        n_sel = len(auto_analysis_selected_segments)
-        n_ok = sum(1 for r in auto_analysis_batch_results if r.get("error") is None)
-        n_fail = len(auto_analysis_batch_results) - n_ok
-
-        # Consolidate all per-segment results into combined tables and let the user save them as CSVs.
-        linear_all_df, nonlinear_all_df, failures = combine_segment_batch_results_to_tables(
-            auto_analysis_batch_results
+        sync_tab4_canvas("Output")
+        notify_status("Combining results…")
+        n_sel = len(selected)
+        n_ok = sum(1 for r in batch_results if r.get("error") is None)
+        n_fail = len(batch_results) - n_ok
+        linear_all_df, nonlinear_all_df, _failures = (
+            combine_segment_batch_results_to_tables(batch_results)
         )
 
-        base_dir = os.path.dirname(auto_analysis_file)
-        base_name = os.path.splitext(os.path.basename(auto_analysis_file))[0]
-
-        saved_any = False
-        saved_paths = []
-        tab2_export_note = ""
-
-        if save_tab2_auto_results.get():
-            gsd_all_df, step_all_df = combine_tab2_per_chunk_export_tables(
-                auto_analysis_per_chunk_results
-            )
-            if gsd_all_df.empty and step_all_df.empty:
-                tab2_export_note = (
-                    "Tab 2 export: no GSD/step rows (all day chunks empty or skipped).\n\n"
-                )
+        if save_tab2:
+            gsd_all_df, step_all_df = combine_tab2_per_chunk_export_tables(per_chunk)
+            tab2_empty = gsd_all_df.empty and step_all_df.empty
         else:
             gsd_all_df, step_all_df = None, None
+            tab2_empty = False
 
-        # One folder pick, then write every non-empty table with fixed names (no per-file popups).
+        return {
+            "per_chunk": per_chunk,
+            "selected": selected,
+            "batch_results": batch_results,
+            "n_chunks": len(data_chunks),
+            "n_sel": n_sel,
+            "n_ok": n_ok,
+            "n_fail": n_fail,
+            "linear_all_df": linear_all_df,
+            "nonlinear_all_df": nonlinear_all_df,
+            "base_dir": os.path.dirname(file_path),
+            "base_name": os.path.splitext(os.path.basename(file_path))[0],
+            "save_tab2": save_tab2,
+            "gsd_all_df": gsd_all_df,
+            "step_all_df": step_all_df,
+            "tab2_empty": tab2_empty,
+        }
+
+    def on_success(payload):
+        global auto_analysis_per_chunk_results, auto_analysis_selected_segments, auto_analysis_batch_results
+        auto_analysis_per_chunk_results = payload["per_chunk"]
+        auto_analysis_selected_segments = payload["selected"]
+        auto_analysis_batch_results = payload["batch_results"]
+
+        linear_all_df = payload["linear_all_df"]
+        nonlinear_all_df = payload["nonlinear_all_df"]
+        n_sel = payload["n_sel"]
+        n_ok = payload["n_ok"]
+        n_fail = payload["n_fail"]
+        data_chunks_len = payload["n_chunks"]
+        base_dir = payload["base_dir"]
+        base_name = payload["base_name"]
+        save_tab2 = payload["save_tab2"]
+        gsd_all_df = payload["gsd_all_df"]
+        step_all_df = payload["step_all_df"]
+
+        tab2_export_note = ""
+        if save_tab2 and payload["tab2_empty"]:
+            tab2_export_note = (
+                "Tab 2 export: no GSD/step rows (all day chunks empty or skipped).\n\n"
+            )
+
         want_tab2_gsd = (
-            save_tab2_auto_results.get()
-            and gsd_all_df is not None
-            and not gsd_all_df.empty
+            save_tab2 and gsd_all_df is not None and not gsd_all_df.empty
         )
         want_tab2_steps = (
-            save_tab2_auto_results.get()
-            and step_all_df is not None
-            and not step_all_df.empty
+            save_tab2 and step_all_df is not None and not step_all_df.empty
         )
         want_linear = not linear_all_df.empty
         want_nonlinear = not nonlinear_all_df.empty
-        anything_to_save = want_tab2_gsd or want_tab2_steps or want_linear or want_nonlinear
+        anything_to_save = (
+            want_tab2_gsd or want_tab2_steps or want_linear or want_nonlinear
+        )
 
-        # Same style as Tab 1/3: Save-As dialog to pick location + folder name, then
-        # create that folder and write all CSVs inside (no per-file popups).
+        saved_any = False
+        saved_paths = []
         output_dir = None
         if anything_to_save:
             chosen = filedialog.asksaveasfilename(
@@ -483,22 +514,30 @@ def run_auto_analysis():
                 try:
                     os.makedirs(output_dir, exist_ok=True)
                     if want_tab2_gsd:
-                        p = os.path.join(output_dir, f"{base_name}_tab4_GSD_results.csv")
+                        p = os.path.join(
+                            output_dir, f"{base_name}_tab4_GSD_results.csv"
+                        )
                         gsd_all_df.to_csv(p, index=False)
                         saved_any = True
                         saved_paths.append(p)
                     if want_tab2_steps:
-                        p = os.path.join(output_dir, f"{base_name}_tab4_step_counts.csv")
+                        p = os.path.join(
+                            output_dir, f"{base_name}_tab4_step_counts.csv"
+                        )
                         step_all_df.to_csv(p, index=False)
                         saved_any = True
                         saved_paths.append(p)
                     if want_linear:
-                        p = os.path.join(output_dir, f"{base_name}_tab4_linear_segments.csv")
+                        p = os.path.join(
+                            output_dir, f"{base_name}_tab4_linear_segments.csv"
+                        )
                         linear_all_df.to_csv(p, index=False)
                         saved_any = True
                         saved_paths.append(p)
                     if want_nonlinear:
-                        p = os.path.join(output_dir, f"{base_name}_tab4_nonlinear_segments.csv")
+                        p = os.path.join(
+                            output_dir, f"{base_name}_tab4_nonlinear_segments.csv"
+                        )
                         nonlinear_all_df.to_csv(p, index=False)
                         saved_any = True
                         saved_paths.append(p)
@@ -506,7 +545,7 @@ def run_auto_analysis():
                     messagebox.showerror("Save Error", str(e))
 
         summary_msg = tab2_export_note + (
-            f"Day chunks: {len(data_chunks)}\n"
+            f"Day chunks: {data_chunks_len}\n"
             f"Long segments selected: {n_sel}\n"
             f"Analyzed OK: {n_ok}, failed: {n_fail}\n"
         )
@@ -523,13 +562,23 @@ def run_auto_analysis():
                 summary_msg += "\nNo CSVs saved."
 
         messagebox.showinfo("Auto Analysis", summary_msg)
+        progress_text.clear()
 
-    except Exception as e:
+    def on_error(msg: str):
+        global auto_analysis_per_chunk_results, auto_analysis_selected_segments, auto_analysis_batch_results
         auto_analysis_per_chunk_results = None
         auto_analysis_selected_segments = None
         auto_analysis_batch_results = None
-        traceback.print_exc()
-        messagebox.showerror("Auto Analysis Error", str(e))
+        progress_text.clear()
+        messagebox.showerror("Auto Analysis Error", msg)
+
+    if not heavy_job.run(
+        "Auto analysis…",
+        worker,
+        on_success=on_success,
+        on_error=on_error,
+    ):
+        return
 
 # -------------------------Tab 4 Auto Analysis UI ---------------------------------
 tab4_load_omx_button = make_action_button(

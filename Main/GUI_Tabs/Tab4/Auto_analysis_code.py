@@ -2,6 +2,7 @@
 import os
 import shutil
 import tempfile
+from typing import Callable, Optional
 
 import numpy as np
 import pandas as pd
@@ -265,15 +266,23 @@ def _write_segment_analysis_csv(chunk_df, start_s, end_s, csv_path):
     out.to_csv(csv_path, index=False)
 
 
-def run_segment_batch_analysis(data_chunks, selected_segments, assume_walking=True):
+def run_segment_batch_analysis(
+    data_chunks,
+    selected_segments,
+    assume_walking=True,
+    progress_callback: Optional[Callable[[str], None]] = None,
+):
     """Tab 3 linear + nonlinear analysis for each selected long segment.
 
     Each segment becomes a temporary CSV (one bout per file). ``assume_walking=True``
     treats the whole slice as walking, matching Tab 3’s checkbox when the bout is
     already chosen by GSD.
 
-    Runs on the caller’s thread (GUI may freeze for long batches). Destroys temp
-    files when finished.
+    ``progress_callback`` receives short status strings (e.g. per-segment progress
+    and nonlinear sub-steps) for GUI feedback; safe to call from a worker thread
+    if the callback marshals to the UI thread.
+
+    Runs on the caller’s thread. Destroys temp files when finished.
 
     Returns:
         List of dicts: ``chunk_index``, ``segment_index``, ``segment``, optional
@@ -284,8 +293,13 @@ def run_segment_batch_analysis(data_chunks, selected_segments, assume_walking=Tr
 
     results = []
     tmpdir = tempfile.mkdtemp(prefix="mcroberts_tab4_")
+    nseg = len(selected_segments)
     try:
         for k, sel in enumerate(selected_segments):
+            if progress_callback:
+                progress_callback(
+                    f"Segment {k + 1}/{nseg}: linear + nonlinear analysis…"
+                )
             chunk_idx = sel["chunk_index"]
             seg = sel["segment"]
             chunk_df = data_chunks[chunk_idx]
@@ -331,10 +345,17 @@ def run_segment_batch_analysis(data_chunks, selected_segments, assume_walking=Tr
                     build_plots=False,
                     settings=app_config.current,
                 )
+
+                def _nlin_progress(msg: str) -> None:
+                    if progress_callback:
+                        progress_callback(
+                            f"Segment {k + 1}/{nseg}: {msg}"
+                        )
+
                 nlin_df, _raw = nonlinear_analysis(
                     path,
                     assume_walking,
-                    progress_callback=None,
+                    progress_callback=_nlin_progress if progress_callback else None,
                     settings=app_config.current,
                 )
             except Exception as ex:
