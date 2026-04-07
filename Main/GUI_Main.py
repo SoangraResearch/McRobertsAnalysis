@@ -33,6 +33,7 @@ from Main.GUI_Tabs.heavy_job_runner import HeavyJobRunner
 from Main.GUI_Tabs.Tab1.Tab1Controller import Tab1Controller
 from Main.GUI_Tabs.Tab2.Tab2Controller import Tab2Controller
 from Main.GUI_Tabs.Tab3.Tab3Controller import Tab3Controller
+from Main.GUI_Tabs.Tab5.Tab5Controller import Tab5Controller
 
 # OMX paths and local imports (GSDA_code, etc.) assume the working directory is Main/.
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
@@ -58,6 +59,10 @@ tab_control.add(tab3, text="Analysis")
 
 tab4 = tk.Frame(tab_control)
 tab_control.add(tab4, text="Auto-Analysis")
+
+tab5 = tk.Frame(tab_control)
+tab_control.add(tab5, text="Settings")
+
 apply_notebook_tab_pointer_cursor(tab_control)
 
 # Status strip for HeavyJobRunner (pack bottom first so the notebook fills the rest).
@@ -68,6 +73,7 @@ heavy_job = HeavyJobRunner(root, heavy_job_status_frame)
 tab1_controller = Tab1Controller(tab1, heavy_job)
 tab2_controller = Tab2Controller(tab2)
 tab3_controller = Tab3Controller(tab3, heavy_job)
+tab5_controller = Tab5Controller(tab5)
 
 tab_control.pack(expand=1, fill="both")
 
