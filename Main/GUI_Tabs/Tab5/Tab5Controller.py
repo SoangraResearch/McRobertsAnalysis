@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import sys
 import tkinter as tk
 from tkinter import ttk
 from typing import Any, Dict, List
@@ -27,8 +28,56 @@ class Tab5Controller:
         self._build_ui()
 
     def _build_ui(self) -> None:
+        container = tk.Frame(self.tab)
+        container.pack(fill=tk.BOTH, expand=True)
+
+        try:
+            canvas_bg = self.tab.cget("bg")
+        except tk.TclError:
+            canvas_bg = None
+
+        canvas = tk.Canvas(
+            container,
+            highlightthickness=0,
+            bd=0,
+            background=canvas_bg,
+        )
+        vsb = ttk.Scrollbar(container, orient=tk.VERTICAL, command=canvas.yview)
+        canvas.configure(yscrollcommand=vsb.set)
+        canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        vsb.pack(side=tk.RIGHT, fill=tk.Y)
+
+        scrollable = tk.Frame(canvas)
+        canvas_window = canvas.create_window((0, 0), window=scrollable, anchor=tk.NW)
+
+        def _on_scrollable_configure(_event: tk.Event) -> None:
+            canvas.configure(scrollregion=canvas.bbox("all"))
+
+        def _on_canvas_configure(event: tk.Event) -> None:
+            canvas.itemconfigure(canvas_window, width=max(1, int(event.width)))
+
+        scrollable.bind("<Configure>", _on_scrollable_configure)
+        canvas.bind("<Configure>", _on_canvas_configure)
+
+        def _wheel(event: tk.Event) -> None:
+            if event.num == 4:
+                canvas.yview_scroll(-1, "units")
+                return
+            if event.num == 5:
+                canvas.yview_scroll(1, "units")
+                return
+            if sys.platform == "darwin":
+                canvas.yview_scroll(int(-1 * event.delta), "units")
+            else:
+                canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+
+        for widget in (canvas, scrollable):
+            widget.bind("<MouseWheel>", _wheel)
+            widget.bind("<Button-4>", _wheel)
+            widget.bind("<Button-5>", _wheel)
+
         # Classic tk frames match Tabs 1–4 (system background, not clam ttk gray).
-        outer = tk.Frame(self.tab)
+        outer = tk.Frame(scrollable)
         outer.pack(fill=tk.BOTH, expand=True, padx=12, pady=12)
 
         self._build_walking_section(outer)
@@ -36,6 +85,15 @@ class Tab5Controller:
         self._build_entropy_section(outer)
         self._build_lyapunov_section(outer)
         self._build_rqa_section(outer)
+
+        def _bind_wheel_recursive(widget: tk.Misc) -> None:
+            widget.bind("<MouseWheel>", _wheel)
+            widget.bind("<Button-4>", _wheel)
+            widget.bind("<Button-5>", _wheel)
+            for child in widget.winfo_children():
+                _bind_wheel_recursive(child)
+
+        _bind_wheel_recursive(outer)
 
     def _build_walking_section(self, outer: tk.Frame) -> None:
         walk = tk.LabelFrame(outer, text="Walking detection", padx=10, pady=10)
