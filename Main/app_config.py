@@ -1,0 +1,108 @@
+"""Application settings: defaults, merge, and JSON persistence.
+
+Analysis code will read from :data:`current` after later commits wire it in.
+Defaults mirror literals in ``Main/GUI_Tabs/Tab3/Analysis_code.py`` as of this
+module's introduction.
+"""
+
+from __future__ import annotations
+
+import copy
+import json
+import os
+from pathlib import Path
+from typing import Any, Dict, Optional, Union
+
+JsonDict = Dict[str, Any]
+
+DEFAULTS: JsonDict = {
+    "walking": {
+        "min_amp": 0.3,
+        "min_duration_s": 3,
+        "delta": 20,
+        "alpha": 1.6,
+        "beta": 2.5,
+        "step_freq_low": 1.4,
+        "step_freq_high": 2.3,
+        "wavelet_type_straight": "gaus1",
+        "wavelet_type_turning": "gaus1",
+    },
+    "phase_space": {
+        "ami_max_lag": 35,
+        "fnn_max_dim": 30,
+        "fnn_rtol": 15,
+        "fnn_atol": 2,
+        "fnn_speed": 0,
+    },
+    "entropy": {
+        "m": 2,
+        "r": 0.2,
+        "symbolic_L": 2,
+        "mse_max_scale": 20,
+    },
+    "lyapunov": {
+        "rosenstein_slope_periods": [1, 2, 3, 4],
+        "rosenstein_mean_period": 1,
+        "wolf_evolve": 2,
+    },
+    "rqa": {
+        "zscore": 1,
+        "norm": "NON",
+        "line_length": 1,
+        "set_para": "radius",
+        "set_value": 1,
+    },
+}
+
+current: JsonDict = copy.deepcopy(DEFAULTS)
+
+
+def default_settings_path() -> Path:
+    """User config file path (macOS and Windows via Path.home())."""
+    return Path.home() / ".mcroberts_analysis" / "settings.json"
+
+
+def _deep_merge(base: JsonDict, overrides: JsonDict) -> JsonDict:
+    """Merge ``overrides`` into a copy of ``base`` (only keys that exist in ``base``)."""
+    out = copy.deepcopy(base)
+    for key, val in overrides.items():
+        if key not in out:
+            continue
+        if isinstance(out[key], dict) and isinstance(val, dict):
+            out[key] = _deep_merge(out[key], val)
+        else:
+            out[key] = copy.deepcopy(val)
+    return out
+
+
+def effective(overrides: Optional[JsonDict]) -> JsonDict:
+    """Return ``DEFAULTS`` with ``overrides`` applied (missing keys stay at defaults)."""
+    if not overrides:
+        return copy.deepcopy(DEFAULTS)
+    return _deep_merge(DEFAULTS, overrides)
+
+
+def load(path: Optional[Union[str, Path]] = None) -> JsonDict:
+    """Load settings from JSON. Missing file or bad JSON yields a full default copy."""
+    path = Path(path) if path else default_settings_path()
+    if not path.is_file():
+        return copy.deepcopy(DEFAULTS)
+    try:
+        with open(path, encoding="utf-8") as f:
+            raw = json.load(f)
+    except (json.JSONDecodeError, OSError):
+        return copy.deepcopy(DEFAULTS)
+    if not isinstance(raw, dict):
+        return copy.deepcopy(DEFAULTS)
+    return effective(raw)
+
+
+def save(settings: JsonDict, path: Optional[Union[str, Path]] = None) -> None:
+    """Write ``settings`` to JSON (creates parent directory if needed)."""
+    path = Path(path) if path else default_settings_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(path.name + ".tmp")
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(settings, f, indent=2)
+        f.write("\n")
+    os.replace(tmp, path)
