@@ -1,10 +1,14 @@
+from __future__ import annotations
+
 import os
+import sys
 import csv
 import matplotlib.dates as mdates
 import tkinter as tk
 from tkinter import filedialog, messagebox
 from OMX_To_CSV import process_omx_file, matlab_datenum_to_datetime
-from Main.GUI_Tabs.gui_style import restore_main_window_focus
+from Main import app_config
+from Main.GUI_Tabs.gui_style import make_action_button, restore_main_window_focus
 from Main.GUI_Tabs.Tab1.Acceleration_Plot import PlotOMX
 from datetime import datetime
 
@@ -31,7 +35,66 @@ class Tab1Controller:
         self.file_start_time = tk.StringVar()
         self.file_stop_time = tk.StringVar()
 
+        self._octave_path_var: tk.StringVar | None = None
+
 # -------------------------Public Methods---------------------------------
+
+    def build_octave_section(self) -> None:
+        """OMX requires GNU Octave; let users persist octave-cli path (frozen .exe / minimal PATH)."""
+        lf = tk.LabelFrame(
+            self.tab,
+            text="GNU Octave (required for .OMX)",
+            padx=8,
+            pady=6,
+        )
+        lf.pack(fill=tk.X, padx=10, pady=(6, 4))
+
+        hint = tk.Label(
+            lf,
+            text=(
+                "Leave blank to auto-detect. If OMX fails to load, browse to Octave's command-line "
+                "executable: octave-cli on macOS/Linux (often Homebrew: /opt/homebrew/bin or /usr/local/bin) "
+                "or octave-cli.exe inside your GNU Octave installation on Windows (typically a mingw64\\bin folder)."
+            ),
+            wraplength=900,
+            justify=tk.LEFT,
+        )
+        hint.pack(anchor=tk.W, pady=(0, 4))
+
+        row = tk.Frame(lf)
+        row.pack(fill=tk.X)
+        tk.Label(row, text="Executable:").pack(side=tk.LEFT)
+        self._octave_path_var = tk.StringVar(
+            value=str(app_config.current.get("octave_executable", "") or "")
+        )
+        self._octave_entry = tk.Entry(row, textvariable=self._octave_path_var)
+        self._octave_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(6, 0))
+
+        btn_row = tk.Frame(lf)
+        btn_row.pack(fill=tk.X, pady=(6, 0))
+
+        self._octave_browse_btn = make_action_button(
+            btn_row, text="Browse…", command=self._octave_browse
+        )
+        self._octave_browse_btn.pack(side=tk.LEFT, padx=(0, 6))
+
+        self._octave_save_btn = make_action_button(
+            btn_row, text="Save path", command=self._octave_save_path
+        )
+        self._octave_save_btn.pack(side=tk.LEFT, padx=(0, 6))
+
+        self._octave_clear_btn = make_action_button(
+            btn_row, text="Clear (auto-detect)", command=self._octave_clear_path
+        )
+        self._octave_clear_btn.pack(side=tk.LEFT)
+
+        if self.heavy_job is not None:
+            self.heavy_job.register_disable_widgets(
+                self._octave_entry,
+                self._octave_browse_btn,
+                self._octave_save_btn,
+                self._octave_clear_btn,
+            )
 
     def load_file(self, plot_frame_OMX):
         file_path = filedialog.askopenfilename(filetypes=[("OMX file", "*.OMX")])
@@ -148,6 +211,56 @@ class Tab1Controller:
             save_on_main(output_path)
     
 # -------------------------Private/Helper Methods---------------------------------
+
+    def _octave_browse(self) -> None:
+        if self._octave_path_var is None:
+            return
+        if sys.platform == "win32":
+            filetypes = [
+                ("Octave CLI", "octave-cli.exe"),
+                ("Executable", "*.exe"),
+                ("All files", "*.*"),
+            ]
+        else:
+            filetypes = [("All files", "*")]
+        cur = (self._octave_path_var.get() or "").strip()
+        initialdir = os.path.dirname(cur) if cur and os.path.isfile(cur) else None
+        path = filedialog.askopenfilename(
+            title="Select GNU Octave CLI executable",
+            filetypes=filetypes,
+            initialdir=initialdir,
+        )
+        restore_main_window_focus(self.tab)
+        if path:
+            self._octave_path_var.set(path)
+
+    def _octave_clear_path(self) -> None:
+        if self._octave_path_var is None:
+            return
+        self._octave_path_var.set("")
+
+    def _octave_save_path(self) -> None:
+        if self._octave_path_var is None:
+            return
+        raw = (self._octave_path_var.get() or "").strip()
+        if raw and not os.path.isfile(raw):
+            messagebox.showerror(
+                "Octave path",
+                f"File not found:\n{raw}",
+                parent=self.tab,
+            )
+            return
+        app_config.current["octave_executable"] = raw
+        try:
+            app_config.save(app_config.current)
+        except OSError as e:
+            messagebox.showerror("Save failed", str(e), parent=self.tab)
+            return
+        messagebox.showinfo(
+            "Octave path",
+            "Saved. OMX will use this executable on the next load.",
+            parent=self.tab,
+        )
 
     def _register_busy_lock_entries(self) -> None:
         if self.heavy_job is None:

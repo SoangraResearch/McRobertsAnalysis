@@ -44,7 +44,7 @@ os.chdir(os.path.dirname(os.path.abspath(__file__)))
 # Create the main window
 root = tk.Tk()
 root.title("McRoberts Analysis")
-root.geometry("1000x700")
+root.geometry("1000x800")
 ensure_gui_style(root)
 
 _settings_warn = app_config.load_into_current()
@@ -76,6 +76,7 @@ heavy_job_status_frame.pack(side=tk.BOTTOM, fill=tk.X)
 heavy_job = HeavyJobRunner(root, heavy_job_status_frame)
 
 tab1_controller = Tab1Controller(tab1, heavy_job)
+tab1_controller.build_octave_section()
 tab2_controller = Tab2Controller(tab2)
 tab3_controller = Tab3Controller(tab3, heavy_job)
 tab5_controller = Tab5Controller(tab5)
