@@ -28,7 +28,9 @@ Make a note of where Octave is installed.
 
 The PyInstaller builds **do not include GNU Octave**. You still need Octave installed on the computer.
 
-Double-clicking the **Windows `.exe`** or **macOS `.app`** starts a process with a **limited environment** (often a short `PATH`). If OMX load fails with an Octave error, set **`OCTAVE_EXECUTABLE`** to the full path of **`octave-cli`** (Windows: `octave-cli.exe`) as a **user-level** environment variable, then sign out and back in (or restart). The app also tries common install locations on Windows; see `Main/OMX_To_CSV.py` if you need details.
+Double-clicking the **Windows `.exe`** or **macOS `.app`** starts a process with a **limited environment** (often a short `PATH`). Easiest fix: in the GUI **Select Data** tab, use **GNU Octave (required for .OMX)** — **Browse…** to `octave-cli` (Windows: `octave-cli.exe`), then **Save path**. That value is stored in **`~/.mcroberts_analysis/settings.json`** (your home directory) and is used before auto-detection.
+
+Alternatively, set **`OCTAVE_EXECUTABLE`** to the full path of **`octave-cli`** as a **user-level** environment variable, then sign out and back in (or restart). The app also tries common install locations on Windows; see `Main/OMX_To_CSV.py` if you need details.
 
 ## Desktop builds (PyInstaller)
 
@@ -48,7 +50,11 @@ Workflow: **`.github/workflows/build-desktop-apps.yml`** (“Build desktop apps�
   - **McRoberts-Analysis-Windows** — Windows build folder (as uploaded from `dist/McRoberts Analysis/`).
   - **McRoberts-Analysis-macOS** — **ZIP** of the `.app` (zip keeps the bundle intact when unzipping).
 
-**Note:** Workflow artifacts use GitHub’s **retention limit** (they expire after a set period). For long-lived download links, attach the same files to a **GitHub Release** when you publish a version.
+**Note:** Workflow artifacts use GitHub’s **retention limit** (they expire after a set period).
+
+### GitHub Releases (recommended for end users)
+
+For **stable download links** that do not auto-expire like Actions artifacts, publish a **[GitHub Release](https://docs.github.com/en/repositories/releasing-projects-on-github/about-releases)** and attach the same build outputs (Windows folder zipped if needed, macOS `.zip` of the `.app`). Point collaborators and manuals to the **Releases** page instead of asking them to dig through **Actions** history.
 
 The CI jobs use **Python 3.11** and install PyInstaller plus the Python dependencies listed in that workflow file (they must stay in sync with what the GUI needs).
 
