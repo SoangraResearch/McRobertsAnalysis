@@ -21,15 +21,20 @@ from matplotlib.figure import Figure
 from datetime import datetime, timedelta
 from oct2py import Oct2Py
 
+from Main import app_config
+
 
 def _resolve_octave_executable():
     """Path to Octave for Oct2Py (.app / GUI convenience only).
 
-    Does not alter OMX results—only which Octave binary is launched. macOS .app
-    bundles started from Finder inherit a minimal PATH, so Homebrew Octave is
-    often invisible unless we probe standard locations or the user sets
-    OCTAVE_EXECUTABLE (see Main/README.md).
+    Does not alter OMX results—only which Octave binary is launched. Order:
+    saved GUI path (``app_config.current``), env vars, PATH, then platform
+    probes (see Main/README.md).
     """
+    saved = (app_config.current.get("octave_executable") or "").strip()
+    if saved and os.path.isfile(saved):
+        return saved
+
     for key in ("OCTAVE_EXECUTABLE", "OCTAVE"):
         p = os.environ.get(key)
         if not p:
