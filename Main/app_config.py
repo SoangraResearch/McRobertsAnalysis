@@ -1,8 +1,8 @@
 """Application settings: defaults, merge, and JSON persistence.
 
-Analysis code will read from :data:`current` after later commits wire it in.
-Defaults mirror literals in ``Main/GUI_Tabs/Tab3/Analysis_code.py`` as of this
-module's introduction.
+Analysis code reads from :data:`current`. Nested defaults mirror
+``Main/GUI_Tabs/Tab3/Analysis_code.py``. ``octave_executable`` is the optional
+full path to ``octave-cli`` for OMX (empty string = auto-detect).
 """
 
 from __future__ import annotations
@@ -52,6 +52,8 @@ DEFAULTS: JsonDict = {
         "set_para": "radius",
         "set_value": 1,
     },
+    # Full path to octave-cli; persisted for frozen apps with minimal PATH.
+    "octave_executable": "",
 }
 
 current: JsonDict = copy.deepcopy(DEFAULTS)

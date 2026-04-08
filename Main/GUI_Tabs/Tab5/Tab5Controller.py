@@ -120,8 +120,10 @@ class Tab5Controller:
         except ValueError as e:
             messagebox.showerror("Invalid settings", str(e), parent=self.tab)
             return
-        for key in app_config.DEFAULTS:
-            app_config.current[key] = copy.deepcopy(parsed[key])
+        # Only update keys this tab edits so other DEFAULTS (e.g. octave_executable)
+        # are not dropped or required in _parse_all().
+        for key, val in parsed.items():
+            app_config.current[key] = copy.deepcopy(val)
         try:
             app_config.save(app_config.current)
         except OSError as e:
