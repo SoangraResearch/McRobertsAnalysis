@@ -11,6 +11,7 @@ tree is used—only how the process finds Octave and those files on disk.
 import inspect
 import sys
 import os
+from typing import Callable, Optional
 import atexit
 import shutil
 import time
@@ -101,7 +102,10 @@ def _resolve_octave_executable():
     return None
 
 
-def process_omx_file(filepath: str):
+def process_omx_file(
+    filepath: str,
+    progress: Optional[Callable[[int], None]] = None,
+):
     # .app support: resolve repo/bundle root for oc.addpath only (same MATLAB
     # code; no change to extracted acceleration values vs dev when paths match).
     if getattr(sys, 'frozen', False):
@@ -142,7 +146,7 @@ def process_omx_file(filepath: str):
     filename = os.path.splitext(os.path.basename(filepath))[0]
 
     info = _read_file_info(oc, filepath)
-    data = _read_acceleration_data(oc, filepath, info)
+    data = _read_acceleration_data(oc, filepath, info, progress=progress)
 
     return data, filename
 
@@ -165,7 +169,12 @@ def _read_file_info(oc, filepath):
     print(f"Read info in {toc - tic:.4f} seconds")
     return info
 
-def _read_acceleration_data(oc, filepath, info):
+def _read_acceleration_data(
+    oc,
+    filepath,
+    info,
+    progress: Optional[Callable[[int], None]] = None,
+):
     import numpy as np
     import time
 
@@ -212,7 +221,11 @@ def _read_acceleration_data(oc, filepath, info):
 
         chunk_packet_info = packet_info[start_idx:end_idx]
 
+        pct = int(100 * (i + 1) / n_chunks)
+
         if len(chunk_packet_info) < 2:
+            if progress:
+                progress(pct, i + 1, n_chunks)
             continue
 
         try:
@@ -235,7 +248,9 @@ def _read_acceleration_data(oc, filepath, info):
         except Exception:
             pass
 
-        print(f"Reading chunk: {100*(i+1)/n_chunks:.0f}%")
+        print(f"Reading chunk: {pct}%")
+        if progress:
+            progress(pct, i + 1, n_chunks)
 
     toc = time.perf_counter()
 

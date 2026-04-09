@@ -36,6 +36,9 @@ class HeavyJobRunner:
         )
 
         self._busy = False
+        self._busy_base_message: str = ""
+        self._determinate_job: bool = False
+        self._progress_animation_active: bool = False
         self._disable_widgets: List[tk.Widget] = []
         self._entry_state_restore: Dict[int, str] = {}
         self._success_after_id: Optional[str] = None
@@ -68,6 +71,118 @@ class HeavyJobRunner:
 
         self.schedule_main(apply)
 
+    def schedule_progress(self, percent: int) -> None:
+        """Thread-safe: set determinate progress 0–100.
+
+        Only moves the bar; the label is controlled by set_busy_base_message().
+        No-op unless a determinate job is active (see run(..., determinate=True)).
+        """
+        pct = max(0, min(100, int(percent)))
+
+        def apply() -> None:
+            if not self._busy or not self._determinate_job:
+                return
+            try:
+                self._progress.configure(value=pct)
+            except tk.TclError:
+                pass
+
+        if threading.current_thread() is threading.main_thread():
+            apply()
+            try:
+                self.root.update()
+            except tk.TclError:
+                pass
+        else:
+            self.schedule_main(apply)
+
+    def set_busy_base_message(self, message: str) -> None:
+        """Thread-safe: change the status label text (e.g. after worker phase)."""
+
+        def apply() -> None:
+            if not self._busy or not self._determinate_job:
+                return
+            self._busy_base_message = message
+            try:
+                self._label.configure(text=message, style=self._label_style_normal)
+            except tk.TclError:
+                self._label.configure(text=message)
+
+        if threading.current_thread() is threading.main_thread():
+            apply()
+            try:
+                self.root.update()
+            except tk.TclError:
+                pass
+        else:
+            self.schedule_main(apply)
+
+    def release_success(
+        self,
+        message: str = "✓ Complete",
+        *,
+        flash_ms: int | None = None,
+    ) -> None:
+        """End a determinate job that used deferred_finalize (main thread or via schedule_main).
+
+        Call after on_success finishes any extra main-thread work (e.g. building plots).
+        *flash_ms* overrides _SUCCESS_FLASH_MS for this one message.
+        """
+        if not self._busy:
+            return
+
+        def apply() -> None:
+            if not self._busy:
+                return
+            self._present_success_ui(message, flash_ms=flash_ms)
+
+        self.schedule_main(apply)
+
+    def _present_success_ui(
+        self,
+        message: str,
+        *,
+        flash_ms: int | None = None,
+    ) -> None:
+        if self._success_after_id is not None:
+            try:
+                self.root.after_cancel(self._success_after_id)
+            except (tk.TclError, ValueError):
+                pass
+            self._success_after_id = None
+
+        if self._progress_animation_active:
+            self._progress.stop()
+        self._progress_animation_active = False
+        self._determinate_job = False
+        self._progress.pack_forget()
+        try:
+            self._label.configure(text=message, style=self._label_style_success)
+        except tk.TclError:
+            self._label.configure(text=message)
+
+        self._busy = False
+        try:
+            self.root.configure(cursor="")
+        except tk.TclError:
+            pass
+        self._apply_widget_states(disabled=False)
+        self.root.update_idletasks()
+
+        def clear_success() -> None:
+            self._success_after_id = None
+            try:
+                self._label.pack_forget()
+                self._label.configure(text="", style=self._label_style_normal)
+            except tk.TclError:
+                pass
+            self.root.update_idletasks()
+
+        self._success_after_id = self.root.after(
+            flash_ms if flash_ms is not None else _SUCCESS_FLASH_MS,
+            clear_success,
+        )
+
     @property
     def is_busy(self) -> bool:
         return self._busy
@@ -78,8 +193,22 @@ class HeavyJobRunner:
         worker: Callable[[], Any],
         on_success: Optional[Callable[[Any], None]] = None,
         on_error: Optional[Callable[[str], None]] = None,
+        *,
+        determinate: bool = False,
+        deferred_finalize: bool = False,
     ) -> bool:
-        """Start *worker* in a daemon thread. Returns False if already busy."""
+        """Start *worker* in a daemon thread. Returns False if already busy.
+
+        If *determinate* is True, use a 0–100 progress bar; the worker may call
+        schedule_progress(percent) from a background thread.
+
+        If *deferred_finalize* is True, the busy UI stays up after the worker
+        returns; *on_success* must end by calling release_success() on the main
+        thread (e.g. after plotting). Implies *determinate* if not set.
+        """
+        if deferred_finalize:
+            determinate = True
+
         if self._busy:
             messagebox.showwarning(
                 "Busy",
@@ -87,14 +216,17 @@ class HeavyJobRunner:
             )
             return False
 
-        self._show_busy(message)
+        self._show_busy(message, determinate=determinate)
 
         def wrap() -> None:
             try:
                 result = worker()
 
                 def finish_ok() -> None:
-                    self._finish_busy_success(on_success, result)
+                    if deferred_finalize:
+                        self._finish_worker_deferred(on_success, result)
+                    else:
+                        self._finish_busy_success(on_success, result)
 
                 self.schedule_main(finish_ok)
             except Exception:
@@ -113,9 +245,28 @@ class HeavyJobRunner:
         threading.Thread(target=wrap, daemon=True).start()
         return True
 
+    def _finish_worker_deferred(
+        self,
+        on_success: Optional[Callable[[Any], None]],
+        result: Any,
+    ) -> None:
+        """Worker finished; keep busy UI for main-thread follow-up (e.g. plot build)."""
+
+        def run_followup() -> None:
+            try:
+                if on_success is not None:
+                    on_success(result)
+            except Exception:
+                traceback.print_exc()
+                err_msg = str(sys.exc_info()[1])
+                self._finish_busy()
+                messagebox.showerror("Error", err_msg)
+
+        self.schedule_main(run_followup)
+
     # --- internals ---
 
-    def _show_busy(self, message: str) -> None:
+    def _show_busy(self, message: str, *, determinate: bool = False) -> None:
         if self._success_after_id is not None:
             try:
                 self.root.after_cancel(self._success_after_id)
@@ -124,13 +275,25 @@ class HeavyJobRunner:
             self._success_after_id = None
 
         self._busy = True
+        self._busy_base_message = message
+        self._determinate_job = determinate
+        self._progress_animation_active = False
         try:
             self._label.configure(text=message, style=self._label_style_normal)
         except tk.TclError:
             self._label.configure(text=message)
         self._label.pack(fill=tk.X, padx=6, pady=(4, 0))
         self._progress.pack(fill=tk.X, padx=6, pady=(0, 4))
-        self._progress.start(12)
+        try:
+            self._progress.stop()
+        except tk.TclError:
+            pass
+        if determinate:
+            self._progress.configure(mode="determinate", maximum=100, value=0)
+        else:
+            self._progress.configure(mode="indeterminate")
+            self._progress.start(12)
+            self._progress_animation_active = True
         try:
             self.root.configure(cursor="watch")
         except tk.TclError:
@@ -143,37 +306,7 @@ class HeavyJobRunner:
         on_success: Optional[Callable[[Any], None]],
         result: Any,
     ) -> None:
-        self._progress.stop()
-        self._progress.pack_forget()
-        try:
-            self._label.configure(
-                text="✓ Complete",
-                style=self._label_style_success,
-            )
-        except tk.TclError:
-            self._label.configure(text="✓ Complete")
-
-        self._busy = False
-        try:
-            self.root.configure(cursor="")
-        except tk.TclError:
-            pass
-        self._apply_widget_states(disabled=False)
-        self.root.update_idletasks()
-
-        # Schedule clear as soon as the worker finishes — before on_success. Tab 3 runs
-        # modal dialogs and slow UI in on_success; deferring this until after on_success
-        # returned made the checkmark look "stuck" compared to Select Data (fast on_success).
-        def clear_success() -> None:
-            self._success_after_id = None
-            try:
-                self._label.pack_forget()
-                self._label.configure(text="", style=self._label_style_normal)
-            except tk.TclError:
-                pass
-            self.root.update_idletasks()
-
-        self._success_after_id = self.root.after(_SUCCESS_FLASH_MS, clear_success)
+        self._present_success_ui("✓ Complete")
 
         if on_success is not None:
             on_success(result)
@@ -186,7 +319,10 @@ class HeavyJobRunner:
                 pass
             self._success_after_id = None
 
-        self._progress.stop()
+        if self._progress_animation_active:
+            self._progress.stop()
+        self._progress_animation_active = False
+        self._determinate_job = False
         self._progress.pack_forget()
         self._label.pack_forget()
         try:

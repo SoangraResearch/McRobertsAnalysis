@@ -12,6 +12,9 @@ from Main.GUI_Tabs.gui_style import make_action_button, restore_main_window_focu
 from Main.GUI_Tabs.Tab1.Acceleration_Plot import PlotOMX
 from datetime import datetime
 
+# OMX Octave read vs acceleration-plot prep: bar share (plot phase is usually shorter).
+_OMX_LOAD_PROGRESS_SHARE = 85
+
 class Tab1Controller:
     def __init__(self, tab_frame, heavy_job=None):
         self.tab = tab_frame
@@ -104,18 +107,51 @@ class Tab1Controller:
 
         def apply_loaded(result):
             self.data, self.filename = result
-            self.acceleration_plot = PlotOMX(self.data, self.filename, plot_frame_OMX)
+            n_samples = len(self.data["ACC"])
+            share = _OMX_LOAD_PROGRESS_SHARE
+
+            if self.heavy_job is not None:
+                self.heavy_job.set_busy_base_message("Building acceleration plot…")
+                self.heavy_job.schedule_progress(share)
+
+                def plot_progress(p: int) -> None:
+                    self.heavy_job.schedule_progress(
+                        share + int(p * (100 - share) / 100)
+                    )
+
+                plot_kw = {"progress": plot_progress}
+            else:
+                plot_kw = {}
+
+            self.acceleration_plot = PlotOMX(
+                self.data, self.filename, plot_frame_OMX, **plot_kw
+            )
             self._update_time_vars()
             start_dt, stop_dt = self.acceleration_plot.get_current_bounds()
             self.file_start_time.set(start_dt.strftime("%Y-%m-%d %H:%M:%S"))
             self.file_stop_time.set(stop_dt.strftime("%Y-%m-%d %H:%M:%S"))
             self.acceleration_plot.register_view_change_callback(self._update_time_vars)
 
+            if self.heavy_job is not None:
+                self.heavy_job.release_success(
+                    f"✓ Loaded {n_samples:,} samples", flash_ms=7000
+                )
+
         if self.heavy_job:
+            def omx_progress(p: int, chunk: int = 0, total: int = 0) -> None:
+                if chunk and total:
+                    self.heavy_job.set_busy_base_message(
+                        f"Reading OMX data… chunk {chunk}/{total}"
+                    )
+                self.heavy_job.schedule_progress(
+                    int(p * _OMX_LOAD_PROGRESS_SHARE / 100)
+                )
+
             self.heavy_job.run(
                 "Loading OMX file…",
-                lambda: process_omx_file(file_path),
+                lambda: process_omx_file(file_path, progress=omx_progress),
                 on_success=apply_loaded,
+                deferred_finalize=True,
             )
         else:
             apply_loaded(process_omx_file(file_path))

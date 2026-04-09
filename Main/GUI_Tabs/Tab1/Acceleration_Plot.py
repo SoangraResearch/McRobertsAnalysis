@@ -1,4 +1,5 @@
 import tkinter as tk
+from typing import Callable, Optional
 
 from Main.GUI_Tabs.gui_style import make_action_button
 import numpy as np
@@ -11,7 +12,13 @@ from OMX_To_CSV import matlab_datenum_to_datetime
 
 
 class PlotOMX:
-    def __init__(self, data, filename, parent_widget):
+    def __init__(
+        self,
+        data,
+        filename,
+        parent_widget,
+        progress: Optional[Callable[[int], None]] = None,
+    ):
         self.data = data
         self.filename = filename
         self.parent = parent_widget
@@ -35,11 +42,10 @@ class PlotOMX:
         self.raw_timestamps = self.data['ACC'][:, 0]
         self.raw_y = self.data['ACC'][:, 1:4]
 
-        # Convert all timestamps to datetime for bounds calculation
-        all_datetimes = [matlab_datenum_to_datetime(ts) for ts in self.raw_timestamps]
-
         # Precompute all datetime values
-        self.raw_datetimes = self._convert_timestamps_chunked(self.raw_timestamps)
+        self.raw_datetimes = self._convert_timestamps_chunked(
+            self.raw_timestamps, progress_callback=progress
+        )
 
         self.max_points = 5000
         self.n_raw = len(self.raw_datetimes)
@@ -346,28 +352,37 @@ class PlotOMX:
         dt_snapped = dt.replace(microsecond=0)
         return mdates.date2num(dt_snapped)
     
-    def _convert_timestamps_chunked(self, timestamps, chunk_size=10000):
+    def _convert_timestamps_chunked(
+        self,
+        timestamps,
+        chunk_size=10000,
+        progress_callback: Optional[Callable[[int], None]] = None,
+    ):
         total_timestamps = len(timestamps)
         datetimes = []
         last_reported_percent = -1
-        
+
         print(f"Converting {total_timestamps:,} timestamps...")
-        
+
         for i in range(0, total_timestamps, chunk_size):
             chunk = timestamps[i:i + chunk_size]
             chunk_datetimes = [
-                matlab_datenum_to_datetime(ts).replace(tzinfo=None) 
+                matlab_datenum_to_datetime(ts).replace(tzinfo=None)
                 for ts in chunk
             ]
             datetimes.extend(chunk_datetimes)
-            
+
             progress_count = min(i + chunk_size, total_timestamps)
             progress_percent = (progress_count / total_timestamps) * 100
-            
+
             current_milestone = int(progress_percent // 10) * 10
             if current_milestone > last_reported_percent and current_milestone > 0:
                 print(f"{current_milestone}% done")
                 last_reported_percent = current_milestone
-        
+                if progress_callback is not None:
+                    progress_callback(current_milestone)
+
         print("100% done - Timestamp conversion complete!")
+        if progress_callback is not None:
+            progress_callback(100)
         return np.array(datetimes)
