@@ -296,7 +296,9 @@ def nonlinear_analysis(
         progress_instrument: Optional recorder that forwards messages to the GUI
             callback and logs timed events for ETA (see
             :class:`NonlinearProgressInstrument`). When set, ``progress_callback``
-            is ignored for messages emitted via the instrument.
+            is ignored for messages emitted via the instrument. After walking
+            bouts are known, users see a short detection summary before per-bout
+            steps begin.
         settings: Optional settings dict (defaults to :data:`Main.app_config.current`).
 
     Returns:
@@ -371,6 +373,7 @@ def nonlinear_analysis(
                 total_resampled_samples=0,
                 total_walking_samples=0,
             )
+        _notify("No walking periods detected.")
         empty_df = pd.DataFrame(columns=['walking_index','start_index', 'end_index','delay','dimension','Ap_en','Samp_en','Sym_en',
                                 'Permu_en','LyEl_R','LyEs_R','Lye_W','REC','DET','MeanL','MaxL',
                                 'EntrL','LAM','MeanV','MaxV','EntrV','EntrW','RCMSE','CMSE','MSE','MSE_SCALE1','MSE_SCALE2'])
@@ -411,6 +414,13 @@ def nonlinear_analysis(
             total_resampled_samples=int(len(resampled_res_acc)),
             total_walking_samples=total_walking_samples,
         )
+
+    walking_duration_s = float(total_walking_samples) / float(fs_HS_TO)
+    bout_word = "bout" if num_periods == 1 else "bouts"
+    _notify(
+        f"Detected {num_periods} walking {bout_word} (~{walking_duration_s:.0f}s of data). "
+        f"Estimating time remaining; more accurate after the first bout."
+    )
 
     for i in range(num_periods):
         print("iterating through walking. Index: ", i)
