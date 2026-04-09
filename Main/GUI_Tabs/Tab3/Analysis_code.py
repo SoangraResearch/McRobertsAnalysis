@@ -1,4 +1,5 @@
 import copy
+import os
 from typing import Any, Dict, Optional
 
 import pandas as pd
@@ -8,6 +9,7 @@ from scipy.signal import resample
 # nonlinear_plot moved to Tab3Controller — plots must be built on the main thread
 from Main import app_config
 from Main.GUI_Tabs.Tab3.Analysis_Plots import linear_plot
+from Main.GUI_Tabs.Tab3.nonlinear_progress_instrument import NonlinearProgressInstrument
 from Non_GUI.Analysis_Code.gait_functions.walking import find_walking
 from Non_GUI.Analysis_Code.gait_functions.hs_to_detection import get_hs_to_wavelet # function to detect heal strike and toe off from the walking data
 from Non_GUI.Analysis_Code.gait_functions.hs_to_detection import gait_parameters  # function to calculate gait parameters from heal strike and toe off
@@ -274,7 +276,13 @@ def _linear_plot_payload(
         "invalid_hs_times": invalid_hs_times,
     }
 
-def nonlinear_analysis(filename, assume_walking=False, progress_callback=None, settings=None):
+def nonlinear_analysis(
+    filename,
+    assume_walking=False,
+    progress_callback=None,
+    progress_instrument: Optional[NonlinearProgressInstrument] = None,
+    settings=None,
+):
     """Runs nonlinear analysis on a background thread.
 
     Returns raw plot data (dicts) instead of Matplotlib figures, because
@@ -285,12 +293,24 @@ def nonlinear_analysis(filename, assume_walking=False, progress_callback=None, s
         filename: Path to CSV with acceleration data (Ax, Ay, Az).
         assume_walking: If True, treats the entire file as one walking period.
         progress_callback: Optional function(str) for live GUI status updates.
+        progress_instrument: Optional recorder that forwards messages to the GUI
+            callback and logs timed events for ETA (see
+            :class:`NonlinearProgressInstrument`). When set, ``progress_callback``
+            is ignored for messages emitted via the instrument.
         settings: Optional settings dict (defaults to :data:`Main.app_config.current`).
 
     Returns:
         (DataFrame, list[dict]): Results table and raw LyE plot data per period.
     """
     cfg = _settings_copy(settings)
+    if progress_instrument is not None:
+        progress_instrument.mark_run_start()
+
+    def _notify(msg: str) -> None:
+        if progress_instrument is not None:
+            progress_instrument.notify(msg)
+        elif progress_callback is not None:
+            progress_callback(msg)
     wcfg = cfg["walking"]
     ps = cfg["phase_space"]
     ent = cfg["entropy"]
@@ -344,9 +364,20 @@ def nonlinear_analysis(filename, assume_walking=False, progress_callback=None, s
 
     if len(walking) == 0:
         print("No walking periods found. Returning empty results.")
+        if progress_instrument is not None:
+            progress_instrument.mark_bouts_resolved(
+                num_periods=0,
+                assume_walking=assume_walking,
+                total_resampled_samples=0,
+                total_walking_samples=0,
+            )
         empty_df = pd.DataFrame(columns=['walking_index','start_index', 'end_index','delay','dimension','Ap_en','Samp_en','Sym_en',
                                 'Permu_en','LyEl_R','LyEs_R','Lye_W','REC','DET','MeanL','MaxL',
                                 'EntrL','LAM','MeanV','MaxV','EntrV','EntrW','RCMSE','CMSE','MSE','MSE_SCALE1','MSE_SCALE2'])
+        if progress_instrument is not None and os.environ.get(
+            "MCROBERTS_DEBUG_NONLINEAR_TIMING"
+        ):
+            print(progress_instrument.summary_line())
         return empty_df, []
 
     # Display the results
@@ -370,20 +401,32 @@ def nonlinear_analysis(filename, assume_walking=False, progress_callback=None, s
     plots = []
 
     num_periods = len(walking)
+    total_walking_samples = int(
+        sum(int(walking[j, 1]) - int(walking[j, 0]) for j in range(num_periods))
+    )
+    if progress_instrument is not None:
+        progress_instrument.mark_bouts_resolved(
+            num_periods=num_periods,
+            assume_walking=assume_walking,
+            total_resampled_samples=int(len(resampled_res_acc)),
+            total_walking_samples=total_walking_samples,
+        )
+
     for i in range(num_periods):
         print("iterating through walking. Index: ", i)
         walk_start = walking[i,0]
         walk_end= walking[i,1]
         data = resampled_res_acc[walk_start:walk_end]
 
-        if progress_callback:
-            progress_callback(f"Period {i+1}/{num_periods}: Computing AMI...")
+        if progress_instrument is not None:
+            progress_instrument.mark_bout_start(i, num_periods, int(len(data)))
+
+        _notify(f"Period {i+1}/{num_periods}: Computing AMI...")
         #Calculate delay from Stergiou
         tau, V_ami = AMI_Stergiou(data, int(ps["ami_max_lag"]))
         print("AMI_Stergiou calculated")
         delay = int(tau[0][0])
-        if progress_callback:
-            progress_callback(f"Period {i+1}/{num_periods}: Computing FNN...")
+        _notify(f"Period {i+1}/{num_periods}: Computing FNN...")
         #Calculate dimensions from fnn
         # Parameters for fnn function
         MaxDim = int(ps["fnn_max_dim"])
@@ -393,8 +436,7 @@ def nonlinear_analysis(filename, assume_walking=False, progress_callback=None, s
         ans = FNN(data, delay, MaxDim, Rtol, Atol, speed)
         print("FNN calculated")
         dim = ans[1]  #dimension
-        if progress_callback:
-            progress_callback(f"Period {i+1}/{num_periods}: Computing entropies...")
+        _notify(f"Period {i+1}/{num_periods}: Computing entropies...")
         # Approximate entropy
         r = float(ent["r"])
         AE = Ent_Ap(data, dim, r)
@@ -421,8 +463,7 @@ def nonlinear_analysis(filename, assume_walking=False, progress_callback=None, s
         '''
         [permEnt_value,hist_value] = Ent_Permu(data, m, delay)
         print("ENT_Permu calculated")
-        if progress_callback:
-            progress_callback(f"Period {i+1}/{num_periods}: Computing LyE_R...")
+        _notify(f"Period {i+1}/{num_periods}: Computing LyE_R...")
         #LyE_Rosenstein
         name = "test"
         slope = [int(x) for x in ly["rosenstein_slope_periods"]]
@@ -438,14 +479,12 @@ def nonlinear_analysis(filename, assume_walking=False, progress_callback=None, s
             'LyEL': LyEL, 'timeL': timeL, 'LyELline': LyELline
         }
         plots.append(plot_data)
-        if progress_callback:
-            progress_callback(f"Period {i+1}/{num_periods}: Computing LyE_W...")
+        _notify(f"Period {i+1}/{num_periods}: Computing LyE_W...")
         #largest lyapunov exponent
         evolve = int(ly["wolf_evolve"])
         [out,lye] = LyE_W(data, fs_HS_TO, delay, dim, evolve)
         print("LYE_W calculated")
-        if progress_callback:
-            progress_callback(f"Period {i+1}/{num_periods}: Computing RQA...")
+        _notify(f"Period {i+1}/{num_periods}: Computing RQA...")
         # RQA
         TYPE = 'RQA'
         ZSCORE = int(rq["zscore"])
@@ -469,8 +508,7 @@ def nonlinear_analysis(filename, assume_walking=False, progress_callback=None, s
         EntrV=rqa_RESULTS[0]['EntrV']
         EntrW=rqa_RESULTS[0]['EntrW']
 
-        if progress_callback:
-            progress_callback(f"Period {i+1}/{num_periods}: Computing MSE...")
+        _notify(f"Period {i+1}/{num_periods}: Computing MSE...")
 
         mse_scale = int(ent["mse_max_scale"])
         r_mse = float(ent["r"])
@@ -522,6 +560,14 @@ def nonlinear_analysis(filename, assume_walking=False, progress_callback=None, s
 
         df2 = pd.concat([df2, new_row], ignore_index=True)
 
+        if progress_instrument is not None:
+            progress_instrument.mark_bout_end(i, num_periods)
+
+    if progress_instrument is not None and os.environ.get(
+        "MCROBERTS_DEBUG_NONLINEAR_TIMING"
+    ):
+        print(progress_instrument.summary_line())
+
     print("returning non-linear analysis")
     return df2, plots
 
@@ -561,7 +607,6 @@ def _walking_period_detection(cad, fs_HS_TO=100):
             walking_periods.append([start_indices[i], stop_indices[i]])
     
     return np.array(walking_periods) if walking_periods else np.array([]).reshape(0, 2)
-
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt

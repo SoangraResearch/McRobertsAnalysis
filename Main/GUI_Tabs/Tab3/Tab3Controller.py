@@ -7,6 +7,7 @@ from tkinter import filedialog, messagebox
 from Main import app_config
 from Main.GUI_Tabs.gui_style import make_action_button, restore_main_window_focus
 from Main.GUI_Tabs.Tab3.Analysis_code import linear_analysis, nonlinear_analysis
+from Main.GUI_Tabs.Tab3.nonlinear_progress_instrument import NonlinearProgressInstrument
 from Main.GUI_Tabs.Tab3.Analysis_Plots import (
     display_combined_plots,
     get_current_selected_plot,
@@ -109,10 +110,14 @@ class Tab3Controller:
                 heavy.schedule_status_message(f"Nonlinear: {text}")
 
         def worker():
+            instrument = None
+            if can_status:
+                instrument = NonlinearProgressInstrument(update_progress)
             return nonlinear_analysis(
                 self.file,
                 assume_walking.get(),
-                progress_callback=update_progress if can_status else None,
+                progress_callback=None if instrument else (update_progress if can_status else None),
+                progress_instrument=instrument,
                 settings=app_config.current,
             )
 
@@ -320,10 +325,10 @@ class Tab3Controller:
         return filename
 
     def _load_save_plot_buttons(self, plot_frame):
-        save_current_linear_plot = make_action_button(plot_frame, text="Save Linear Plot", command=lambda: self.save_current_linear_analysis_plot(True, get_current_selected_plot(plot_frame)), font=("Arial", 8))
+        save_current_linear_plot = make_action_button(plot_frame, text="Save Linear Plot", command=lambda: self.save_current_linear_analysis_plot(True, get_current_selected_plot(plot_frame)))
         save_current_linear_plot.place(x=15, y=-35, anchor="sw", relx=0, rely=1)
         
-        save_current_nonlinear_plot = make_action_button(plot_frame, text="Save Nonlinear Plot", command=lambda: self.save_current_nonlinear_analysis_plot(True, get_current_selected_plot(plot_frame)), font=("Arial", 8))
+        save_current_nonlinear_plot = make_action_button(plot_frame, text="Save Nonlinear Plot", command=lambda: self.save_current_nonlinear_analysis_plot(True, get_current_selected_plot(plot_frame)))
         save_current_nonlinear_plot.place(x=-15, y=-35, anchor="se", relx=1, rely=1)
 
     def _get_plot_output_path(self, file_end, output_title):
