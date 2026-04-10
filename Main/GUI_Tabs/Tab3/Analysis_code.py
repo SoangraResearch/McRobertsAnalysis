@@ -297,8 +297,9 @@ def nonlinear_analysis(
             callback and logs timed events for ETA (see
             :class:`NonlinearProgressInstrument`). When set, ``progress_callback``
             is ignored for messages emitted via the instrument. After walking
-            bouts are known, users see a short detection summary before per-bout
-            steps begin.
+            bouts are known, users see a short detection summary; each
+            ``Period …`` line may include a rough time-left suffix once enough
+            timing samples exist.
         settings: Optional settings dict (defaults to :data:`Main.app_config.current`).
 
     Returns:
@@ -372,6 +373,7 @@ def nonlinear_analysis(
                 assume_walking=assume_walking,
                 total_resampled_samples=0,
                 total_walking_samples=0,
+                walking_bout_samples=[],
             )
         _notify("No walking periods detected.")
         empty_df = pd.DataFrame(columns=['walking_index','start_index', 'end_index','delay','dimension','Ap_en','Samp_en','Sym_en',
@@ -407,19 +409,22 @@ def nonlinear_analysis(
     total_walking_samples = int(
         sum(int(walking[j, 1]) - int(walking[j, 0]) for j in range(num_periods))
     )
+    walking_bout_samples = [
+        int(walking[j, 1]) - int(walking[j, 0]) for j in range(num_periods)
+    ]
     if progress_instrument is not None:
         progress_instrument.mark_bouts_resolved(
             num_periods=num_periods,
             assume_walking=assume_walking,
             total_resampled_samples=int(len(resampled_res_acc)),
             total_walking_samples=total_walking_samples,
+            walking_bout_samples=walking_bout_samples,
         )
 
     walking_duration_s = float(total_walking_samples) / float(fs_HS_TO)
     bout_word = "bout" if num_periods == 1 else "bouts"
     _notify(
-        f"Detected {num_periods} walking {bout_word} (~{walking_duration_s:.0f}s of data). "
-        f"Estimating time remaining; more accurate after the first bout."
+        f"Detected {num_periods} walking {bout_word} (~{walking_duration_s:.0f}s of data)."
     )
 
     for i in range(num_periods):
@@ -431,12 +436,12 @@ def nonlinear_analysis(
         if progress_instrument is not None:
             progress_instrument.mark_bout_start(i, num_periods, int(len(data)))
 
-        _notify(f"Period {i+1}/{num_periods}: Computing AMI...")
+        _notify(f"Period {i+1}/{num_periods}: Running AMI…")
         #Calculate delay from Stergiou
         tau, V_ami = AMI_Stergiou(data, int(ps["ami_max_lag"]))
         print("AMI_Stergiou calculated")
         delay = int(tau[0][0])
-        _notify(f"Period {i+1}/{num_periods}: Computing FNN...")
+        _notify(f"Period {i+1}/{num_periods}: Running FNN…")
         #Calculate dimensions from fnn
         # Parameters for fnn function
         MaxDim = int(ps["fnn_max_dim"])
@@ -446,7 +451,7 @@ def nonlinear_analysis(
         ans = FNN(data, delay, MaxDim, Rtol, Atol, speed)
         print("FNN calculated")
         dim = ans[1]  #dimension
-        _notify(f"Period {i+1}/{num_periods}: Computing entropies...")
+        _notify(f"Period {i+1}/{num_periods}: Running entropies…")
         # Approximate entropy
         r = float(ent["r"])
         AE = Ent_Ap(data, dim, r)
@@ -473,7 +478,7 @@ def nonlinear_analysis(
         '''
         [permEnt_value,hist_value] = Ent_Permu(data, m, delay)
         print("ENT_Permu calculated")
-        _notify(f"Period {i+1}/{num_periods}: Computing LyE_R...")
+        _notify(f"Period {i+1}/{num_periods}: Running LyE_R…")
         #LyE_Rosenstein
         name = "test"
         slope = [int(x) for x in ly["rosenstein_slope_periods"]]
@@ -489,12 +494,12 @@ def nonlinear_analysis(
             'LyEL': LyEL, 'timeL': timeL, 'LyELline': LyELline
         }
         plots.append(plot_data)
-        _notify(f"Period {i+1}/{num_periods}: Computing LyE_W...")
+        _notify(f"Period {i+1}/{num_periods}: Running LyE_W…")
         #largest lyapunov exponent
         evolve = int(ly["wolf_evolve"])
         [out,lye] = LyE_W(data, fs_HS_TO, delay, dim, evolve)
         print("LYE_W calculated")
-        _notify(f"Period {i+1}/{num_periods}: Computing RQA...")
+        _notify(f"Period {i+1}/{num_periods}: Running RQA…")
         # RQA
         TYPE = 'RQA'
         ZSCORE = int(rq["zscore"])
@@ -518,7 +523,7 @@ def nonlinear_analysis(
         EntrV=rqa_RESULTS[0]['EntrV']
         EntrW=rqa_RESULTS[0]['EntrW']
 
-        _notify(f"Period {i+1}/{num_periods}: Computing MSE...")
+        _notify(f"Period {i+1}/{num_periods}: Running MSE…")
 
         mse_scale = int(ent["mse_max_scale"])
         r_mse = float(ent["r"])
@@ -573,10 +578,10 @@ def nonlinear_analysis(
         if progress_instrument is not None:
             progress_instrument.mark_bout_end(i, num_periods)
 
-    if progress_instrument is not None and os.environ.get(
-        "MCROBERTS_DEBUG_NONLINEAR_TIMING"
-    ):
-        print(progress_instrument.summary_line())
+    if progress_instrument is not None:
+        progress_instrument.mark_run_complete()
+        if os.environ.get("MCROBERTS_DEBUG_NONLINEAR_TIMING"):
+            print(progress_instrument.summary_line())
 
     print("returning non-linear analysis")
     return df2, plots
