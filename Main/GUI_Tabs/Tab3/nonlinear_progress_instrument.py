@@ -2,16 +2,24 @@
 
 Displays two time values alongside each step label:
   - **Elapsed**: wall time since the run started (always truthful, only goes up)
-  - **Est. total**: predicted wall time for the entire run (all bouts).
-    Computed and frozen before computation begins when a calibration file exists
-    from a previous run. On the very first run it falls back to locking after
-    the first full bout. The calibration is updated at the end of every run.
+  - **Est. total**: predicted wall time for the entire run (all bouts), frozen
+    after timing data allows a good guess.
+
+  **Multi-bout runs:** calibration is not applied at start (it is biased by short
+  bouts). After the **first** walking bout finishes, we measure each of the seven
+  sub-step durations, then extrapolate later bouts with
+  ``t_k ≈ t_1 * (n_k / n_1) ** p`` per step (stronger ``p`` for RQA/MSE).
+
+  **Single-bout runs:** if ``~/.mcroberts_nonlinear_calibration.json`` exists,
+  estimate is locked immediately from saved rate × planned work; otherwise it
+  locks after the bout completes (``Est. total ≈ elapsed``).
+
+  Calibration is still updated at the end of every run for single-bout use.
 """
 
 from __future__ import annotations
 
 import json
-import os
 import threading
 import time
 from pathlib import Path
@@ -21,6 +29,9 @@ _CALIBRATION_FILE = Path.home() / ".mcroberts_nonlinear_calibration.json"
 
 _STEPS_PER_BOUT = 7
 _TICK_INTERVAL_S = 0.5
+# Single-bout files longer than this (seconds of walking at 100 Hz) skip file calibration
+# at start — short-file rates badly underestimate RQA/MSE cost on long series.
+_LONG_SINGLE_BOUT_MIN_S = 180.0
 
 # Order must match Analysis_code nonlinear step sequence.
 _STEP_ORDER = ("AMI", "FNN", "ENT", "LYE_R", "LYE_W", "RQA", "MSE")
@@ -36,7 +47,7 @@ _STEP_WEIGHT = {
     "MSE": 4.2,
 }
 
-# Nonlinear length scaling. Heavy steps often grow faster than linear.
+# Nonlinear length scaling (used for calibration weighted units).
 _STEP_EXPONENT = {
     "AMI": 1.00,
     "FNN": 1.05,
@@ -45,6 +56,17 @@ _STEP_EXPONENT = {
     "LYE_W": 1.06,
     "RQA": 1.35,
     "MSE": 1.25,
+}
+
+# Extrapolate remaining bouts from first-bout timings (often superlinear in n).
+_EXTRAPOLATE_EXPONENT = {
+    "AMI": 1.00,
+    "FNN": 1.05,
+    "ENT": 1.00,
+    "LYE_R": 1.10,
+    "LYE_W": 1.08,
+    "RQA": 1.95,
+    "MSE": 1.38,
 }
 
 
@@ -79,12 +101,7 @@ def _save_calibration(seconds_per_unit: float) -> None:
 
 
 class NonlinearProgressInstrument:
-    """Global stopwatch + full-run estimated total for nonlinear analysis.
-
-    On the first ever run the estimate locks after the first bout completes.
-    On every subsequent run a saved calibration rate is loaded and the estimate
-    is available immediately — before any computation starts.
-    """
+    """Global stopwatch + frozen estimated total for the full nonlinear run."""
 
     def __init__(self, user_callback: Optional[Callable[[str], None]] = None) -> None:
         self._user = user_callback
@@ -107,6 +124,10 @@ class NonlinearProgressInstrument:
 
         self._walking_bout_samples: List[int] = []
         self._calibration_rate: Optional[float] = _load_calibration()
+
+        self._bout0_step_seconds: Dict[str, float] = {}
+        self._step_start_mono: Optional[float] = None
+        self._single_bout_long: bool = False
 
         self._tick_stop = threading.Event()
         self._tick_thread: Optional[threading.Thread] = None
@@ -182,6 +203,65 @@ class NonlinearProgressInstrument:
 
         self._estimate_locked = True
 
+    def _try_lock_from_first_bout_extrapolation(self) -> None:
+        """After bout 0 ends: set Est. total from measured step times + length scaling."""
+        if self._run_start_mono is None:
+            return
+        elapsed = self._global_elapsed()
+        if elapsed <= 0:
+            return
+
+        n_periods = self._num_periods
+        if n_periods <= 0:
+            return
+
+        if n_periods >= 2:
+            if (
+                len(self._walking_bout_samples) < n_periods
+                or len(self._bout0_step_seconds) < _STEPS_PER_BOUT
+            ):
+                self._compute_and_lock_estimated_total()
+                return
+            n1 = float(self._walking_bout_samples[0])
+            if n1 < 1.0:
+                self._compute_and_lock_estimated_total()
+                return
+            remaining = 0.0
+            for j in range(1, n_periods):
+                nj = float(self._walking_bout_samples[j])
+                ratio = max(nj / n1, 1e-9)
+                for step in _STEP_ORDER:
+                    t1 = self._bout0_step_seconds.get(step)
+                    if t1 is None or t1 <= 0:
+                        continue
+                    p = float(_EXTRAPOLATE_EXPONENT.get(step, 1.0))
+                    remaining += t1 * (ratio**p)
+            self._estimated_total_s = elapsed + max(0.0, remaining)
+            self._estimate_locked = True
+            return
+
+        # Single bout: total time is essentially elapsed when the bout's math is done.
+        self._estimated_total_s = elapsed
+        self._estimate_locked = True
+
+    def _maybe_lock_long_single_bout_midway(self) -> None:
+        """Long single-bout run: lock once after RQA completes (heavy work mostly done)."""
+        if self._num_periods != 1 or not self._single_bout_long:
+            return
+        if self._estimate_locked:
+            return
+        if self._bout_substep_index < 7:
+            return
+        if self._weighted_units_done <= 1e-9 or self._total_weighted_units <= 1e-9:
+            return
+        elapsed = self._global_elapsed()
+        if elapsed <= 0:
+            return
+        self._estimated_total_s = (
+            elapsed / self._weighted_units_done * self._total_weighted_units
+        )
+        self._estimate_locked = True
+
     def _build_suffix(self) -> str:
         elapsed = self._global_elapsed()
         parts = [f"Elapsed {_format_hms(elapsed)}"]
@@ -232,15 +312,27 @@ class NonlinearProgressInstrument:
 
         is_period_line = self._bout_active and message.startswith("Period ")
         if is_period_line:
+            now_mono = time.monotonic()
             self._bout_substep_index += 1
+            if self._current_bout == 0:
+                if self._bout_substep_index == 1:
+                    self._step_start_mono = now_mono
+                elif self._bout_substep_index > 1:
+                    completed_idx = self._bout_substep_index - 1
+                    step_name = self._completed_step_name_from_index(completed_idx)
+                    if self._step_start_mono is not None:
+                        self._bout0_step_seconds[step_name] = max(
+                            now_mono - self._step_start_mono, 1e-6
+                        )
+                    self._step_start_mono = now_mono
             if self._bout_substep_index > 1:
-                # Track completed work for use when the bout ends.
                 completed_idx = self._bout_substep_index - 1
                 step_name = self._completed_step_name_from_index(completed_idx)
                 self._total_substeps_done += 1
                 self._weighted_units_done += self._step_units(
                     step_name, self._current_bout_data_len
                 )
+            self._maybe_lock_long_single_bout_midway()
 
         display = message
         if self._run_start_mono is not None:
@@ -275,6 +367,10 @@ class NonlinearProgressInstrument:
         self._estimated_total_s = None
         self._estimate_locked = False
         self._bout_active = False
+        self._bout0_step_seconds = {}
+        self._step_start_mono = None
+        walk_s = float(total_walking_samples) / 100.0 if total_walking_samples else 0.0
+        self._single_bout_long = int(num_periods) == 1 and walk_s >= _LONG_SINGLE_BOUT_MIN_S
 
         if walking_bout_samples is None:
             self._walking_bout_samples = []
@@ -283,8 +379,10 @@ class NonlinearProgressInstrument:
 
         self._recompute_total_weighted_units()
 
-        # If calibration exists, lock the estimate right now — before any work runs.
-        self._lock_estimate_from_calibration()
+        # Single-bout, not very long: optional immediate lock from saved calibration.
+        # Multi-bout or long single-bout: skip — short-file calibration is misleading.
+        if int(num_periods) < 2 and not self._single_bout_long:
+            self._lock_estimate_from_calibration()
 
         self.events.append(
             {
@@ -330,7 +428,15 @@ class NonlinearProgressInstrument:
                 step_name, self._current_bout_data_len
             )
 
-        self._compute_and_lock_estimated_total()
+        if int(bout_index) == 0:
+            if self._step_start_mono is not None:
+                self._bout0_step_seconds["MSE"] = max(
+                    time.monotonic() - self._step_start_mono, 1e-6
+                )
+                self._step_start_mono = None
+            self._try_lock_from_first_bout_extrapolation()
+        elif not self._estimate_locked:
+            self._compute_and_lock_estimated_total()
 
         self.events.append(
             {
