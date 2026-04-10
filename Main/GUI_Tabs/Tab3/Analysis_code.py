@@ -579,7 +579,7 @@ def nonlinear_analysis(
             progress_instrument.mark_bout_end(i, num_periods)
 
     if progress_instrument is not None:
-        progress_instrument.mark_run_complete()
+        progress_instrument.mark_run_complete(os.path.basename(str(filename)))
         if os.environ.get("MCROBERTS_DEBUG_NONLINEAR_TIMING"):
             print(progress_instrument.summary_line())
 

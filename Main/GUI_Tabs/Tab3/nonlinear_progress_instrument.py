@@ -11,10 +11,15 @@ Displays two time values alongside each step label:
   ``t_k ≈ t_1 * (n_k / n_1) ** p`` per step (stronger ``p`` for RQA/MSE).
 
   **Single-bout runs:** if ``~/.mcroberts_nonlinear_calibration.json`` exists,
-  estimate is locked immediately from saved rate × planned work; otherwise it
-  locks after the bout completes (``Est. total ≈ elapsed``).
+  estimate is locked immediately from saved rate × planned work; long single-bout
+  files can lock midway (after RQA). If there was no prior estimate, we only then
+  set Est. total from elapsed when the bout ends so the UI still reflects a total.
 
   Calibration is still updated at the end of every run for single-bout use.
+
+  When a run finishes, a line is appended to ``~/.mcroberts_nonlinear_run_history.txt``
+  with wall-clock timestamp, optional source filename, elapsed time, and the last
+  frozen **Est. total** (if any), so you can review long runs without watching the GUI.
 """
 
 from __future__ import annotations
@@ -22,10 +27,12 @@ from __future__ import annotations
 import json
 import threading
 import time
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
 _CALIBRATION_FILE = Path.home() / ".mcroberts_nonlinear_calibration.json"
+_RUN_HISTORY_FILE = Path.home() / ".mcroberts_nonlinear_run_history.txt"
 
 _STEPS_PER_BOUT = 7
 _TICK_INTERVAL_S = 0.5
@@ -100,6 +107,36 @@ def _save_calibration(seconds_per_unit: float) -> None:
         pass
 
 
+def _append_run_history(
+    *,
+    elapsed_s: float,
+    estimated_total_s: Optional[float],
+    num_periods: int,
+    source: Optional[str],
+) -> None:
+    """Append one human-readable line for finished runs (silently ignore errors)."""
+    try:
+        ts = datetime.now().astimezone().strftime("%Y-%m-%d %H:%M:%S %Z")
+        el_hms = _format_hms(elapsed_s)
+        if estimated_total_s is not None and estimated_total_s > 0:
+            est_hms = _format_hms(estimated_total_s)
+            delta = estimated_total_s - elapsed_s
+            dsign = "+" if delta >= 0 else "-"
+            delta_hms = _format_hms(abs(delta))
+            est_part = f"est_total={est_hms}  (est−elapsed {dsign}{delta_hms})"
+        else:
+            est_part = "est_total=n/a"
+        src = (source or "").strip() or "unknown"
+        line = (
+            f"{ts}  file={src!r}  walking_bouts={int(num_periods)}  "
+            f"elapsed={el_hms}  {est_part}"
+        )
+        with _RUN_HISTORY_FILE.open("a", encoding="utf-8") as f:
+            f.write(line + "\n")
+    except Exception:
+        pass
+
+
 class NonlinearProgressInstrument:
     """Global stopwatch + frozen estimated total for the full nonlinear run."""
 
@@ -131,6 +168,7 @@ class NonlinearProgressInstrument:
 
         self._tick_stop = threading.Event()
         self._tick_thread: Optional[threading.Thread] = None
+        self._frozen_display: Optional[str] = None
 
     # ---- helpers ----
 
@@ -240,9 +278,11 @@ class NonlinearProgressInstrument:
             self._estimate_locked = True
             return
 
-        # Single bout: total time is essentially elapsed when the bout's math is done.
-        self._estimated_total_s = elapsed
-        self._estimate_locked = True
+        # Single bout: do not replace a locked estimate (calibration or long-bout midway)
+        # with elapsed — that made Est. total equal Elapsed at the end and hid prediction error.
+        if not self._estimate_locked:
+            self._estimated_total_s = elapsed
+            self._estimate_locked = True
 
     def _maybe_lock_long_single_bout_midway(self) -> None:
         """Long single-bout run: lock once after RQA completes (heavy work mostly done)."""
@@ -447,14 +487,25 @@ class NonlinearProgressInstrument:
             }
         )
 
-    def mark_run_complete(self) -> None:
-        """Call this after all bouts finish to save calibration for future runs."""
+    def mark_run_complete(self, source: Optional[str] = None) -> None:
+        """Call this after all bouts finish to save calibration and run history."""
         self._stop_tick()
         elapsed = self._global_elapsed()
         if elapsed > 0 and self._weighted_units_done > 1e-9:
             rate = elapsed / self._weighted_units_done
             _save_calibration(rate)
         self.events.append({"t_s": self._elapsed_s(), "kind": "run_complete"})
+        _append_run_history(
+            elapsed_s=elapsed,
+            estimated_total_s=self._estimated_total_s,
+            num_periods=self._num_periods,
+            source=source,
+        )
+        self._frozen_display = f"Complete | {self._build_suffix()}"
+
+    def frozen_status_text(self) -> Optional[str]:
+        """Last line shown after :meth:`mark_run_complete` (for frozen status UI)."""
+        return self._frozen_display
 
     def summary_line(self) -> str:
         kinds: Dict[str, int] = {}

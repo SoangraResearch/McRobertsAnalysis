@@ -42,6 +42,7 @@ class HeavyJobRunner:
         self._disable_widgets: List[tk.Widget] = []
         self._entry_state_restore: Dict[int, str] = {}
         self._success_after_id: Optional[str] = None
+        self._freeze_progress_on_success: bool = False
 
     def register_disable_widgets(self, *widgets: tk.Widget) -> None:
         """Buttons (and similar) to disable while a job runs."""
@@ -196,6 +197,7 @@ class HeavyJobRunner:
         *,
         determinate: bool = False,
         deferred_finalize: bool = False,
+        freeze_progress_on_success: bool = False,
     ) -> bool:
         """Start *worker* in a daemon thread. Returns False if already busy.
 
@@ -205,6 +207,11 @@ class HeavyJobRunner:
         If *deferred_finalize* is True, the busy UI stays up after the worker
         returns; *on_success* must end by calling release_success() on the main
         thread (e.g. after plotting). Implies *determinate* if not set.
+
+        If *freeze_progress_on_success* is True, on success the progress bar stops
+        at 100% and the label keeps the final message (worker may return
+        ``(payload, "status text")`` to set the label; otherwise *payload* is the
+        worker return value). No auto-clear timer — useful for inspecting timing.
         """
         if deferred_finalize:
             determinate = True
@@ -216,6 +223,7 @@ class HeavyJobRunner:
             )
             return False
 
+        self._freeze_progress_on_success = bool(freeze_progress_on_success)
         self._show_busy(message, determinate=determinate)
 
         def wrap() -> None:
@@ -279,7 +287,9 @@ class HeavyJobRunner:
         self._determinate_job = determinate
         self._progress_animation_active = False
         try:
-            self._label.configure(text=message, style=self._label_style_normal)
+            self._label.configure(
+                text=message, style=self._label_style_normal, wraplength=0
+            )
         except tk.TclError:
             self._label.configure(text=message)
         self._label.pack(fill=tk.X, padx=6, pady=(4, 0))
@@ -301,11 +311,59 @@ class HeavyJobRunner:
         self._apply_widget_states(disabled=True)
         self.root.update_idletasks()
 
+    def _present_frozen_ui(self, message: str) -> None:
+        """Stop animation, full bar, keep label + bar visible (no auto-hide)."""
+        if self._success_after_id is not None:
+            try:
+                self.root.after_cancel(self._success_after_id)
+            except (tk.TclError, ValueError):
+                pass
+            self._success_after_id = None
+
+        if self._progress_animation_active:
+            self._progress.stop()
+        self._progress_animation_active = False
+        self._determinate_job = False
+        try:
+            self._progress.configure(mode="determinate", maximum=100, value=100)
+        except tk.TclError:
+            pass
+        try:
+            self._label.configure(
+                text=message,
+                style=self._label_style_normal,
+                wraplength=920,
+            )
+        except tk.TclError:
+            self._label.configure(text=message)
+        self._busy = False
+        try:
+            self.root.configure(cursor="")
+        except tk.TclError:
+            pass
+        self._apply_widget_states(disabled=False)
+        self.root.update_idletasks()
+
     def _finish_busy_success(
         self,
         on_success: Optional[Callable[[Any], None]],
         result: Any,
     ) -> None:
+        if self._freeze_progress_on_success:
+            payload = result
+            freeze_msg: Optional[str] = None
+            if (
+                isinstance(result, tuple)
+                and len(result) == 2
+                and isinstance(result[1], str)
+            ):
+                payload, freeze_msg = result
+            self._present_frozen_ui(freeze_msg if freeze_msg else "✓ Complete")
+            self._freeze_progress_on_success = False
+            if on_success is not None:
+                on_success(payload)
+            return
+
         self._present_success_ui("✓ Complete")
 
         if on_success is not None:

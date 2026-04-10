@@ -113,13 +113,20 @@ class Tab3Controller:
             instrument = None
             if can_status:
                 instrument = NonlinearProgressInstrument(update_progress)
-            return nonlinear_analysis(
+            result = nonlinear_analysis(
                 self.file,
                 assume_walking.get(),
                 progress_callback=None if instrument else (update_progress if can_status else None),
                 progress_instrument=instrument,
                 settings=app_config.current,
             )
+            if not can_status:
+                return result
+            if instrument is not None:
+                ft = instrument.frozen_status_text()
+                label = f"Nonlinear: {ft}" if ft else "Nonlinear: Complete"
+                return (result, label)
+            return (result, "Nonlinear: Complete")
 
         def on_success(result):
             df, plot_data_list = result
@@ -134,6 +141,7 @@ class Tab3Controller:
                 worker,
                 on_success=on_success,
                 on_error=on_error,
+                freeze_progress_on_success=True,
             ):
                 return
         else:
