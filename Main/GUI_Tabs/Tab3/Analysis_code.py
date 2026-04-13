@@ -294,12 +294,10 @@ def nonlinear_analysis(
         assume_walking: If True, treats the entire file as one walking period.
         progress_callback: Optional function(str) for live GUI status updates.
         progress_instrument: Optional recorder that forwards messages to the GUI
-            callback and logs timed events for ETA (see
+            callback and logs elapsed wall time (see
             :class:`NonlinearProgressInstrument`). When set, ``progress_callback``
-            is ignored for messages emitted via the instrument. After walking
-            bouts are known, users see a short detection summary; each
-            ``Period …`` line may include a rough time-left suffix once enough
-            timing samples exist.
+            is ignored for messages emitted via the instrument. Status lines append
+            an **Elapsed** suffix after the run clock starts.
         settings: Optional settings dict (defaults to :data:`Main.app_config.current`).
 
     Returns:
@@ -308,6 +306,9 @@ def nonlinear_analysis(
     cfg = _settings_copy(settings)
     if progress_instrument is not None:
         progress_instrument.mark_run_start()
+        progress_instrument.notify(
+            "Reading data and detecting walking periods…"
+        )
 
     def _notify(msg: str) -> None:
         if progress_instrument is not None:
