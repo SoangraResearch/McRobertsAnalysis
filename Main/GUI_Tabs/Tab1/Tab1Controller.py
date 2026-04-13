@@ -55,9 +55,10 @@ class Tab1Controller:
         hint = tk.Label(
             lf,
             text=(
-                "Leave blank to auto-detect. If OMX fails to load, browse to Octave's command-line "
-                "executable: octave-cli on macOS/Linux (often Homebrew: /opt/homebrew/bin or /usr/local/bin) "
-                "or octave-cli.exe inside your GNU Octave installation on Windows (typically a mingw64\\bin folder)."
+                "Leave blank to auto-detect. If OMX fails to load, set the full file path to Octave's "
+                "command-line program: octave-cli on macOS/Linux (often Homebrew: /opt/homebrew/bin or "
+                "/usr/local/bin) or octave-cli.exe inside your GNU Octave installation on Windows "
+                "(typically a mingw64\\bin folder)."
             ),
             wraplength=900,
             justify=tk.LEFT,
@@ -66,7 +67,7 @@ class Tab1Controller:
 
         row = tk.Frame(lf)
         row.pack(fill=tk.X)
-        tk.Label(row, text="Executable:").pack(side=tk.LEFT)
+        tk.Label(row, text="File path:").pack(side=tk.LEFT)
         self._octave_path_var = tk.StringVar(
             value=str(app_config.current.get("octave_executable", "") or "")
         )
@@ -262,7 +263,7 @@ class Tab1Controller:
         cur = (self._octave_path_var.get() or "").strip()
         initialdir = os.path.dirname(cur) if cur and os.path.isfile(cur) else None
         path = filedialog.askopenfilename(
-            title="Select GNU Octave CLI executable",
+            title="Select GNU Octave CLI (file path)",
             filetypes=filetypes,
             initialdir=initialdir,
         )
@@ -294,7 +295,7 @@ class Tab1Controller:
             return
         messagebox.showinfo(
             "Octave path",
-            "Saved. OMX will use this executable on the next load.",
+            "Saved. OMX will use this path on the next load.",
             parent=self.tab,
         )
 

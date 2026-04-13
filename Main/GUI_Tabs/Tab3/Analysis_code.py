@@ -297,7 +297,8 @@ def nonlinear_analysis(
             callback and logs elapsed wall time (see
             :class:`NonlinearProgressInstrument`). When set, ``progress_callback``
             is ignored for messages emitted via the instrument. Status lines append
-            an **Elapsed** suffix after the run clock starts.
+            **Elapsed** and **(step/7)** suffixes after the run clock starts (during
+            each bout’s ``Period …`` steps).
         settings: Optional settings dict (defaults to :data:`Main.app_config.current`).
 
     Returns:

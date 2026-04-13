@@ -1,7 +1,7 @@
 """Timing instrument for nonlinear analysis: elapsed stopwatch only.
 
-Displays **Elapsed** (wall time since :meth:`mark_run_start`) alongside status
-messages. No estimated total / ETA.
+Displays **Elapsed** (wall time since :meth:`mark_run_start`) and **(step/7)**
+during each walking bout’s nonlinear sub-steps, alongside status messages.
 
 When a run finishes, a line is appended to ``~/.mcroberts_nonlinear_run_history.txt``
 with wall-clock timestamp, optional source filename, and elapsed time.
@@ -18,6 +18,8 @@ from typing import Any, Callable, Dict, List, Optional
 _RUN_HISTORY_FILE = Path.home() / ".mcroberts_nonlinear_run_history.txt"
 
 _TICK_INTERVAL_S = 0.5
+# Sub-steps per bout; must match Analysis_code nonlinear step sequence count.
+_STEPS_PER_BOUT = 7
 
 
 def _format_hms(seconds: float) -> str:
@@ -68,6 +70,8 @@ class NonlinearProgressInstrument:
         self._tick_stop = threading.Event()
         self._tick_thread: Optional[threading.Thread] = None
         self._frozen_display: Optional[str] = None
+        # 1..7 while on a Period … line during an active bout (for tick + suffix).
+        self._display_bout_step: Optional[int] = None
 
     # ---- helpers ----
 
@@ -83,7 +87,11 @@ class NonlinearProgressInstrument:
 
     def _build_suffix(self) -> str:
         elapsed = self._global_elapsed()
-        return f"Elapsed {_format_hms(elapsed)}"
+        parts = [f"Elapsed {_format_hms(elapsed)}"]
+        if self._display_bout_step is not None:
+            step = max(1, min(_STEPS_PER_BOUT, int(self._display_bout_step)))
+            parts.append(f"({step}/{_STEPS_PER_BOUT})")
+        return " | ".join(parts)
 
     def _send(self, text: str) -> None:
         if self._user is not None:
@@ -129,6 +137,11 @@ class NonlinearProgressInstrument:
         is_period_line = self._bout_active and message.startswith("Period ")
         if is_period_line:
             self._bout_substep_index += 1
+            self._display_bout_step = max(
+                1, min(_STEPS_PER_BOUT, int(self._bout_substep_index))
+            )
+        else:
+            self._display_bout_step = None
 
         display = message
         if self._run_start_mono is not None:
@@ -149,6 +162,7 @@ class NonlinearProgressInstrument:
         self._run_start_mono = now
         self._t0 = now
         self._frozen_display = None
+        self._display_bout_step = None
         self._completed_bouts = 0
         self._bout_active = False
         self._current_bout = 0
@@ -169,6 +183,7 @@ class NonlinearProgressInstrument:
         self._completed_bouts = 0
         self._bout_active = False
         self._bout_substep_index = 0
+        self._display_bout_step = None
 
         self.events.append(
             {
@@ -204,6 +219,7 @@ class NonlinearProgressInstrument:
         self._stop_tick()
         self._bout_active = False
         self._completed_bouts += 1
+        self._display_bout_step = None
 
         self.events.append(
             {
@@ -217,6 +233,7 @@ class NonlinearProgressInstrument:
     def mark_run_complete(self, source: Optional[str] = None) -> None:
         """Call this after all bouts finish to append run history."""
         self._stop_tick()
+        self._display_bout_step = None
         elapsed = self._global_elapsed()
         self.events.append({"t_s": self._elapsed_s(), "kind": "run_complete"})
         _append_run_history(

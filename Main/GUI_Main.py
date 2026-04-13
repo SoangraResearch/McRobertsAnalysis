@@ -129,32 +129,39 @@ def export_csv():
     
 # -------------------------Tab 1 Select Data---------------------------------
 
+# Plot frame first (referenced by load); no pack_propagate(False) so it can shrink
+# with the window like Tab 2/3. Export row is packed to BOTTOM before the plot so
+# it stays visible when the window is minimized or resized.
+plot_frame_OMX = tk.Frame(tab1, height=300)
+
 tab1_load_file_button = make_action_button(
     tab1, text="Load OMX File", command=lambda: tab1_controller.load_file(plot_frame_OMX)
 )
 tab1_load_file_button.pack(pady=10)
 
-plot_frame_OMX = tk.Frame(tab1, height=350)
-plot_frame_OMX.pack_propagate(False)
-
 tab1_controller.create_time_labels()
 
-plot_frame_OMX.pack(fill="both", expand=True)
-
 button_frame = tk.Frame(tab1)
-button_frame.pack(pady=10)
+button_frame.pack(side=tk.BOTTOM, fill=tk.X, pady=10)
+tk.Frame(button_frame).pack(side=tk.LEFT, expand=True)
+button_inner = tk.Frame(button_frame)
+button_inner.pack(side=tk.LEFT)
 
 tab1_export_csv_button = make_action_button(
-    button_frame, text="Export To CSV", command=lambda: export_csv()
+    button_inner, text="Export To CSV", command=lambda: export_csv()
 )
 tab1_export_csv_button.pack(side="left", padx=5)
 
 tab1_export_plot_button = make_action_button(
-    button_frame,
+    button_inner,
     text="Export Plot",
     command=lambda: tab1_controller.export_acceleration_plot(),
 )
 tab1_export_plot_button.pack(side="left", padx=5)
+
+tk.Frame(button_frame).pack(side=tk.LEFT, expand=True)
+
+plot_frame_OMX.pack(fill="both", expand=True)
 
 # -------------------------Tab 2 Methods---------------------------------
 
