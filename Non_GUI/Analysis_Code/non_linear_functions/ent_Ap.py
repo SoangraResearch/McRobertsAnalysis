@@ -11,9 +11,20 @@ Future work (optional extensions; not in the current baseline implementation)
     reject N - m + 1 <= 0 with a clear error. Validate parity against this
     file's loop implementation before adopting.
 """
+from typing import Callable, Optional
+
 import numpy as np
 
-def Ent_Ap(data, dim, r):
+from Non_GUI.Analysis_Code.cancel_support import poll_cancel
+
+
+def Ent_Ap(
+    data,
+    dim,
+    r,
+    cancel_check: Optional[Callable[[], bool]] = None,
+    cancel_poll_every: int = 2048,
+):
     """
     Ent_Ap20120321
       data : time-series data
@@ -53,7 +64,10 @@ def Ent_Ap(data, dim, r):
         data_mat = np.zeros((N-m+1,m))
         for i in range(m):
             data_mat[:,i] = data[i:N-m+i+1]
-        for i in range(N-m+1):
+        _poll = cancel_poll_every if cancel_poll_every > 0 else 0
+        for i in range(N - m + 1):
+            if _poll and i % _poll == 0:
+                poll_cancel(cancel_check)
             temp_mat = np.abs(data_mat - data_mat[i,:])
             AorB = np.unique(np.where(temp_mat > r)[0])
             AorB = len(temp_mat) - len(AorB)

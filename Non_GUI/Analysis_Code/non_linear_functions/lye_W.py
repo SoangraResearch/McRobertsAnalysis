@@ -1,12 +1,23 @@
-import numpy as np
-import numpy.matlib as matlib
-import numpy.linalg as linalg
-import sys # to implement args later
 import copy
+import sys  # to implement args later
 import warnings
+from typing import Callable, Optional
+
+import numpy as np
+import numpy.linalg as linalg
+import numpy.matlib as matlib
+
+from Non_GUI.Analysis_Code.cancel_support import poll_cancel
 
 
-def LyE_W(x, Fs, tau, dim, evolve):
+def LyE_W(
+    x,
+    Fs,
+    tau,
+    dim,
+    evolve,
+    cancel_check: Optional[Callable[[], bool]] = None,
+):
   """
   inputs  - x, time series
           - Fs, sampling frequency
@@ -113,6 +124,7 @@ def LyE_W(x, Fs, tau, dim, evolve):
   current_point_pair = np.argsort(Ydisti)[0]
 
   for i in range(0, NPT, evolve):
+    poll_cancel(cancel_check)
     current_point = i
     # calculate starting and evolved distance
     if current_point_pair + evolve < len(Y) and current_point + evolve < len(Y):

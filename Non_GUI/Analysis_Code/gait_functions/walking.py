@@ -13,8 +13,7 @@ from datetime import datetime, timedelta
 import logging
 import math
 import os
-from typing import Optional
-from typing import Tuple
+from typing import Callable, Optional, Tuple
 from datetime import tzinfo
 from dateutil import tz
 import numpy as np
@@ -27,6 +26,7 @@ from ssqueezepy import ssq_cwt
 
 from Non_GUI.Analysis_Code.forest_develop.src.forest.constants import Frequency
 from Non_GUI.Analysis_Code.forest_develop.src.forest.utils import get_ids
+from Non_GUI.Analysis_Code.cancel_support import poll_cancel
 
 logger = logging.getLogger(__name__)
 
@@ -279,10 +279,18 @@ def identify_peaks_in_cwt(freqs_interp: np.ndarray, coefs_interp: np.ndarray,
 
     return dp
 
-def find_walking(vm_bout: np.ndarray, fs: int = 10, min_amp: float = 0.3,
-                 step_freq: tuple = (1.4, 2.3), alpha: float = 0.6,
-                 beta: float = 2.5, min_t: int = 3,
-                 delta: int = 20) -> npt.NDArray[np.float64]:
+def find_walking(
+    vm_bout: np.ndarray,
+    fs: int = 10,
+    min_amp: float = 0.3,
+    step_freq: tuple = (1.4, 2.3),
+    alpha: float = 0.6,
+    beta: float = 2.5,
+    min_t: int = 3,
+    delta: int = 20,
+    cancel_check: Optional[Callable[[], bool]] = None,
+    cancel_poll_every: int = 256,
+) -> npt.NDArray[np.float64]:
     """Finds walking and calculate steps from raw acceleration data.
 
     Method finds periods of repetitive and continuous oscillations with
@@ -357,7 +365,10 @@ def find_walking(vm_bout: np.ndarray, fs: int = 10, min_amp: float = 0.3,
 
         # summarize the results
         cad = np.zeros(valid_peaks.shape[1])
+        _poll = cancel_poll_every if cancel_poll_every > 0 else 0
         for i in range(len(cad)):
+            if _poll and i % _poll == 0:
+                poll_cancel(cancel_check)
             ind_freqs = np.where(cont_peaks[:, i] > 0)[0]
             if len(ind_freqs) > 0:
                 cad[i] = freqs_interp[ind_freqs[0]]

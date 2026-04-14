@@ -12,9 +12,21 @@ Future work (optional extensions; not in the current baseline implementation)
     guard empty/short series and invalid Bmr/Amr before -log(Amr/Bmr).
     Validate parity against this file's loop implementation before adopting.
 """
+from typing import Callable, Optional
+
 import numpy as np
 
-def Ent_MS_Plus(x, tau, m, r):
+from Non_GUI.Analysis_Code.cancel_support import poll_cancel
+
+
+def Ent_MS_Plus(
+    x,
+    tau,
+    m,
+    r,
+    cancel_check: Optional[Callable[[], bool]] = None,
+    cancel_poll_every: int = 512,
+):
 
     R = r*np.std(x)
     N = len(x)
@@ -25,22 +37,28 @@ def Ent_MS_Plus(x, tau, m, r):
     CMSE = np.zeros(tau, dtype=object)
     RCMSE = np.zeros(tau, dtype=object)
 
-    for i in range(1,tau):
+    _poll = cancel_poll_every if cancel_poll_every > 0 else 0
+    for i in range(1, tau):
+        poll_cancel(cancel_check)
         # Coarse-graining for GMSE
         Ndivi = int(N/i) # defining this now because we use it a lot later on.
         o2 = np.zeros((i, Ndivi))
         for j in range(Ndivi):
+            if _poll and j % _poll == 0:
+                poll_cancel(cancel_check)
             for k in range(i):
                 try:
                     # NOTE: May have a one off issue.
                     o2[k,j] = np.var(x[(j-1)*i+k:j*i+k])
                 except:
                     o2[k,j] = np.nan
-        GMSE[i] = Samp_Ent(o2[0,:],m,r)
-        
+        GMSE[i] = Samp_Ent(o2[0, :], m, r, cancel_check=cancel_check)
+
         # Coarse-graining for MSE and derivatives
         y_tau_kj = np.zeros((i,Ndivi))
         for j in range(Ndivi):
+            if _poll and j % _poll == 0:
+                poll_cancel(cancel_check)
             for k in range(i):
                 try:
                     y_tau_kj[k,j] = 1/i*np.sum(x[(j-1)*i+k:j*i+k])
@@ -49,9 +67,13 @@ def Ent_MS_Plus(x, tau, m, r):
         
         valid_indices = ~np.isnan(y_tau_kj[0, :])
         # Multiscale Entropy (MSE)
-        MSE[i] = Samp_Ent(y_tau_kj[0, valid_indices], m, R)        
+        MSE[i] = Samp_Ent(
+            y_tau_kj[0, valid_indices], m, R, cancel_check=cancel_check
+        )
         #Multiscale Fuzzy Entropy (MFE)
-        MSFE[i] = Fuzzy_Ent(y_tau_kj[0, valid_indices], m, R, 2)
+        MSFE[i] = Fuzzy_Ent(
+            y_tau_kj[0, valid_indices], m, R, 2, cancel_check=cancel_check
+        )
         
         # Composite Multiscale Entropy (CMSE)
         CMSE[i] = 0
@@ -59,8 +81,11 @@ def Ent_MS_Plus(x, tau, m, r):
         nm = np.zeros(i)
         nm1 = np.zeros(i)
         for k in range(i):
+            poll_cancel(cancel_check)
             valid_indices_k = ~np.isnan(y_tau_kj[k, :])
-            _, nm[k], nm1[k] = Samp_Ent(y_tau_kj[k, valid_indices_k], m, R)
+            _, nm[k], nm1[k] = Samp_Ent(
+                y_tau_kj[k, valid_indices_k], m, R, cancel_check=cancel_check
+            )
             CMSE[i] += (1 / i) * -np.log(nm1[k] / nm[k])
 
         n_m1_ktau = np.mean(nm1)
@@ -70,7 +95,13 @@ def Ent_MS_Plus(x, tau, m, r):
 
     return RCMSE, CMSE, MSE, MSFE, GMSE
 
-def Samp_Ent(data, m, r):
+def Samp_Ent(
+    data,
+    m,
+    r,
+    cancel_check: Optional[Callable[[], bool]] = None,
+    cancel_poll_every: int = 2048,
+):
     """
     [SE,sum_nm,sum_nm1] = Samp_Ent(data,m,r)
     This is a faster version of the previous code - Samp_En.m
@@ -108,7 +139,10 @@ def Samp_Ent(data, m, r):
 
     sum_nm = 0
     sum_nm1 = 0
+    _poll = cancel_poll_every if cancel_poll_every > 0 else 0
     for i in range(N-m):
+        if _poll and i % _poll == 0:
+            poll_cancel(cancel_check)
         for k in range(m+1):
             dij[:,k] = np.abs(data[k:N-m+k]-data[i+k]) 
         dj = np.max(dij[:,0:m],axis=1)
@@ -127,12 +161,21 @@ def Samp_Ent(data, m, r):
 
     return (-np.log(Amr/Bmr), sum_nm, sum_nm1)
 
-def Fuzzy_Ent(series, dim, r, n):
+def Fuzzy_Ent(
+    series,
+    dim,
+    r,
+    n,
+    cancel_check: Optional[Callable[[], bool]] = None,
+    cancel_poll_every: int = 2048,
+):
     N = len(series)
     phi = np.zeros(2)
     r = r * np.std(series)
 
+    _poll = cancel_poll_every if cancel_poll_every > 0 else 0
     for j in range(2):
+        poll_cancel(cancel_check)
         m = dim + j - 1
         if m == 1:
             patterns = series.reshape(1, -1)
@@ -142,10 +185,14 @@ def Fuzzy_Ent(series, dim, r, n):
                 patterns[i, :] = series[i:N - m + i + 1]
         
         for i in range(N - m + 1):
+            if _poll and i % _poll == 0:
+                poll_cancel(cancel_check)
             patterns[:, i] -= np.mean(patterns[:, i])
-        
+
         aux = np.zeros(N - m + 1)
         for i in range(N - m + 1):
+            if _poll and i % _poll == 0:
+                poll_cancel(cancel_check)
             if m == 1:
                 dist = np.abs(patterns - patterns[:, i].reshape(-1, 1))
             else:

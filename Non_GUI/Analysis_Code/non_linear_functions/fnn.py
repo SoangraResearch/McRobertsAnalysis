@@ -1,6 +1,20 @@
+from typing import Callable, Optional
+
 import numpy as np
 
-def FNN(data, tau, MaxDim, Rtol, Atol, speed):
+from Non_GUI.Analysis_Code.cancel_support import poll_cancel
+
+
+def FNN(
+    data,
+    tau,
+    MaxDim,
+    Rtol,
+    Atol,
+    speed,
+    cancel_check: Optional[Callable[[], bool]] = None,
+    cancel_poll_every: int = 2048,
+):
   """
     data - column oriented time series
     tau - time delay
@@ -71,7 +85,9 @@ def FNN(data, tau, MaxDim, Rtol, Atol, speed):
 
   dE = np.zeros((MaxDim,1))
 
+  _fnn_poll = cancel_poll_every if cancel_poll_every > 0 else 0
   for j in range(MaxDim):
+    poll_cancel(cancel_check)
     # y = np.array([y,z]) # adds additional dimension
     if j == 0:
       y = np.array([np.append(y,z)])
@@ -83,6 +99,8 @@ def FNN(data, tau, MaxDim, Rtol, Atol, speed):
     (y_model, z_model, sort_list, node_list) = kd_part(y,z,512)
 
     for i in range(len(indx)):
+      if _fnn_poll and i % _fnn_poll == 0:
+        poll_cancel(cancel_check)
       yq = np.array(y[:, indx[i]]) # set up next point to look at
 
       b_upper = np.inf*np.ones(np.size(yq))

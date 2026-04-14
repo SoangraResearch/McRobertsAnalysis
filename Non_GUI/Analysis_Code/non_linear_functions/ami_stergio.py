@@ -1,8 +1,20 @@
+import sys
+from typing import Callable, Optional
+
 import numpy as np
 import scipy.sparse as sp
-import sys
 
-def AMI_Stergiou(data, L, to_matlab = False, n_bins = 0):
+from Non_GUI.Analysis_Code.cancel_support import poll_cancel
+
+
+def AMI_Stergiou(
+    data,
+    L,
+    to_matlab=False,
+    n_bins=0,
+    cancel_check: Optional[Callable[[], bool]] = None,
+    cancel_poll_every: int = 8,
+):
     """
     inputs    - data, column oriented time series
               - L, maximal lag to which AMI will be calculated
@@ -105,8 +117,11 @@ def AMI_Stergiou(data, L, to_matlab = False, n_bins = 0):
 
       v = np.zeros((2, L))
 
-      for lag in range(L): # used to be from 0:L-1 (BS)
-        v[0,lag]=lag   
+      _ami_poll = cancel_poll_every if cancel_poll_every > 0 else 0
+      for lag in range(L):  # used to be from 0:L-1 (BS)
+        if _ami_poll and lag % _ami_poll == 0:
+            poll_cancel(cancel_check)
+        v[0, lag] = lag
         
         pB = sp.csr_matrix((np.full(overlap,increment),(y[lag:overlap+lag],np.ones(overlap,dtype=int)))).toarray()[:,1]
         # find joint probability p(A,B)=p(x(t),x(t+time_lag))

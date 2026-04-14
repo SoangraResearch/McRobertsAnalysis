@@ -1,6 +1,17 @@
+from typing import Callable, Optional
+
 import numpy as np
 
-def Ent_Permu(data, m, tau):
+from Non_GUI.Analysis_Code.cancel_support import poll_cancel
+
+
+def Ent_Permu(
+    data,
+    m,
+    tau,
+    cancel_check: Optional[Callable[[], bool]] = None,
+    cancel_poll_every: int = 4096,
+):
     """
     (permEnt, hist) = Ent_Permu20180320(data, m, tau)
     inputs -  data: 1-D array of data being analyzed
@@ -29,9 +40,19 @@ def Ent_Permu(data, m, tau):
     May 2023 - Updated for addition in Nonlinear Analysis Toolkit by
                Shifat Sarwar, ssarwar@unomaha.edu
     """
-    def permutation_search(data, m, tau, N):
+    def permutation_search(
+        data,
+        m,
+        tau,
+        N,
+        cancel_check_inner: Optional[Callable[[], bool]],
+        poll_every: int,
+    ):
       permDict = dict()
-      for cnt1 in range(N-tau*(m-1)):  # steps from 1 through length of data minus time delay multiplied by order minus 1
+      _poll = poll_every if poll_every > 0 else 0
+      for cnt1 in range(N - tau * (m - 1)):  # steps from 1 through length of data minus time delay multiplied by order minus 1
+          if _poll and cnt1 % _poll == 0:
+              poll_cancel(cancel_check_inner)
           permVal = np.argsort(data[cnt1:cnt1+tau*(m-1)+1:tau]).astype(str) # creates permutation of selected data range
           permVal = ''.join(permVal)  # concatenate array together as a string with no delimiter
           if permVal not in permDict:
@@ -41,7 +62,9 @@ def Ent_Permu(data, m, tau):
       return np.array(list(permDict.values()))
     
     N = len(data)  # length of time series
-    hist = permutation_search(data,m,tau,N)
+    hist = permutation_search(
+        data, m, tau, N, cancel_check, cancel_poll_every
+    )
     per = hist/np.sum(hist)	# ratio of each permutation vector match to total matches
     permEnt = np.negative(np.sum(np.multiply(per, np.log2(per))))   # performs entropy calucation
     return (permEnt, hist)

@@ -10,9 +10,20 @@ Future work (optional extensions; not in the current baseline implementation)
     allocating full neighbor lists. Validate parity against this implementation
     before adopting.
 """
+from typing import Callable, Optional
+
 import numpy as np
 
-def Ent_Samp(data, m, r):
+from Non_GUI.Analysis_Code.cancel_support import poll_cancel
+
+
+def Ent_Samp(
+    data,
+    m,
+    r,
+    cancel_check: Optional[Callable[[], bool]] = None,
+    cancel_poll_every: int = 2048,
+):
   """
   function SE = Ent_Samp20200723(data,m,r)
   SE = Ent_Samp20200723(data,m,R) Returns the sample entropy value.
@@ -51,7 +62,10 @@ def Ent_Samp(data, m, r):
   Bm = np.zeros((N-m,1))
   Am = np.zeros((N-m,1))
 
+  _poll = cancel_poll_every if cancel_poll_every > 0 else 0
   for i in range(N-m):
+    if _poll and i % _poll == 0:
+      poll_cancel(cancel_check)
     for k in range(m+1):
       dij[:,k] = np.abs(data[k:N-m+k]-data[i+k]) 
     dj = np.max(dij[:,0:m],axis=1)

@@ -14,6 +14,7 @@ from Non_GUI.Analysis_Code.gait_functions.walking import find_walking
 from Non_GUI.Analysis_Code.gait_functions.hs_to_detection import get_hs_to_wavelet # function to detect heal strike and toe off from the walking data
 from Non_GUI.Analysis_Code.gait_functions.hs_to_detection import gait_parameters  # function to calculate gait parameters from heal strike and toe off
 
+from Non_GUI.Analysis_Code.cancel_support import ComputationCancelled
 from Non_GUI.Analysis_Code.non_linear_functions.ami_stergio import AMI_Stergiou
 from Non_GUI.Analysis_Code.non_linear_functions.fnn import FNN
 from Non_GUI.Analysis_Code.non_linear_functions.ent_Ap import Ent_Ap
@@ -49,6 +50,15 @@ def _nonlinear_raise_if_cancelled(
 ) -> None:
     if cancel_check is None or not cancel_check():
         return
+    if progress_instrument is not None:
+        progress_instrument.mark_run_aborted()
+    raise NonlinearAnalysisUserCancelled("Analysis was cancelled.")
+
+
+def _nonlinear_rethrow_computation_cancelled(
+    progress_instrument: Optional[NonlinearProgressInstrument],
+) -> None:
+    """Map :class:`ComputationCancelled` from Non_GUI helpers to GUI cancel semantics."""
     if progress_instrument is not None:
         progress_instrument.mark_run_aborted()
     raise NonlinearAnalysisUserCancelled("Analysis was cancelled.")
@@ -361,9 +371,11 @@ def nonlinear_analysis(
     fs = 100 # sampling frequency of sensor
 
     accleration = pd.read_csv(filename)
+    _nonlinear_raise_if_cancelled(cancel_check, progress_instrument)
     accleration['TgF'] = np.sqrt(accleration['Ax']**2+accleration['Ay']**2+accleration['Az']**2)
     R_acc = accleration['TgF'] - 1 #resultant acceleration adjusted with gravity
     vm = np.array(R_acc) #converting to numpy array
+    _nonlinear_raise_if_cancelled(cancel_check, progress_instrument)
 
     # Resample the signal to 10 hz find_walking needs signal sampled at 10 hz
     fs_walking = 10 # sampling rate required by find_walking function
@@ -374,7 +386,6 @@ def nonlinear_analysis(
     # the function arranges the signal into matrix with each column containing 10 samples ie data for 1 second
     num_elements_to_use = (vm_resample.size // fs_walking) * fs_walking
     vm_bout = vm_resample[:num_elements_to_use]
-
     _nonlinear_raise_if_cancelled(cancel_check, progress_instrument)
 
     # parameters for find walking function
@@ -390,7 +401,17 @@ def nonlinear_analysis(
     if assume_walking:
         walking = np.array([[0, len(vm) * fs_HS_TO // fs]])
     else:
-        cad = find_walking(vm_bout, 10, min_amp, step_freq, alpha, beta, T, delta)
+        cad = find_walking(
+            vm_bout,
+            10,
+            min_amp,
+            step_freq,
+            alpha,
+            beta,
+            T,
+            delta,
+            cancel_check=cancel_check,
+        )
         walking = _walking_period_detection(cad, fs_HS_TO)
         print("cadence: ")
         print(cad)
@@ -439,6 +460,7 @@ def nonlinear_analysis(
 
     #Resample the signal
     resampled_res_acc = resample(res_acc, num_samples)
+    _nonlinear_raise_if_cancelled(cancel_check, progress_instrument)
 
     print("resampled_res_acc")
     print(resampled_res_acc)
@@ -500,9 +522,15 @@ def nonlinear_analysis(
 
         _notify(f"Period {i+1}/{num_periods}: Running AMI…")
         #Calculate delay from Stergiou
-        tau, V_ami = AMI_Stergiou(data, int(ps["ami_max_lag"]))
+        try:
+            tau, V_ami = AMI_Stergiou(
+                data, int(ps["ami_max_lag"]), cancel_check=cancel_check
+            )
+        except ComputationCancelled:
+            _nonlinear_rethrow_computation_cancelled(progress_instrument)
         print("AMI_Stergiou calculated")
         delay = int(tau[0][0])
+        _nonlinear_raise_if_cancelled(cancel_check, progress_instrument)
         _notify(f"Period {i+1}/{num_periods}: Running FNN…")
         #Calculate dimensions from fnn
         # Parameters for fnn function
@@ -510,25 +538,49 @@ def nonlinear_analysis(
         Rtol = int(ps["fnn_rtol"])
         Atol = int(ps["fnn_atol"])
         speed = float(ps["fnn_speed"])
-        ans = FNN(data, delay, MaxDim, Rtol, Atol, speed)
+        try:
+            ans = FNN(
+                data,
+                delay,
+                MaxDim,
+                Rtol,
+                Atol,
+                speed,
+                cancel_check=cancel_check,
+            )
+        except ComputationCancelled:
+            _nonlinear_rethrow_computation_cancelled(progress_instrument)
         print("FNN calculated")
         dim = ans[1]  #dimension
+        _nonlinear_raise_if_cancelled(cancel_check, progress_instrument)
         _notify(f"Period {i+1}/{num_periods}: Running entropies…")
         # Approximate entropy
         r = float(ent["r"])
-        AE = Ent_Ap(data, dim, r)
+        try:
+            AE = Ent_Ap(data, dim, r, cancel_check=cancel_check)
+        except ComputationCancelled:
+            _nonlinear_rethrow_computation_cancelled(progress_instrument)
         print("ENT_AP calculated")
+        _nonlinear_raise_if_cancelled(cancel_check, progress_instrument)
         # Sample Entropy
         m = int(ent["m"])
-        Samp_Ent = Ent_Samp(data, m, r)
+        try:
+            Samp_Ent = Ent_Samp(data, m, r, cancel_check=cancel_check)
+        except ComputationCancelled:
+            _nonlinear_rethrow_computation_cancelled(progress_instrument)
         print("ENT_Samp calculated")
+        _nonlinear_raise_if_cancelled(cancel_check, progress_instrument)
         #Symbolic Entropy
         L = int(ent["symbolic_L"])
         #normalizing data
         data_normalized = (data - np.min(data)) / (np.max(data) - np.min(data))
         data_scaled = (data_normalized * 1.99).astype(int)
-        Sym_En = Ent_Symbolic(data_scaled, L)
+        try:
+            Sym_En = Ent_Symbolic(data_scaled, L, cancel_check=cancel_check)
+        except ComputationCancelled:
+            _nonlinear_rethrow_computation_cancelled(progress_instrument)
         print("ENT_Symbolic calculated")
+        _nonlinear_raise_if_cancelled(cancel_check, progress_instrument)
         # Permutaion Entropy
         '''
         (permEnt, hist) = Ent_Permu20180320(data, m, tau)
@@ -538,8 +590,14 @@ def nonlinear_analysis(
         outputs - permuEnt: value calculated using a log base of 2
                 hist: number of occurences for each permutation order
         '''
-        [permEnt_value,hist_value] = Ent_Permu(data, m, delay)
+        try:
+            permEnt_value, hist_value = Ent_Permu(
+                data, m, delay, cancel_check=cancel_check
+            )
+        except ComputationCancelled:
+            _nonlinear_rethrow_computation_cancelled(progress_instrument)
         print("ENT_Permu calculated")
+        _nonlinear_raise_if_cancelled(cancel_check, progress_instrument)
         _notify(f"Period {i+1}/{num_periods}: Running LyE_R…")
         #LyE_Rosenstein
         name = "test"
@@ -547,8 +605,22 @@ def nonlinear_analysis(
         MeanPeriod = int(ly["rosenstein_mean_period"])
         Plot = False
         # Use dim (FNN-determined embedding dimension), not m (entropy param which is always 2)
-        (LyEl,LyEs,out), time, AveLnDiv, LyES, timeS, lyESline, LyEL, timeL, LyELline = LyE_R(data,name,fs_HS_TO,delay,dim,slope, MeanPeriod, Plot)
+        try:
+            (LyEl, LyEs, out), time, AveLnDiv, LyES, timeS, lyESline, LyEL, timeL, LyELline = LyE_R(
+                data,
+                name,
+                fs_HS_TO,
+                delay,
+                dim,
+                slope,
+                MeanPeriod,
+                Plot,
+                cancel_check=cancel_check,
+            )
+        except ComputationCancelled:
+            _nonlinear_rethrow_computation_cancelled(progress_instrument)
         print("LYE_R calculated")
+        _nonlinear_raise_if_cancelled(cancel_check, progress_instrument)
         # Store raw plot data — figures are built on the main thread by Tab3Controller
         plot_data = {
             'time': time, 'AveLnDiv': AveLnDiv,
@@ -559,8 +631,19 @@ def nonlinear_analysis(
         _notify(f"Period {i+1}/{num_periods}: Running LyE_W…")
         #largest lyapunov exponent
         evolve = int(ly["wolf_evolve"])
-        [out,lye] = LyE_W(data, fs_HS_TO, delay, dim, evolve)
+        try:
+            [out, lye] = LyE_W(
+                data,
+                fs_HS_TO,
+                delay,
+                dim,
+                evolve,
+                cancel_check=cancel_check,
+            )
+        except ComputationCancelled:
+            _nonlinear_rethrow_computation_cancelled(progress_instrument)
         print("LYE_W calculated")
+        _nonlinear_raise_if_cancelled(cancel_check, progress_instrument)
         _notify(f"Period {i+1}/{num_periods}: Running RQA…")
         # RQA
         TYPE = 'RQA'
@@ -571,9 +654,27 @@ def nonlinear_analysis(
         SETPARA = str(rq["set_para"])
         PLOTOPTION = 0
         column = "1"
-        nargout =1
-        rqa_RESULTS = RQA(data, TYPE ,dim,delay,ZSCORE,NORM,LINELENGTH,SETPARA,SETVALUE,PLOTOPTION, column, nargout)
+        nargout = 1
+        try:
+            rqa_RESULTS = RQA(
+                data,
+                TYPE,
+                dim,
+                delay,
+                ZSCORE,
+                NORM,
+                LINELENGTH,
+                SETPARA,
+                SETVALUE,
+                PLOTOPTION,
+                column,
+                nargout,
+                cancel_check=cancel_check,
+            )
+        except ComputationCancelled:
+            _nonlinear_rethrow_computation_cancelled(progress_instrument)
         print("RQA calculated")
+        _nonlinear_raise_if_cancelled(cancel_check, progress_instrument)
         REC=rqa_RESULTS[0]['REC']
         DET=rqa_RESULTS[0]['DET']
         MeanL= rqa_RESULTS[0]['MeanL']
@@ -591,8 +692,14 @@ def nonlinear_analysis(
         r_mse = float(ent["r"])
         m_mse = int(ent["m"])
 
-        result = Ent_MS_Plus(data, mse_scale, m_mse, r_mse)
+        try:
+            result = Ent_MS_Plus(
+                data, mse_scale, m_mse, r_mse, cancel_check=cancel_check
+            )
+        except ComputationCancelled:
+            _nonlinear_rethrow_computation_cancelled(progress_instrument)
         print("ENT_MS_Plus calculated")
+        _nonlinear_raise_if_cancelled(cancel_check, progress_instrument)
 
         RCMSE =result[0]
         CMSE = result[1]

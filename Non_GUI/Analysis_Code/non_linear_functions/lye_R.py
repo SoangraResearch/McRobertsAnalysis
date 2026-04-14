@@ -1,10 +1,24 @@
-import numpy as np
-import numpy.polynomial.polynomial as poly
-import numpy.matlib as nmp
-import matplotlib.pyplot as plt
 import sys
+from typing import Callable, Optional
 
-def LyE_R(X,name, Fs,tau,dim,*args):
+import matplotlib.pyplot as plt
+import numpy as np
+import numpy.matlib as nmp
+import numpy.polynomial.polynomial as poly
+
+from Non_GUI.Analysis_Code.cancel_support import poll_cancel
+
+
+def LyE_R(
+    X,
+    name,
+    Fs,
+    tau,
+    dim,
+    *args,
+    cancel_check: Optional[Callable[[], bool]] = None,
+    cancel_poll_every: int = 256,
+):
     """
       inputs  - X, If this is a single dimentional array the code will use tau
                    and dim to perform a phase space reconstruction. If this is
@@ -107,7 +121,10 @@ def LyE_R(X,name, Fs,tau,dim,*args):
     # Find nearest neighbors
 
     IND2=np.zeros((1,M),dtype=int)
+    _poll = cancel_poll_every if cancel_poll_every > 0 else 0
     for i in range(M):
+        if _poll and i % _poll == 0:
+            poll_cancel(cancel_check)
         # Find nearest neighbor.
         Yinit = nmp.repmat(Y[i],M,1)
         Ydiff = (Yinit-Y[0:M,:])**2
@@ -129,14 +146,22 @@ def LyE_R(X,name, Fs,tau,dim,*args):
     IND2len = np.shape(IND2)[1]
 
     for i in range(IND2len):
-    # The data can only be propagated so far from the matched pair.
-        EndITL=M-IND2[:,i][0]
-        if (M-IND2[:,i][0])>(M-i):
-            EndITL=M-i
+        if _poll and i % _poll == 0:
+            poll_cancel(cancel_check)
+        # The data can only be propagated so far from the matched pair.
+        EndITL = M - IND2[:, i][0]
+        if (M - IND2[:, i][0]) > (M - i):
+            EndITL = M - i
 
         # Finds the distance between the matched paris and their propagated
         # points to the end of the useable data.
-        DM[0:EndITL,i] = np.sqrt(np.sum((Y[i:EndITL+i,:]-Y[IND2[:,i][0]:EndITL+IND2[:,i][0],:])**2,axis=1))
+        DM[0:EndITL, i] = np.sqrt(
+            np.sum(
+                (Y[i : EndITL + i, :] - Y[IND2[:, i][0] : EndITL + IND2[:, i][0], :])
+                ** 2,
+                axis=1,
+            )
+        )
         
     # Calculates the average line divergence.
     r,_ = np.shape(DM)
@@ -144,6 +169,8 @@ def LyE_R(X,name, Fs,tau,dim,*args):
     AveLnDiv = np.zeros(len(DM))
     # NOTE: MATLAB version does not preallocate AveLnDiv, we could preallocate that.
     for i in range(r):
+        if _poll and i % _poll == 0:
+            poll_cancel(cancel_check)
         distanceM = DM[i,:]
         if np.sum(distanceM) != 0:
             AveLnDiv[i]=np.mean(np.log(distanceM[distanceM>0])) 
@@ -187,8 +214,9 @@ def LyE_R(X,name, Fs,tau,dim,*args):
             LyESline=poly.polyval(timeS,slopeinterceptS)
         else:
             LyES=np.nan
-        
-        
+            timeS = np.array([], dtype=float)
+            LyESline = np.array([], dtype=float)
+
         if longL[1] <= np.size(np.nonzero(AveLnDiv)):
             slopeinterceptL=poly.polyfit(time[longL[0]:longL[1]+1], AveLnDiv[longL[0]:longL[1]+1],1)
             LyEL=slopeinterceptL[1]
@@ -196,6 +224,8 @@ def LyE_R(X,name, Fs,tau,dim,*args):
             LyELline=poly.polyval(timeL,slopeinterceptL)
         else:
             LyEL=np.nan
+            timeL = np.array([], dtype=float)
+            LyELline = np.array([], dtype=float)
         
         output_list.append(LyES)
         output_list.append(LyEL)

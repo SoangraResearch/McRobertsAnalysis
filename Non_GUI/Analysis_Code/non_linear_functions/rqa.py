@@ -1,6 +1,10 @@
 import warnings, sys, string
 import tempfile
+from typing import Callable, Optional
+
 import numpy as np
+
+from Non_GUI.Analysis_Code.cancel_support import poll_cancel
 from skimage.transform import rotate
 from sklearn.metrics import pairwise_distances
 from scipy import stats as st
@@ -8,7 +12,22 @@ from scipy.spatial import distance as spd
 import matplotlib.pyplot as plt
 
 
-def RQA(DATA,TYPE,EMB,DEL,ZSCORE,NORM,LINELENGTH,SETPARA,SETVALUE,PLOTOPTION, column, nargout):
+def RQA(
+    DATA,
+    TYPE,
+    EMB,
+    DEL,
+    ZSCORE,
+    NORM,
+    LINELENGTH,
+    SETPARA,
+    SETVALUE,
+    PLOTOPTION,
+    column,
+    nargout,
+    cancel_check: Optional[Callable[[], bool]] = None,
+    cancel_poll_every: int = 2048,
+):
     """
     Usage: (RP, RESULTS)=RQA20210210(DATA,TYPE,EMB,DEL,ZSCORE,NORM,LINELENGTH,SETPARA,SETVALUE,PLOTOPTION)
     Inputs  - DATA, a double-variable with each dimension of the
@@ -249,6 +268,7 @@ def RQA(DATA,TYPE,EMB,DEL,ZSCORE,NORM,LINELENGTH,SETPARA,SETVALUE,PLOTOPTION, co
         DIM = r
 
     # Embed the data
+    _rqa_poll = cancel_poll_every if cancel_poll_every > 0 else 0
     if EMB > 1:
         # Preallocation is to be implemented.
         # if r > 1:
@@ -257,6 +277,8 @@ def RQA(DATA,TYPE,EMB,DEL,ZSCORE,NORM,LINELENGTH,SETPARA,SETVALUE,PLOTOPTION, co
         #     tempDATA = np.zeros((DIM*EMB,DATA.shape[0]-(EMB-1)*DEL))
         onerow = False
         for i in range(EMB):
+            if _rqa_poll and i % _rqa_poll == 0:
+                poll_cancel(cancel_check)
             if i == 0:
                 try:
                     tempDATA = np.array(DATA[:,i*DEL:DATA.shape[1]-(EMB-i)*DEL+1])
@@ -285,6 +307,8 @@ def RQA(DATA,TYPE,EMB,DEL,ZSCORE,NORM,LINELENGTH,SETPARA,SETVALUE,PLOTOPTION, co
         runSetRad,
         radius,
         nargout,
+        cancel_check=cancel_check,
+        cancel_poll_every=cancel_poll_every,
     )
     if _ms_out is not None:
         return _ms_out
@@ -314,6 +338,8 @@ def RQA(DATA,TYPE,EMB,DEL,ZSCORE,NORM,LINELENGTH,SETPARA,SETVALUE,PLOTOPTION, co
         a = [a[0]]
     elif TYPE == 'JRQA':
         for i in range(r):
+            if _rqa_poll and i % _rqa_poll == 0:
+                poll_cancel(cancel_check)
             if EMB > 1:
                 pairs = DATA[np.s_[i::DIM],:].T.copy()
                 a[i] = pairwise_distances(pairs, metric='euclidean')
@@ -329,15 +355,21 @@ def RQA(DATA,TYPE,EMB,DEL,ZSCORE,NORM,LINELENGTH,SETPARA,SETVALUE,PLOTOPTION, co
     # Normalize distance matrix
     if 'EUC' in NORM:
         for i in range(len(a)):
+            if _rqa_poll and i % _rqa_poll == 0:
+                poll_cancel(cancel_check)
             b = np.mean(a[i][np.where(a[i]<0)])
             b = np.negative(np.sqrt(np.abs((b**2)+2*(DIM*EMB))))
             a[i] = a[i]/np.abs(b)
     elif 'MIN' in NORM:
         for i in range(len(a)):
+            if _rqa_poll and i % _rqa_poll == 0:
+                poll_cancel(cancel_check)
             b = np.max(a[i][np.where(a[i]<0)])
             a[i] = a[i]/np.abs(b)
     elif 'MAX' in NORM:
         for i in range(len(a)):
+            if _rqa_poll and i % _rqa_poll == 0:
+                poll_cancel(cancel_check)
             b = np.min(a[i][np.where(a[i]<0)])
             a[i] = a[i]/abs(b)
     elif 'NON' in NORM:
@@ -347,8 +379,10 @@ def RQA(DATA,TYPE,EMB,DEL,ZSCORE,NORM,LINELENGTH,SETPARA,SETVALUE,PLOTOPTION, co
 
     # Create weighted recurrence plot
     index = -1
-    for i in range(len(a)-1):
-        a[i+1] = np.multiply(a[i],a[i+1])
+    for i in range(len(a) - 1):
+        if _rqa_poll and i % _rqa_poll == 0:
+            poll_cancel(cancel_check)
+        a[i + 1] = np.multiply(a[i], a[i + 1])
         index = i
     if index == 0:
         a = np.negative((np.abs(a[index+1]))**(1/(index+2)))
@@ -873,6 +907,9 @@ def _try_optional_memory_safe_rqa(
     runSetRad,
     radius,
     nargout,
+    *,
+    cancel_check: Optional[Callable[[], bool]] = None,
+    cancel_poll_every: int = 2048,
 ):
     """
     Optionally compute RQA without a full N×N distance matrix.
@@ -905,8 +942,11 @@ def _try_optional_memory_safe_rqa(
     X = np.asarray(pairs, dtype=float)
     radius_sq = radius_f * radius_f
 
+    _poll = cancel_poll_every if cancel_poll_every > 0 else 0
     diag_runs = []
     for k in range(n_embed):
+        if _poll and k % _poll == 0:
+            poll_cancel(cancel_check)
         if k == 0:
             rec_diag = np.ones(n_embed, dtype=np.uint8)
         else:
@@ -934,6 +974,7 @@ def _try_optional_memory_safe_rqa(
     x_norm2 = np.sum(X * X, axis=1)
 
     for j0 in range(0, n_embed, col_bs):
+        poll_cancel(cancel_check)
         j1 = min(n_embed, j0 + col_bs)
         xb_n2 = x_norm2[j0:j1]
         dist2 = x_norm2[:, None] + xb_n2[None, :] - 2.0 * (X @ X[j0:j1].T)
@@ -944,6 +985,8 @@ def _try_optional_memory_safe_rqa(
         col_sums[j0:j1] = rec_block.sum(axis=0).astype(float)
 
         for jj in range(rec_block.shape[1]):
+            if _poll and jj % _poll == 0:
+                poll_cancel(cancel_check)
             runs = _run_lengths(rec_block[:, jj].astype(np.uint8))
             if len(runs) > 0:
                 vert_runs.append(runs)

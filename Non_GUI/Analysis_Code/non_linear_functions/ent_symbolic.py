@@ -1,6 +1,16 @@
+from typing import Callable, Optional
+
 import numpy as np
 
-def Ent_Symbolic(X, L):
+from Non_GUI.Analysis_Code.cancel_support import poll_cancel
+
+
+def Ent_Symbolic(
+    X,
+    L,
+    cancel_check: Optional[Callable[[], bool]] = None,
+    cancel_poll_every: int = 8192,
+):
     """
     SymEnt = Ent_Symbolic20180320(X, L)
     symbolicEnt Calculates the Symbolic Entropy for given data.
@@ -26,8 +36,11 @@ def Ent_Symbolic(X, L):
     str_rep = str(np.apply_along_axis(lambda row: row.astype('|S1').tobytes().decode('utf-8'),
                 axis=0,
                 arr=X))
-    for i in range(X.shape[0]-L+1):
-        words[i] = int(str_rep[i:i+L],2)
+    _poll = cancel_poll_every if cancel_poll_every > 0 else 0
+    for i in range(X.shape[0] - L + 1):
+        if _poll and i % _poll == 0:
+            poll_cancel(cancel_check)
+        words[i] = int(str_rep[i : i + L], 2)
     
     max_words = 2**L
     P = np.zeros(max_words)
