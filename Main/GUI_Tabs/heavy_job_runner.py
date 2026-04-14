@@ -14,7 +14,9 @@ Pass ``show_busy_after_ms=0`` for an immediate strip.
 
 **Cooperative cancel:** Each :meth:`HeavyJobRunner.run` creates a fresh
 :class:`threading.Event` exposed via :meth:`is_cancel_requested`. A **Cancel**
-button appears with the busy strip; it calls :meth:`request_cancel`. Workers must
+button appears with the busy strip; it calls :meth:`request_cancel`. By default
+the user must confirm in a dialog before the cancel event is set; pass
+``confirm_cancel=False`` to :meth:`~HeavyJobRunner.run` to skip that. Workers must
 **poll** :meth:`is_cancel_requested` and return :data:`HEAVY_JOB_CANCELLED` for
 the UI to clear without an error dialog.
 """
@@ -113,12 +115,26 @@ class HeavyJobRunner:
         self._debounce_after_id: Optional[str] = None
         self._strip_mounted: bool = False
         self._active_cancel_event: Optional[threading.Event] = None
+        self._cancel_confirm: bool = False
+        self._cancel_confirm_title: str = ""
+        self._cancel_confirm_message: str = ""
 
     def request_cancel(self) -> None:
-        """Ask the current worker to stop cooperatively (sets the per-job cancel event)."""
+        """Ask the current worker to stop cooperatively (sets the per-job cancel event).
+
+        Runs on the Tk main thread (Cancel button). If the active job was started
+        with ``confirm_cancel=True``, shows a confirmation dialog first.
+        """
         ev = self._active_cancel_event
-        if ev is not None:
-            ev.set()
+        if ev is None:
+            return
+        if self._cancel_confirm:
+            if not messagebox.askyesno(
+                self._cancel_confirm_title,
+                self._cancel_confirm_message,
+            ):
+                return
+        ev.set()
 
     def is_cancel_requested(self) -> bool:
         """True if :meth:`request_cancel` was called for the active job (safe from worker thread)."""
@@ -301,6 +317,11 @@ class HeavyJobRunner:
         freeze_progress_on_success: bool = False,
         show_busy_after_ms: int = _DEFAULT_SHOW_BUSY_AFTER_MS,
         deferred_finalize_indeterminate: bool = False,
+        confirm_cancel: bool = True,
+        cancel_confirm_title: str = "Cancel this task?",
+        cancel_confirm_message: str = (
+            "Stop the current operation? Any progress will be lost."
+        ),
     ) -> bool:
         """Start *worker* in a daemon thread. Returns False if already busy.
 
@@ -328,6 +349,11 @@ class HeavyJobRunner:
         **Cancel** button (same as :meth:`request_cancel`); the worker should return
         :data:`HEAVY_JOB_CANCELLED` when it stops early. For *deferred_finalize*, Cancel
         is hidden before main-thread *on_success* (it only applies to the worker phase).
+
+        If *confirm_cancel* is True (default), the user must confirm in a dialog
+        before the cancel request is applied. Set *confirm_cancel* False for jobs
+        where immediate cancel is preferred. *cancel_confirm_title* and
+        *cancel_confirm_message* customize that dialog.
         """
         if deferred_finalize and not deferred_finalize_indeterminate:
             determinate = True
@@ -353,6 +379,9 @@ class HeavyJobRunner:
             self._mount_busy_strip()
 
         self._active_cancel_event = threading.Event()
+        self._cancel_confirm = bool(confirm_cancel)
+        self._cancel_confirm_title = str(cancel_confirm_title)
+        self._cancel_confirm_message = str(cancel_confirm_message)
 
         def wrap() -> None:
             try:
@@ -385,6 +414,7 @@ class HeavyJobRunner:
 
                 self.schedule_main(finish_err)
             finally:
+                self._cancel_confirm = False
                 self._active_cancel_event = None
 
         threading.Thread(target=wrap, daemon=True).start()
