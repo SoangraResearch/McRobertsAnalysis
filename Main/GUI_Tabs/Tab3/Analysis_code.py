@@ -392,6 +392,8 @@ def nonlinear_analysis(
                 walking_bout_samples=[],
             )
         _notify("No walking periods detected.")
+        if progress_instrument is not None:
+            progress_instrument.mark_run_aborted()
         empty_df = pd.DataFrame(columns=['walking_index','start_index', 'end_index','delay','dimension','Ap_en','Samp_en','Sym_en',
                                 'Permu_en','LyEl_R','LyEs_R','Lye_W','REC','DET','MeanL','MaxL',
                                 'EntrL','LAM','MeanV','MaxV','EntrV','EntrW','RCMSE','CMSE','MSE','MSE_SCALE1','MSE_SCALE2'])
@@ -452,6 +454,8 @@ def nonlinear_analysis(
             longest_bout_duration_s, int(num_periods), bool(assume_walking)
         ):
             _notify("Nonlinear analysis cancelled.")
+            if progress_instrument is not None:
+                progress_instrument.mark_run_aborted()
             raise NonlinearAnalysisCancelled(
                 "Nonlinear analysis was cancelled before the heavy computation started."
             )

@@ -230,6 +230,16 @@ class NonlinearProgressInstrument:
             }
         )
 
+    def mark_run_aborted(self) -> None:
+        """Stop the stopwatch thread; run ended without :meth:`mark_run_complete`.
+
+        Use after user cancel or other early exits so a background tick loop cannot
+        keep calling the status callback after the heavy job UI has cleared.
+        """
+        self._stop_tick()
+        self._run_start_mono = None
+        self._display_bout_step = None
+
     def mark_run_complete(self, source: Optional[str] = None) -> None:
         """Call this after all bouts finish to append run history."""
         self._stop_tick()
