@@ -11,8 +11,9 @@ from GSD_plots import plot_GSDA, plot_GSDB, plot_steps
 from ICDA_code import filter_and_print_long_segments, step_detection
 
 class Tab2Controller:
-    def __init__(self, tab_frame):
+    def __init__(self, tab_frame, heavy_job=None):
         self.tab = tab_frame
+        self.heavy_job = heavy_job
 
         #files
         self.file = None
@@ -63,13 +64,17 @@ class Tab2Controller:
         self.filename = os.path.splitext(os.path.basename(file_path))[0]
 
     def process_GSD(self, GSDType, force_walking, left_GSD_frame, right_GSD_frame, extra_plots=0):
-        self._convert_mobiliseD_file_to_df()
+        if self.file is None:
+            messagebox.showerror("Error", "No file loaded.")
+            return
 
         self.force_data_as_walking = force_walking
         self.left_frame = left_GSD_frame
         self.right_frame = right_GSD_frame
 
-        def worker():
+        self._convert_mobiliseD_file_to_df()
+
+        def heavy_worker():
             acc = self.df.iloc[:, 1:4].to_numpy()
             time_col = self.df["Time"].to_numpy()
             original_time_array = [
@@ -93,9 +98,38 @@ class Tab2Controller:
             payload["step_result"] = step_result
             return payload
 
-        # GSD is fast enough in practice to stay on the main thread (no indeterminate bar).
+        def on_gsd_error(msg: str) -> None:
+            messagebox.showerror("Error", msg)
+
+        if self.heavy_job is not None:
+
+            def on_gsd_success(payload):
+                hj = self.heavy_job
+                if hj is None:
+                    return
+                try:
+                    hj.set_busy_base_message("Building GSD plots…")
+                    hj.schedule_progress(100)
+                    self._apply_gsd_plots(payload)
+                    hj.release_success("✓ GSD complete", flash_ms=4000)
+                except Exception as e:
+                    hj.clear_busy()
+                    messagebox.showerror("Error", str(e))
+
+            if not self.heavy_job.run(
+                "Running GSD…",
+                heavy_worker,
+                on_success=on_gsd_success,
+                on_error=on_gsd_error,
+                deferred_finalize=True,
+            ):
+                return
+            self._clear_gsd_plot_frames()
+            return
+
+        self._clear_gsd_plot_frames()
         try:
-            payload = worker()
+            payload = heavy_worker()
             self._apply_gsd_plots(payload)
         except Exception as e:
             messagebox.showerror("Error", str(e))
@@ -178,6 +212,12 @@ class Tab2Controller:
             messagebox.showerror("Save Error", str(e))
 
 # -------------------------Private/Helper Methods---------------------------------
+
+    def _clear_gsd_plot_frames(self) -> None:
+        for fr in (self.left_frame, self.right_frame):
+            if fr is not None:
+                for w in fr.winfo_children():
+                    w.destroy()
 
     def _convert_mobiliseD_file_to_df(self):
         try:

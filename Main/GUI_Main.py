@@ -75,7 +75,7 @@ heavy_job = create_busy_status_strip(root)
 
 tab1_controller = Tab1Controller(tab1, heavy_job)
 tab1_controller.build_octave_section()
-tab2_controller = Tab2Controller(tab2)
+tab2_controller = Tab2Controller(tab2, heavy_job)
 tab3_controller = Tab3Controller(tab3, heavy_job)
 tab5_controller = Tab5Controller(tab5)
 

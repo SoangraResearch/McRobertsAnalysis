@@ -213,6 +213,14 @@ class HeavyJobRunner:
     def is_busy(self) -> bool:
         return self._busy
 
+    def clear_busy(self) -> None:
+        """Clear busy UI without a success flash (e.g. deferred *on_success* raised)."""
+
+        def apply() -> None:
+            self._finish_busy()
+
+        self.schedule_main(apply)
+
     def run(
         self,
         message: str,
