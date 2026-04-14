@@ -9,7 +9,15 @@ from OMX_To_CSV import matlab_datenum_to_datetime
 from GSDA_code import gsd_iluz
 from GSDB_code import gsd_low_back_acc
 from GSD_plots import plot_GSDA, plot_GSDB, plot_steps
-from ICDA_code import filter_and_print_long_segments, step_detection
+from ICDA_code import (
+    StepDetectionCancelled,
+    filter_and_print_long_segments,
+    step_detection,
+)
+
+# Rows per chunk while building the time vector; cancel is polled between chunks only.
+_TAB2_TIME_BUILD_POLL_ROWS = 50_000
+
 
 class Tab2Controller:
     def __init__(self, tab_frame, heavy_job=None):
@@ -73,17 +81,32 @@ class Tab2Controller:
         self.left_frame = left_GSD_frame
         self.right_frame = right_GSD_frame
 
-        self._convert_mobiliseD_file_to_df()
-
         def heavy_worker():
             hj = self.heavy_job
             if hj is not None and hj.is_cancel_requested():
                 return HEAVY_JOB_CANCELLED
+            try:
+                self.df = pd.read_csv(self.file)
+            except Exception as e:
+                raise RuntimeError(f"Failed to load CSV: {e}") from e
+            if hj is not None and hj.is_cancel_requested():
+                return HEAVY_JOB_CANCELLED
+
             acc = self.df.iloc[:, 1:4].to_numpy()
             time_col = self.df["Time"].to_numpy()
-            original_time_array = [
-                matlab_datenum_to_datetime(t) for t in time_col
-            ]
+            n = len(time_col)
+            original_time_array = []
+            step = _TAB2_TIME_BUILD_POLL_ROWS
+            for i in range(0, n, step):
+                if hj is not None and hj.is_cancel_requested():
+                    return HEAVY_JOB_CANCELLED
+                end = min(i + step, n)
+                original_time_array.extend(
+                    matlab_datenum_to_datetime(t) for t in time_col[i:end]
+                )
+            if hj is not None and hj.is_cancel_requested():
+                return HEAVY_JOB_CANCELLED
+
             fs = 100
             payload = self._compute_gsd_only(
                 GSDType, acc, fs, original_time_array, extra_plots=extra_plots
@@ -94,13 +117,17 @@ class Tab2Controller:
                 raise ValueError(
                     "Select GSD algorithm type (Healthy GSDA or Patient GSDB)."
                 )
-            step_result = step_detection(
-                acc,
-                payload["gsd_result"],
-                fs,
-                plot_results=False,
-                original_time_array=original_time_array,
-            )
+            try:
+                step_result = step_detection(
+                    acc,
+                    payload["gsd_result"],
+                    fs,
+                    plot_results=False,
+                    original_time_array=original_time_array,
+                    cancel_check=hj.is_cancel_requested if hj is not None else None,
+                )
+            except StepDetectionCancelled:
+                return HEAVY_JOB_CANCELLED
             payload["step_result"] = step_result
             return payload
 
@@ -224,12 +251,6 @@ class Tab2Controller:
             if fr is not None:
                 for w in fr.winfo_children():
                     w.destroy()
-
-    def _convert_mobiliseD_file_to_df(self):
-        try:
-            self.df = pd.read_csv(self.file)
-        except Exception as e:
-            messagebox.showerror("Load Error", str(e))
 
     def _compute_gsd_only(
         self, GSDType, acc, fs, original_time_array, extra_plots=0

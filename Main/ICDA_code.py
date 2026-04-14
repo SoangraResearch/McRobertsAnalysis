@@ -18,6 +18,12 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from pathlib import Path
+from typing import Callable, Optional
+
+
+class StepDetectionCancelled(Exception):
+    """Raised from :func:`step_detection` when *cancel_check* returns True."""
+
 
 def find_mcroberts_root():
     """Project root for bundled data files (.app / dev); does not affect algorithms."""
@@ -82,7 +88,14 @@ def sd_algo_amc(accV, fs):
     return IC, FC
 
 
-def step_detection(imu_acc, GS, fs, plot_results=False, original_time_array=None):
+def step_detection(
+    imu_acc,
+    GS,
+    fs,
+    plot_results=False,
+    original_time_array=None,
+    cancel_check: Optional[Callable[[], bool]] = None,
+):
     acc_v = imu_acc[:, 0]  # vertical acceleration
 
     #print(GS)
@@ -96,6 +109,8 @@ def step_detection(imu_acc, GS, fs, plot_results=False, original_time_array=None
         SD_Output = []
 
         for j in range(len(GS)):
+            if cancel_check is not None and cancel_check():
+                raise StepDetectionCancelled()
             start = round(fs * GS[j]['Start'])
             stop = round(fs * GS[j]['End'])
             acc_v_gs = acc_v[start:stop]
