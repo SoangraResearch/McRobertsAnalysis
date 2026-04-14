@@ -11,12 +11,22 @@ from GSDA_code import gsd_iluz
 from GSDB_code import gsd_low_back_acc
 from ICDA_code import filter_and_print_long_segments, step_detection
 from Main import app_config
-from Main.GUI_Tabs.Tab3.Analysis_code import linear_analysis, nonlinear_analysis
+from Main.GUI_Tabs.Tab3.Analysis_code import (
+    NonlinearAnalysisUserCancelled,
+    linear_analysis,
+    nonlinear_analysis,
+)
 from OMX_To_CSV import matlab_datenum_to_datetime
 
 # OMX ACC block is N x 4: datenum time + three accel axes (same layout as Mobilise-D CSV export).
 _ACC_COLUMNS = ["Time", "X", "Y", "Z"]
 _FS = 100  # McRoberts sensor sample rate (matches Tab 2)
+
+
+class SegmentBatchCancelled(Exception):
+    """User cancelled during :func:`run_segment_batch_analysis`."""
+
+    pass
 
 
 def _acc_indices_to_dataframe(acc: np.ndarray, indices: list) -> pd.DataFrame:
@@ -271,6 +281,7 @@ def run_segment_batch_analysis(
     selected_segments,
     assume_walking=True,
     progress_callback: Optional[Callable[[str], None]] = None,
+    cancel_check: Optional[Callable[[], bool]] = None,
 ):
     """Tab 3 linear + nonlinear analysis for each selected long segment.
 
@@ -281,6 +292,8 @@ def run_segment_batch_analysis(
     ``progress_callback`` receives short status strings (e.g. per-segment progress
     and nonlinear sub-steps) for GUI feedback; safe to call from a worker thread
     if the callback marshals to the UI thread.
+
+    If ``cancel_check`` returns True between segments, raises :exc:`SegmentBatchCancelled`.
 
     Runs on the caller’s thread. Destroys temp files when finished.
 
@@ -296,6 +309,8 @@ def run_segment_batch_analysis(
     nseg = len(selected_segments)
     try:
         for k, sel in enumerate(selected_segments):
+            if cancel_check and cancel_check():
+                raise SegmentBatchCancelled()
             if progress_callback:
                 progress_callback(
                     f"Segment {k + 1}/{nseg}: linear + nonlinear analysis…"
@@ -357,7 +372,10 @@ def run_segment_batch_analysis(
                     assume_walking,
                     progress_callback=_nlin_progress if progress_callback else None,
                     settings=app_config.current,
+                    cancel_check=cancel_check,
                 )
+            except NonlinearAnalysisUserCancelled:
+                raise SegmentBatchCancelled()
             except Exception as ex:
                 results.append(
                     {

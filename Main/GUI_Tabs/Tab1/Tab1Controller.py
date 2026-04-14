@@ -9,11 +9,18 @@ from tkinter import filedialog, messagebox
 from OMX_To_CSV import process_omx_file, matlab_datenum_to_datetime
 from Main import app_config
 from Main.GUI_Tabs.gui_style import make_action_button, restore_main_window_focus
+from Main.GUI_Tabs.heavy_job_runner import HEAVY_JOB_CANCELLED
 from Main.GUI_Tabs.Tab1.Acceleration_Plot import PlotOMX
 from datetime import datetime
 
 # OMX Octave read vs acceleration-plot prep: bar share (plot phase is usually shorter).
 _OMX_LOAD_PROGRESS_SHARE = 85
+
+
+class _OmxLoadCancelled(Exception):
+    """Propagates cooperative cancel out of OMX progress callbacks."""
+
+    pass
 
 class Tab1Controller:
     def __init__(self, tab_frame, heavy_job=None):
@@ -140,6 +147,8 @@ class Tab1Controller:
 
         if self.heavy_job:
             def omx_progress(p: int, chunk: int = 0, total: int = 0) -> None:
+                if self.heavy_job.is_cancel_requested():
+                    raise _OmxLoadCancelled()
                 if chunk and total:
                     self.heavy_job.set_busy_base_message(
                         f"Reading OMX data… chunk {chunk}/{total}"
@@ -148,9 +157,15 @@ class Tab1Controller:
                     int(p * _OMX_LOAD_PROGRESS_SHARE / 100)
                 )
 
+            def load_omx_worker():
+                try:
+                    return process_omx_file(file_path, progress=omx_progress)
+                except _OmxLoadCancelled:
+                    return HEAVY_JOB_CANCELLED
+
             self.heavy_job.run(
                 "Loading OMX file…",
-                lambda: process_omx_file(file_path, progress=omx_progress),
+                load_omx_worker,
                 on_success=apply_loaded,
                 deferred_finalize=True,
             )
@@ -190,6 +205,8 @@ class Tab1Controller:
                 total_rows = len(filtered_rows)
                 last_reported_percent = 0
                 for i, row in enumerate(filtered_rows, start=1):
+                    if self.heavy_job is not None and self.heavy_job.is_cancel_requested():
+                        return HEAVY_JOB_CANCELLED
                     writer.writerow(row)
                     percent_complete = int(i / total_rows * 100)
                     if percent_complete // 10 > last_reported_percent // 10:
@@ -198,6 +215,8 @@ class Tab1Controller:
             return {"status": "ok", "path": output_path}
 
         def on_csv_done(payload):
+            if payload is HEAVY_JOB_CANCELLED:
+                return
             if payload["status"] == "empty":
                 messagebox.showinfo("Info", "No data in the specified time range.")
             else:

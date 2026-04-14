@@ -28,6 +28,8 @@ import tkinter as tk
 from tkinter import messagebox, ttk
 from typing import Any, Callable, Dict, List, Optional
 
+from Main.GUI_Tabs.gui_style import ensure_gui_style, pointer_cursor
+
 # How long to show the green check after a successful heavy job (indeterminate bar).
 _SUCCESS_FLASH_MS = 3000
 
@@ -59,6 +61,7 @@ class HeavyJobRunner:
     def __init__(self, root: tk.Misc, status_frame: ttk.Frame):
         self.root = root
         self._status_frame = status_frame
+        ensure_gui_style(root.winfo_toplevel())
 
         self._label_style_normal = "TLabel"
         self._label_style_success = "HeavyJobSuccess.TLabel"
@@ -73,11 +76,31 @@ class HeavyJobRunner:
         self._progress = ttk.Progressbar(
             self._progress_row, mode="indeterminate", length=240
         )
+        _ptr = pointer_cursor()
         self._cancel_button = ttk.Button(
             self._progress_row,
             text="Cancel",
             command=self.request_cancel,
+            style="App.TButton",
+            takefocus=False,
+            cursor=_ptr,
         )
+
+        def _cancel_enter(_evt=None) -> None:
+            if self._busy:
+                try:
+                    self.root.configure(cursor=_ptr)
+                except tk.TclError:
+                    pass
+
+        def _cancel_leave(_evt=None) -> None:
+            try:
+                self.root.configure(cursor="watch" if self._busy else "")
+            except tk.TclError:
+                pass
+
+        self._cancel_button.bind("<Enter>", _cancel_enter)
+        self._cancel_button.bind("<Leave>", _cancel_leave)
 
         self._busy = False
         self._busy_base_message: str = ""
@@ -379,9 +402,14 @@ class HeavyJobRunner:
         result: Any,
     ) -> None:
         """Worker finished; keep busy UI for main-thread follow-up (e.g. plot build)."""
+        # Cancel debounced strip mount so a late flush_strip cannot restart the bar
+        # after the worker returned (fixes indeterminate "ghost" animation).
+        self._cancel_debounce_timer()
 
         def run_followup() -> None:
             try:
+                if self._busy and not self._strip_mounted:
+                    self._mount_busy_strip()
                 self._hide_cancel_button()
                 if on_success is not None:
                     on_success(result)
@@ -402,6 +430,22 @@ class HeavyJobRunner:
             except (tk.TclError, ValueError):
                 pass
             self._debounce_after_id = None
+
+    def _stop_progress_animation(self) -> None:
+        try:
+            self._progress.stop()
+        except tk.TclError:
+            pass
+        self._progress_animation_active = False
+
+    def _reset_indeterminate_phase(self) -> None:
+        """Stop animation and reset phase so the next start() is a fresh cycle."""
+        self._stop_progress_animation()
+        try:
+            self._progress.configure(mode="determinate", maximum=100, value=0)
+            self._progress.configure(mode="indeterminate")
+        except tk.TclError:
+            pass
 
     def _prepare_busy_state(self, message: str, *, determinate: bool) -> None:
         """Disable UI and mark busy; strip widgets may mount later (debounced)."""
@@ -432,14 +476,11 @@ class HeavyJobRunner:
             )
         except tk.TclError:
             self._label.configure(text=message)
-        try:
-            self._progress.stop()
-        except tk.TclError:
-            pass
         if determinate:
+            self._stop_progress_animation()
             self._progress.configure(mode="determinate", maximum=100, value=0)
         else:
-            self._progress.configure(mode="indeterminate")
+            self._reset_indeterminate_phase()
         try:
             self.root.configure(cursor="watch")
         except tk.TclError:
@@ -467,14 +508,11 @@ class HeavyJobRunner:
             self._cancel_button.pack(side=tk.RIGHT, padx=(0, 2), pady=2)
         except tk.TclError:
             return
-        try:
-            self._progress.stop()
-        except tk.TclError:
-            pass
         if self._determinate_job:
+            self._stop_progress_animation()
             self._progress.configure(mode="determinate", maximum=100, value=0)
         else:
-            self._progress.configure(mode="indeterminate")
+            self._reset_indeterminate_phase()
             self._progress.start(12)
             self._progress_animation_active = True
         self._strip_mounted = True

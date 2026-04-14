@@ -134,6 +134,9 @@ class Tab3Controller:
                     progress_instrument=instrument,
                     settings=app_config.current,
                     long_run_confirm=long_run_confirm,
+                    cancel_check=heavy.is_cancel_requested
+                    if heavy is not None
+                    else None,
                 )
             except NonlinearAnalysisCancelled:
                 return HEAVY_JOB_CANCELLED
@@ -227,6 +230,7 @@ class Tab3Controller:
                 assume_walking,
                 settings=app_config.current,
                 long_run_confirm=long_run_confirm,
+                cancel_check=None,
             )
         except NonlinearAnalysisCancelled:
             self.nonlinear_df = None

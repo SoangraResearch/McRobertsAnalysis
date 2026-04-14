@@ -37,6 +37,23 @@ class NonlinearAnalysisCancelled(Exception):
     pass
 
 
+class NonlinearAnalysisUserCancelled(NonlinearAnalysisCancelled):
+    """Raised when cooperative cancel (:func:`cancel_check`) is requested mid-run."""
+
+    pass
+
+
+def _nonlinear_raise_if_cancelled(
+    cancel_check: Optional[Callable[[], bool]],
+    progress_instrument: Optional[NonlinearProgressInstrument],
+) -> None:
+    if cancel_check is None or not cancel_check():
+        return
+    if progress_instrument is not None:
+        progress_instrument.mark_run_aborted()
+    raise NonlinearAnalysisUserCancelled("Analysis was cancelled.")
+
+
 def _settings_copy(settings: Optional[SettingsDict] = None) -> SettingsDict:
     """Snapshot of effective settings (``app_config.current`` when ``settings`` is None)."""
     return copy.deepcopy(app_config.current if settings is None else settings)
@@ -292,6 +309,7 @@ def nonlinear_analysis(
     progress_instrument: Optional[NonlinearProgressInstrument] = None,
     settings=None,
     long_run_confirm: Optional[Callable[[float, int, bool], bool]] = None,
+    cancel_check: Optional[Callable[[], bool]] = None,
 ):
     """Runs nonlinear analysis on a background thread.
 
@@ -314,6 +332,8 @@ def nonlinear_analysis(
             assume_walking)`` when the longest single walking bout exceeds
             :data:`NONLINEAR_LONG_RUN_WARN_THRESHOLD_S`. Return False to abort (raises
             :exc:`NonlinearAnalysisCancelled`). Must run any GUI on the Tk main thread.
+        cancel_check: If set, called from the worker thread; when it returns True,
+            analysis stops and raises :exc:`NonlinearAnalysisUserCancelled`.
 
     Returns:
         (DataFrame, list[dict]): Results table and raw LyE plot data per period.
@@ -324,6 +344,8 @@ def nonlinear_analysis(
         progress_instrument.notify(
             "Reading data and detecting walking periods…"
         )
+
+    _nonlinear_raise_if_cancelled(cancel_check, progress_instrument)
 
     def _notify(msg: str) -> None:
         if progress_instrument is not None:
@@ -353,6 +375,8 @@ def nonlinear_analysis(
     num_elements_to_use = (vm_resample.size // fs_walking) * fs_walking
     vm_bout = vm_resample[:num_elements_to_use]
 
+    _nonlinear_raise_if_cancelled(cancel_check, progress_instrument)
+
     # parameters for find walking function
     min_amp = wcfg["min_amp"]
     T = wcfg["min_duration_s"]
@@ -371,6 +395,8 @@ def nonlinear_analysis(
         print("cadence: ")
         print(cad)
         print(f"Walking periods found: {len(walking) if len(walking.shape) > 0 else 0}")
+
+    _nonlinear_raise_if_cancelled(cancel_check, progress_instrument)
 
     if len(walking) > 0:
         for i, period in enumerate(walking):
@@ -446,6 +472,8 @@ def nonlinear_analysis(
         f"Detected {num_periods} walking {bout_word} (~{walking_duration_s:.0f}s of data)."
     )
 
+    _nonlinear_raise_if_cancelled(cancel_check, progress_instrument)
+
     if (
         long_run_confirm is not None
         and longest_bout_duration_s > NONLINEAR_LONG_RUN_WARN_THRESHOLD_S
@@ -461,6 +489,7 @@ def nonlinear_analysis(
             )
 
     for i in range(num_periods):
+        _nonlinear_raise_if_cancelled(cancel_check, progress_instrument)
         print("iterating through walking. Index: ", i)
         walk_start = walking[i,0]
         walk_end= walking[i,1]

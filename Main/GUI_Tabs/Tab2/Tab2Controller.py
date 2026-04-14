@@ -4,6 +4,7 @@ import numpy as np
 from tkinter import filedialog, messagebox
 
 from Main.GUI_Tabs.gui_style import restore_main_window_focus
+from Main.GUI_Tabs.heavy_job_runner import HEAVY_JOB_CANCELLED
 from OMX_To_CSV import matlab_datenum_to_datetime
 from GSDA_code import gsd_iluz
 from GSDB_code import gsd_low_back_acc
@@ -75,6 +76,9 @@ class Tab2Controller:
         self._convert_mobiliseD_file_to_df()
 
         def heavy_worker():
+            hj = self.heavy_job
+            if hj is not None and hj.is_cancel_requested():
+                return HEAVY_JOB_CANCELLED
             acc = self.df.iloc[:, 1:4].to_numpy()
             time_col = self.df["Time"].to_numpy()
             original_time_array = [
@@ -84,6 +88,8 @@ class Tab2Controller:
             payload = self._compute_gsd_only(
                 GSDType, acc, fs, original_time_array, extra_plots=extra_plots
             )
+            if hj is not None and hj.is_cancel_requested():
+                return HEAVY_JOB_CANCELLED
             if payload["kind"] == "invalid":
                 raise ValueError(
                     "Select GSD algorithm type (Healthy GSDA or Patient GSDB)."

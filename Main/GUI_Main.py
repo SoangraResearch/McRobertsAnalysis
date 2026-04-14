@@ -12,6 +12,7 @@ from tkinter import filedialog, messagebox, ttk
 from OMX_To_CSV import process_omx_file
 from Main.GUI_Tabs.Tab4.auto_analysis_progress import auto_analysis_progress
 from Main.GUI_Tabs.Tab4.Auto_analysis_code import (
+    SegmentBatchCancelled,
     combine_segment_batch_results_to_tables,
     combine_tab2_per_chunk_export_tables,
     run_segment_batch_analysis,
@@ -29,7 +30,7 @@ from Main.GUI_Tabs.gui_style import (
     make_radiobutton,
     restore_main_window_focus,
 )
-from Main.GUI_Tabs.heavy_job_runner import create_busy_status_strip
+from Main.GUI_Tabs.heavy_job_runner import HEAVY_JOB_CANCELLED, create_busy_status_strip
 from Main.GUI_Tabs.Tab1.Tab1Controller import Tab1Controller
 from Main.GUI_Tabs.Tab2.Tab2Controller import Tab2Controller
 from Main import app_config
@@ -403,15 +404,33 @@ def run_auto_analysis():
     def notify_status(msg: str) -> None:
         heavy_job.schedule_status_message(f"Auto analysis: {msg}")
 
+    class _AutoOmxCancelled(Exception):
+        pass
+
+    def _omx_progress_cancel(_p: int, _chunk: int = 0, _total: int = 0) -> None:
+        if heavy_job.is_cancel_requested():
+            raise _AutoOmxCancelled()
+
     def worker():
+        if heavy_job.is_cancel_requested():
+            return HEAVY_JOB_CANCELLED
         sync_tab4_canvas("Reading Data")
         notify_status("Reading OMX file…")
-        auto_analysis_data, _filename = process_omx_file(file_path)
+        try:
+            auto_analysis_data, _filename = process_omx_file(
+                file_path, progress=_omx_progress_cancel
+            )
+        except _AutoOmxCancelled:
+            return HEAVY_JOB_CANCELLED
+        if heavy_job.is_cancel_requested():
+            return HEAVY_JOB_CANCELLED
         timestamps = auto_analysis_data["ACC"][:, 0]
 
         sync_tab4_canvas("Splitting Data")
         notify_status("Splitting data by day…")
         data_chunks = split_data_by_day(auto_analysis_data, timestamps)
+        if heavy_job.is_cancel_requested():
+            return HEAVY_JOB_CANCELLED
 
         sync_tab4_canvas("Sequence Detection")
         notify_status("Sequence detection (GSD per day chunk)…")
@@ -420,18 +439,28 @@ def run_auto_analysis():
             gsd_type,
             force_walk,
         )
+        if heavy_job.is_cancel_requested():
+            return HEAVY_JOB_CANCELLED
 
         sync_tab4_canvas("Segment Selection")
         notify_status("Selecting long segments…")
         selected = select_segments_for_auto_analysis(per_chunk)
+        if heavy_job.is_cancel_requested():
+            return HEAVY_JOB_CANCELLED
 
         sync_tab4_canvas("Segment Analysis")
-        batch_results = run_segment_batch_analysis(
-            data_chunks,
-            selected,
-            assume_walking=True,
-            progress_callback=notify_status,
-        )
+        try:
+            batch_results = run_segment_batch_analysis(
+                data_chunks,
+                selected,
+                assume_walking=True,
+                progress_callback=notify_status,
+                cancel_check=heavy_job.is_cancel_requested,
+            )
+        except SegmentBatchCancelled:
+            return HEAVY_JOB_CANCELLED
+        if heavy_job.is_cancel_requested():
+            return HEAVY_JOB_CANCELLED
 
         sync_tab4_canvas("Output")
         notify_status("Combining results…")
