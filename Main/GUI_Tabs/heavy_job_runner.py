@@ -41,6 +41,17 @@ _DEFAULT_SHOW_BUSY_AFTER_MS = 400
 # Returned from *worker* to clear the busy UI without treating the job as an error.
 HEAVY_JOB_CANCELLED = object()
 
+# ttk.Label: wide wrap so long status strings do not break into a second “phantom” line.
+_BUSY_LABEL_WRAP_PX = 2200
+
+
+def _single_line_busy_status(text: str) -> str:
+    """One visual line: strip CR/LF and collapse whitespace (worker/tick text)."""
+    if not text:
+        return ""
+    t = str(text).replace("\r\n", " ").replace("\r", " ").replace("\n", " ")
+    return " ".join(t.split())
+
 
 def create_busy_status_strip(
     root: tk.Misc,
@@ -118,6 +129,16 @@ class HeavyJobRunner:
         self._cancel_confirm: bool = False
         self._cancel_confirm_title: str = ""
         self._cancel_confirm_message: str = ""
+        self._status_message_after_id: Optional[str] = None
+
+    def _cancel_pending_status_message(self) -> None:
+        aid = self._status_message_after_id
+        if aid is not None:
+            try:
+                self.root.after_cancel(aid)
+            except (tk.TclError, ValueError):
+                pass
+            self._status_message_after_id = None
 
     def request_cancel(self) -> None:
         """Ask the current worker to stop cooperatively (sets the per-job cancel event).
@@ -156,13 +177,20 @@ class HeavyJobRunner:
 
         Used for granular progress (e.g. Tab 3 nonlinear analysis per period).
         Ignored if no job is active so stray callbacks do not repopulate the bar.
+        Rapid updates are coalesced so only the latest text is applied on the UI tick.
         """
 
         def apply() -> None:
+            self._status_message_after_id = None
             if not self._busy:
                 return
+            line = _single_line_busy_status(text)
             try:
-                self._label.configure(text=text)
+                self._label.configure(
+                    text=line,
+                    wraplength=_BUSY_LABEL_WRAP_PX,
+                    style=self._label_style_normal,
+                )
             except tk.TclError:
                 return
             try:
@@ -170,7 +198,11 @@ class HeavyJobRunner:
             except tk.TclError:
                 pass
 
-        self.schedule_main(apply)
+        def queue() -> None:
+            self._cancel_pending_status_message()
+            self._status_message_after_id = self.root.after(0, apply)
+
+        self.schedule_main(queue)
 
     def schedule_progress(self, percent: int) -> None:
         """Thread-safe: set determinate progress 0–100.
@@ -203,11 +235,16 @@ class HeavyJobRunner:
         def apply() -> None:
             if not self._busy:
                 return
-            self._busy_base_message = message
+            line = _single_line_busy_status(message)
+            self._busy_base_message = line
             try:
-                self._label.configure(text=message, style=self._label_style_normal)
+                self._label.configure(
+                    text=line,
+                    style=self._label_style_normal,
+                    wraplength=_BUSY_LABEL_WRAP_PX,
+                )
             except tk.TclError:
-                self._label.configure(text=message)
+                self._label.configure(text=line)
 
         if threading.current_thread() is threading.main_thread():
             apply()
@@ -245,6 +282,7 @@ class HeavyJobRunner:
         *,
         flash_ms: int | None = None,
     ) -> None:
+        self._cancel_pending_status_message()
         self._cancel_debounce_timer()
         if self._success_after_id is not None:
             try:
@@ -495,17 +533,21 @@ class HeavyJobRunner:
         except tk.TclError:
             pass
 
+        self._cancel_pending_status_message()
         self._busy = True
-        self._busy_base_message = message
+        msg_line = _single_line_busy_status(message)
+        self._busy_base_message = msg_line
         self._determinate_job = determinate
         self._progress_animation_active = False
         self._strip_mounted = False
         try:
             self._label.configure(
-                text=message, style=self._label_style_normal, wraplength=0
+                text=msg_line,
+                style=self._label_style_normal,
+                wraplength=_BUSY_LABEL_WRAP_PX,
             )
         except tk.TclError:
-            self._label.configure(text=message)
+            self._label.configure(text=msg_line)
         if determinate:
             self._stop_progress_animation()
             self._progress.configure(mode="determinate", maximum=100, value=0)
@@ -550,6 +592,7 @@ class HeavyJobRunner:
 
     def _present_frozen_ui(self, message: str) -> None:
         """Stop animation, full bar, keep label + bar visible (no auto-hide)."""
+        self._cancel_pending_status_message()
         self._cancel_debounce_timer()
         if self._success_after_id is not None:
             try:
@@ -622,6 +665,7 @@ class HeavyJobRunner:
             on_success(result)
 
     def _finish_busy(self) -> None:
+        self._cancel_pending_status_message()
         self._cancel_debounce_timer()
         if self._success_after_id is not None:
             try:
