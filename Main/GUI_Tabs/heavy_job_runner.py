@@ -16,6 +16,9 @@ from typing import Any, Callable, Dict, List, Optional
 # How long to show the green check after a successful heavy job (indeterminate bar).
 _SUCCESS_FLASH_MS = 3000
 
+# Returned from *worker* to clear the busy UI without treating the job as an error.
+HEAVY_JOB_CANCELLED = object()
+
 
 class HeavyJobRunner:
     def __init__(self, root: tk.Misc, status_frame: ttk.Frame):
@@ -229,6 +232,13 @@ class HeavyJobRunner:
         def wrap() -> None:
             try:
                 result = worker()
+                if result is HEAVY_JOB_CANCELLED:
+
+                    def finish_cancel() -> None:
+                        self._finish_busy()
+
+                    self.schedule_main(finish_cancel)
+                    return
 
                 def finish_ok() -> None:
                     if deferred_finalize:

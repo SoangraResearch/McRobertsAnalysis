@@ -1,6 +1,6 @@
 import copy
 import os
-from typing import Any, Dict, Optional
+from typing import Any, Callable, Dict, Optional
 
 import pandas as pd
 import numpy as np
@@ -26,6 +26,15 @@ from Non_GUI.Analysis_Code.non_linear_functions.rqa import RQA
 from Non_GUI.Analysis_Code.non_linear_functions.ent_Samp import Ent_Samp
 
 SettingsDict = Dict[str, Any]
+
+# Total detected walking duration (sum of bouts at 100 Hz) above which the GUI may confirm.
+NONLINEAR_LONG_RUN_WARN_THRESHOLD_S = 600.0
+
+
+class NonlinearAnalysisCancelled(Exception):
+    """Raised when the user declines to continue a long nonlinear run."""
+
+    pass
 
 
 def _settings_copy(settings: Optional[SettingsDict] = None) -> SettingsDict:
@@ -282,6 +291,7 @@ def nonlinear_analysis(
     progress_callback=None,
     progress_instrument: Optional[NonlinearProgressInstrument] = None,
     settings=None,
+    long_run_confirm: Optional[Callable[[float, int, bool], bool]] = None,
 ):
     """Runs nonlinear analysis on a background thread.
 
@@ -300,6 +310,10 @@ def nonlinear_analysis(
             **Elapsed** and **(step/7)** suffixes after the run clock starts (during
             each bout’s ``Period …`` steps).
         settings: Optional settings dict (defaults to :data:`Main.app_config.current`).
+        long_run_confirm: If set, called with ``(walking_duration_s, num_periods,
+            assume_walking)`` when total walking duration exceeds
+            :data:`NONLINEAR_LONG_RUN_WARN_THRESHOLD_S`. Return False to abort (raises
+            :exc:`NonlinearAnalysisCancelled`). Must run any GUI on the Tk main thread.
 
     Returns:
         (DataFrame, list[dict]): Results table and raw LyE plot data per period.
@@ -428,6 +442,18 @@ def nonlinear_analysis(
     _notify(
         f"Detected {num_periods} walking {bout_word} (~{walking_duration_s:.0f}s of data)."
     )
+
+    if (
+        long_run_confirm is not None
+        and walking_duration_s > NONLINEAR_LONG_RUN_WARN_THRESHOLD_S
+    ):
+        if not long_run_confirm(
+            walking_duration_s, int(num_periods), bool(assume_walking)
+        ):
+            _notify("Nonlinear analysis cancelled.")
+            raise NonlinearAnalysisCancelled(
+                "Nonlinear analysis was cancelled before the heavy computation started."
+            )
 
     for i in range(num_periods):
         print("iterating through walking. Index: ", i)
@@ -624,6 +650,3 @@ def _walking_period_detection(cad, fs_HS_TO=100):
             walking_periods.append([start_indices[i], stop_indices[i]])
     
     return np.array(walking_periods) if walking_periods else np.array([]).reshape(0, 2)
-import numpy as np
-import pandas as pd
-import matplotlib.pyplot as plt

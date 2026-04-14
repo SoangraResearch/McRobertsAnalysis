@@ -1,12 +1,18 @@
 import os
 import re
 import sys
+import threading
 import traceback
 import tkinter as tk
 from tkinter import filedialog, messagebox
 from Main import app_config
 from Main.GUI_Tabs.gui_style import make_action_button, restore_main_window_focus
-from Main.GUI_Tabs.Tab3.Analysis_code import linear_analysis, nonlinear_analysis
+from Main.GUI_Tabs.heavy_job_runner import HEAVY_JOB_CANCELLED
+from Main.GUI_Tabs.Tab3.Analysis_code import (
+    NonlinearAnalysisCancelled,
+    linear_analysis,
+    nonlinear_analysis,
+)
 from Main.GUI_Tabs.Tab3.nonlinear_progress_instrument import NonlinearProgressInstrument
 from Main.GUI_Tabs.Tab3.Analysis_Plots import (
     display_combined_plots,
@@ -109,17 +115,27 @@ class Tab3Controller:
             if can_status:
                 heavy.schedule_status_message(f"Nonlinear: {text}")
 
+        def long_run_confirm(walking_duration_s, num_periods, aw):
+            return self._nonlinear_long_run_confirm(heavy, walking_duration_s, num_periods, aw)
+
         def worker():
-            instrument = None
-            if can_status:
-                instrument = NonlinearProgressInstrument(update_progress)
-            result = nonlinear_analysis(
-                self.file,
-                assume_walking.get(),
-                progress_callback=None if instrument else (update_progress if can_status else None),
-                progress_instrument=instrument,
-                settings=app_config.current,
-            )
+            try:
+                instrument = None
+                if can_status:
+                    instrument = NonlinearProgressInstrument(update_progress)
+                result = nonlinear_analysis(
+                    self.file,
+                    assume_walking.get(),
+                    progress_callback=None
+                    if instrument
+                    else (update_progress if can_status else None),
+                    progress_instrument=instrument,
+                    settings=app_config.current,
+                    long_run_confirm=long_run_confirm,
+                )
+            except NonlinearAnalysisCancelled:
+                return HEAVY_JOB_CANCELLED
+
             if not can_status:
                 return result
             if instrument is not None:
@@ -129,6 +145,8 @@ class Tab3Controller:
             return (result, "Nonlinear: Complete")
 
         def on_success(result):
+            if result is HEAVY_JOB_CANCELLED:
+                return
             df, plot_data_list = result
             self._on_nonlinear_complete(plot_frame, df, plot_data_list)
 
@@ -147,6 +165,8 @@ class Tab3Controller:
         else:
             try:
                 result = worker()
+                if result is HEAVY_JOB_CANCELLED:
+                    return
                 on_success(result)
             except Exception:
                 traceback.print_exc()
@@ -194,9 +214,23 @@ class Tab3Controller:
             embed_plots=False,
             settings=app_config.current,
         )
-        self.nonlinear_df, plot_data_list = nonlinear_analysis(
-            self.file, assume_walking, settings=app_config.current
-        )
+        def long_run_confirm(walking_duration_s, num_periods, aw):
+            return self._nonlinear_long_run_confirm(
+                None, walking_duration_s, num_periods, aw
+            )
+
+        try:
+            self.nonlinear_df, plot_data_list = nonlinear_analysis(
+                self.file,
+                assume_walking,
+                settings=app_config.current,
+                long_run_confirm=long_run_confirm,
+            )
+        except NonlinearAnalysisCancelled:
+            self.nonlinear_df = None
+            self.nonlinear_plots = None
+            return
+
         self.nonlinear_plots = []
         for i, pd in enumerate(plot_data_list):
             fig = nonlinear_plot(
@@ -313,7 +347,55 @@ class Tab3Controller:
             messagebox.showerror("Save Error", str(e))
 
 # -------------------------Private/Helper Methods---------------------------------
-    
+
+    def _nonlinear_long_run_confirm_ui(
+        self, walking_duration_s: float, num_periods: int, assume_walking: bool
+    ) -> bool:
+        parent = self.tab.winfo_toplevel()
+        mins = walking_duration_s / 60.0
+        bout_word = "bout" if num_periods == 1 else "bouts"
+        if assume_walking:
+            msg = (
+                f"'Assume walking' is enabled: the full recording (~{mins:.1f} minutes "
+                "of data) is analyzed as a single bout.\n\n"
+                "Nonlinear analysis may take a long time. Continue?"
+            )
+        else:
+            msg = (
+                f"About {mins:.1f} minutes of walking data was detected across "
+                f"{num_periods} {bout_word}.\n\n"
+                "Nonlinear analysis may take a long time. Continue?"
+            )
+        return messagebox.askokcancel("Long nonlinear run", msg, parent=parent)
+
+    def _nonlinear_long_run_confirm(
+        self,
+        heavy,
+        walking_duration_s: float,
+        num_periods: int,
+        assume_walking: bool,
+    ) -> bool:
+        if threading.current_thread() is threading.main_thread():
+            return self._nonlinear_long_run_confirm_ui(
+                walking_duration_s, num_periods, assume_walking
+            )
+        if heavy is None:
+            return True
+        done = threading.Event()
+        choice = [False]
+
+        def run_dialog() -> None:
+            try:
+                choice[0] = self._nonlinear_long_run_confirm_ui(
+                    walking_duration_s, num_periods, assume_walking
+                )
+            finally:
+                done.set()
+
+        heavy.schedule_main(run_dialog)
+        done.wait(timeout=3600)
+        return choice[0] if done.is_set() else False
+
     def _reset_tab(self):
         self.linear_df = None
         self.linear_plots = None
