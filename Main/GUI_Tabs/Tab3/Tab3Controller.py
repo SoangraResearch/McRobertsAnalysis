@@ -115,8 +115,10 @@ class Tab3Controller:
             if can_status:
                 heavy.schedule_status_message(f"Nonlinear: {text}")
 
-        def long_run_confirm(walking_duration_s, num_periods, aw):
-            return self._nonlinear_long_run_confirm(heavy, walking_duration_s, num_periods, aw)
+        def long_run_confirm(longest_bout_duration_s, num_periods, aw):
+            return self._nonlinear_long_run_confirm(
+                heavy, longest_bout_duration_s, num_periods, aw
+            )
 
         def worker():
             try:
@@ -214,9 +216,9 @@ class Tab3Controller:
             embed_plots=False,
             settings=app_config.current,
         )
-        def long_run_confirm(walking_duration_s, num_periods, aw):
+        def long_run_confirm(longest_bout_duration_s, num_periods, aw):
             return self._nonlinear_long_run_confirm(
-                None, walking_duration_s, num_periods, aw
+                None, longest_bout_duration_s, num_periods, aw
             )
 
         try:
@@ -349,11 +351,10 @@ class Tab3Controller:
 # -------------------------Private/Helper Methods---------------------------------
 
     def _nonlinear_long_run_confirm_ui(
-        self, walking_duration_s: float, num_periods: int, assume_walking: bool
+        self, longest_bout_duration_s: float, num_periods: int, assume_walking: bool
     ) -> bool:
         parent = self.tab.winfo_toplevel()
-        mins = walking_duration_s / 60.0
-        bout_word = "bout" if num_periods == 1 else "bouts"
+        mins = longest_bout_duration_s / 60.0
         if assume_walking:
             msg = (
                 f"'Assume walking' is enabled: the full recording (~{mins:.1f} minutes "
@@ -361,23 +362,24 @@ class Tab3Controller:
                 "Nonlinear analysis may take a long time. Continue?"
             )
         else:
+            bout_word = "bout" if num_periods == 1 else "bouts"
             msg = (
-                f"About {mins:.1f} minutes of walking data was detected across "
-                f"{num_periods} {bout_word}.\n\n"
-                "Nonlinear analysis may take a long time. Continue?"
+                f"The longest walking bout is about {mins:.1f} minutes "
+                f"({num_periods} {bout_word} in total).\n\n"
+                "Nonlinear analysis may take a long time for long segments. Continue?"
             )
         return messagebox.askokcancel("Long nonlinear run", msg, parent=parent)
 
     def _nonlinear_long_run_confirm(
         self,
         heavy,
-        walking_duration_s: float,
+        longest_bout_duration_s: float,
         num_periods: int,
         assume_walking: bool,
     ) -> bool:
         if threading.current_thread() is threading.main_thread():
             return self._nonlinear_long_run_confirm_ui(
-                walking_duration_s, num_periods, assume_walking
+                longest_bout_duration_s, num_periods, assume_walking
             )
         if heavy is None:
             return True
@@ -387,7 +389,7 @@ class Tab3Controller:
         def run_dialog() -> None:
             try:
                 choice[0] = self._nonlinear_long_run_confirm_ui(
-                    walking_duration_s, num_periods, assume_walking
+                    longest_bout_duration_s, num_periods, assume_walking
                 )
             finally:
                 done.set()

@@ -27,7 +27,7 @@ from Non_GUI.Analysis_Code.non_linear_functions.ent_Samp import Ent_Samp
 
 SettingsDict = Dict[str, Any]
 
-# Total detected walking duration (sum of bouts at 100 Hz) above which the GUI may confirm.
+# Longest single walking bout (seconds at 100 Hz indices) above which the GUI may confirm.
 NONLINEAR_LONG_RUN_WARN_THRESHOLD_S = 600.0
 
 
@@ -310,8 +310,8 @@ def nonlinear_analysis(
             **Elapsed** and **(step/7)** suffixes after the run clock starts (during
             each bout’s ``Period …`` steps).
         settings: Optional settings dict (defaults to :data:`Main.app_config.current`).
-        long_run_confirm: If set, called with ``(walking_duration_s, num_periods,
-            assume_walking)`` when total walking duration exceeds
+        long_run_confirm: If set, called with ``(longest_bout_duration_s, num_periods,
+            assume_walking)`` when the longest single walking bout exceeds
             :data:`NONLINEAR_LONG_RUN_WARN_THRESHOLD_S`. Return False to abort (raises
             :exc:`NonlinearAnalysisCancelled`). Must run any GUI on the Tk main thread.
 
@@ -438,6 +438,7 @@ def nonlinear_analysis(
         )
 
     walking_duration_s = float(total_walking_samples) / float(fs_HS_TO)
+    longest_bout_duration_s = float(max(walking_bout_samples)) / float(fs_HS_TO)
     bout_word = "bout" if num_periods == 1 else "bouts"
     _notify(
         f"Detected {num_periods} walking {bout_word} (~{walking_duration_s:.0f}s of data)."
@@ -445,10 +446,10 @@ def nonlinear_analysis(
 
     if (
         long_run_confirm is not None
-        and walking_duration_s > NONLINEAR_LONG_RUN_WARN_THRESHOLD_S
+        and longest_bout_duration_s > NONLINEAR_LONG_RUN_WARN_THRESHOLD_S
     ):
         if not long_run_confirm(
-            walking_duration_s, int(num_periods), bool(assume_walking)
+            longest_bout_duration_s, int(num_periods), bool(assume_walking)
         ):
             _notify("Nonlinear analysis cancelled.")
             raise NonlinearAnalysisCancelled(
