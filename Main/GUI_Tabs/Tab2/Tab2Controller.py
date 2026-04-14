@@ -109,7 +109,6 @@ class Tab2Controller:
                     return
                 try:
                     hj.set_busy_base_message("Building GSD plots…")
-                    hj.schedule_progress(100)
                     self._apply_gsd_plots(payload)
                     hj.release_success("✓ GSD complete", flash_ms=4000)
                 except Exception as e:
@@ -122,6 +121,7 @@ class Tab2Controller:
                 on_success=on_gsd_success,
                 on_error=on_gsd_error,
                 deferred_finalize=True,
+                deferred_finalize_indeterminate=True,
             ):
                 return
             self._clear_gsd_plot_frames()

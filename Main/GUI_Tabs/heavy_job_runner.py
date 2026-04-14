@@ -7,6 +7,16 @@ from a worker to post short callbacks to the Tk event loop.
 from the main window. Long-running work should use the returned :class:`HeavyJobRunner`
 (:meth:`~HeavyJobRunner.run`, :meth:`~HeavyJobRunner.schedule_status_message`, etc.).
 Do not add separate bottom-of-window ``ttk.Progressbar`` widgets for the same purpose.
+
+By default, :meth:`HeavyJobRunner.run` waits :data:`_DEFAULT_SHOW_BUSY_AFTER_MS` before
+packing the label and bar (widgets are still disabled and the watch cursor is shown).
+Pass ``show_busy_after_ms=0`` for an immediate strip.
+
+**Cooperative cancel (C1):** Each :meth:`HeavyJobRunner.run` creates a fresh
+:class:`threading.Event` exposed via :meth:`is_cancel_requested`. Call
+:meth:`request_cancel` (e.g. from a future Cancel button) from any thread; the
+worker must **poll** :meth:`is_cancel_requested` and return :data:`HEAVY_JOB_CANCELLED`
+for the UI to clear without an error dialog.
 """
 
 from __future__ import annotations
@@ -20,6 +30,9 @@ from typing import Any, Callable, Dict, List, Optional
 
 # How long to show the green check after a successful heavy job (indeterminate bar).
 _SUCCESS_FLASH_MS = 3000
+
+# Delay before packing the status label + progress bar (widgets stay disabled + watch cursor).
+_DEFAULT_SHOW_BUSY_AFTER_MS = 400
 
 # Returned from *worker* to clear the busy UI without treating the job as an error.
 HEAVY_JOB_CANCELLED = object()
@@ -68,6 +81,20 @@ class HeavyJobRunner:
         self._entry_state_restore: Dict[int, str] = {}
         self._success_after_id: Optional[str] = None
         self._freeze_progress_on_success: bool = False
+        self._debounce_after_id: Optional[str] = None
+        self._strip_mounted: bool = False
+        self._active_cancel_event: Optional[threading.Event] = None
+
+    def request_cancel(self) -> None:
+        """Ask the current worker to stop cooperatively (sets the per-job cancel event)."""
+        ev = self._active_cancel_event
+        if ev is not None:
+            ev.set()
+
+    def is_cancel_requested(self) -> bool:
+        """True if :meth:`request_cancel` was called for the active job (safe from worker thread)."""
+        ev = self._active_cancel_event
+        return bool(ev is not None and ev.is_set())
 
     def register_disable_widgets(self, *widgets: tk.Widget) -> None:
         """Buttons (and similar) to disable while a job runs."""
@@ -89,7 +116,10 @@ class HeavyJobRunner:
         def apply() -> None:
             if not self._busy:
                 return
-            self._label.configure(text=text)
+            try:
+                self._label.configure(text=text)
+            except tk.TclError:
+                return
             try:
                 self.root.update_idletasks()
             except tk.TclError:
@@ -123,10 +153,10 @@ class HeavyJobRunner:
             self.schedule_main(apply)
 
     def set_busy_base_message(self, message: str) -> None:
-        """Thread-safe: change the status label text (e.g. after worker phase)."""
+        """Thread-safe: change the status label during an active :meth:`run` job (any bar mode)."""
 
         def apply() -> None:
-            if not self._busy or not self._determinate_job:
+            if not self._busy:
                 return
             self._busy_base_message = message
             try:
@@ -170,6 +200,7 @@ class HeavyJobRunner:
         *,
         flash_ms: int | None = None,
     ) -> None:
+        self._cancel_debounce_timer()
         if self._success_after_id is not None:
             try:
                 self.root.after_cancel(self._success_after_id)
@@ -181,13 +212,21 @@ class HeavyJobRunner:
             self._progress.stop()
         self._progress_animation_active = False
         self._determinate_job = False
-        self._progress.pack_forget()
+        try:
+            self._progress.pack_forget()
+        except tk.TclError:
+            pass
+        try:
+            self._label.pack(fill=tk.X, padx=6, pady=(4, 0))
+        except tk.TclError:
+            pass
         try:
             self._label.configure(text=message, style=self._label_style_success)
         except tk.TclError:
             self._label.configure(text=message)
 
         self._busy = False
+        self._strip_mounted = False
         try:
             self.root.configure(cursor="")
         except tk.TclError:
@@ -231,6 +270,8 @@ class HeavyJobRunner:
         determinate: bool = False,
         deferred_finalize: bool = False,
         freeze_progress_on_success: bool = False,
+        show_busy_after_ms: int = _DEFAULT_SHOW_BUSY_AFTER_MS,
+        deferred_finalize_indeterminate: bool = False,
     ) -> bool:
         """Start *worker* in a daemon thread. Returns False if already busy.
 
@@ -239,14 +280,25 @@ class HeavyJobRunner:
 
         If *deferred_finalize* is True, the busy UI stays up after the worker
         returns; *on_success* must end by calling release_success() on the main
-        thread (e.g. after plotting). Implies *determinate* if not set.
+        thread (e.g. after plotting). By default this implies *determinate* so
+        workers can use :meth:`schedule_progress`. Pass
+        *deferred_finalize_indeterminate* True to keep an indeterminate bar during
+        the worker (e.g. Tab 2 GSD with no percent callbacks).
 
         If *freeze_progress_on_success* is True, on success the progress bar stops
         at 100% and the label keeps the final message (worker may return
         ``(payload, "status text")`` to set the label; otherwise *payload* is the
         worker return value). No auto-clear timer — useful for inspecting timing.
+
+        If *show_busy_after_ms* is > 0, registered widgets are disabled and the
+        watch cursor appears immediately, but the status label and progress bar
+        are packed only after that delay (unless the job ends first). Use ``0``
+        to show the strip immediately (legacy behavior).
+
+        While a worker runs, :meth:`is_cancel_requested` reflects :meth:`request_cancel`;
+        the worker should return :data:`HEAVY_JOB_CANCELLED` when it stops early.
         """
-        if deferred_finalize:
+        if deferred_finalize and not deferred_finalize_indeterminate:
             determinate = True
 
         if self._busy:
@@ -257,7 +309,19 @@ class HeavyJobRunner:
             return False
 
         self._freeze_progress_on_success = bool(freeze_progress_on_success)
-        self._show_busy(message, determinate=determinate)
+        self._prepare_busy_state(message, determinate=determinate)
+        deb_ms = max(0, int(show_busy_after_ms))
+        if deb_ms > 0:
+
+            def flush_strip() -> None:
+                self._debounce_after_id = None
+                self._mount_busy_strip()
+
+            self._debounce_after_id = self.root.after(deb_ms, flush_strip)
+        else:
+            self._mount_busy_strip()
+
+        self._active_cancel_event = threading.Event()
 
         def wrap() -> None:
             try:
@@ -289,6 +353,8 @@ class HeavyJobRunner:
                         messagebox.showerror("Error", msg)
 
                 self.schedule_main(finish_err)
+            finally:
+                self._active_cancel_event = None
 
         threading.Thread(target=wrap, daemon=True).start()
         return True
@@ -314,26 +380,43 @@ class HeavyJobRunner:
 
     # --- internals ---
 
-    def _show_busy(self, message: str, *, determinate: bool = False) -> None:
+    def _cancel_debounce_timer(self) -> None:
+        if self._debounce_after_id is not None:
+            try:
+                self.root.after_cancel(self._debounce_after_id)
+            except (tk.TclError, ValueError):
+                pass
+            self._debounce_after_id = None
+
+    def _prepare_busy_state(self, message: str, *, determinate: bool) -> None:
+        """Disable UI and mark busy; strip widgets may mount later (debounced)."""
+        self._cancel_debounce_timer()
         if self._success_after_id is not None:
             try:
                 self.root.after_cancel(self._success_after_id)
             except (tk.TclError, ValueError):
                 pass
             self._success_after_id = None
+        try:
+            self._progress.pack_forget()
+        except tk.TclError:
+            pass
+        try:
+            self._label.pack_forget()
+        except tk.TclError:
+            pass
 
         self._busy = True
         self._busy_base_message = message
         self._determinate_job = determinate
         self._progress_animation_active = False
+        self._strip_mounted = False
         try:
             self._label.configure(
                 text=message, style=self._label_style_normal, wraplength=0
             )
         except tk.TclError:
             self._label.configure(text=message)
-        self._label.pack(fill=tk.X, padx=6, pady=(4, 0))
-        self._progress.pack(fill=tk.X, padx=6, pady=(0, 4))
         try:
             self._progress.stop()
         except tk.TclError:
@@ -342,8 +425,6 @@ class HeavyJobRunner:
             self._progress.configure(mode="determinate", maximum=100, value=0)
         else:
             self._progress.configure(mode="indeterminate")
-            self._progress.start(12)
-            self._progress_animation_active = True
         try:
             self.root.configure(cursor="watch")
         except tk.TclError:
@@ -351,8 +432,34 @@ class HeavyJobRunner:
         self._apply_widget_states(disabled=True)
         self.root.update_idletasks()
 
+    def _mount_busy_strip(self) -> None:
+        """Pack label + progress and start animation (no-op if job ended or already mounted)."""
+        if not self._busy or self._strip_mounted:
+            return
+        try:
+            self._label.pack(fill=tk.X, padx=6, pady=(4, 0))
+        except tk.TclError:
+            return
+        try:
+            self._progress.pack(fill=tk.X, padx=6, pady=(0, 4))
+        except tk.TclError:
+            return
+        try:
+            self._progress.stop()
+        except tk.TclError:
+            pass
+        if self._determinate_job:
+            self._progress.configure(mode="determinate", maximum=100, value=0)
+        else:
+            self._progress.configure(mode="indeterminate")
+            self._progress.start(12)
+            self._progress_animation_active = True
+        self._strip_mounted = True
+        self.root.update_idletasks()
+
     def _present_frozen_ui(self, message: str) -> None:
         """Stop animation, full bar, keep label + bar visible (no auto-hide)."""
+        self._cancel_debounce_timer()
         if self._success_after_id is not None:
             try:
                 self.root.after_cancel(self._success_after_id)
@@ -364,6 +471,14 @@ class HeavyJobRunner:
             self._progress.stop()
         self._progress_animation_active = False
         self._determinate_job = False
+        try:
+            self._label.pack(fill=tk.X, padx=6, pady=(4, 0))
+        except tk.TclError:
+            pass
+        try:
+            self._progress.pack(fill=tk.X, padx=6, pady=(0, 4))
+        except tk.TclError:
+            pass
         try:
             self._progress.configure(mode="determinate", maximum=100, value=100)
         except tk.TclError:
@@ -377,6 +492,7 @@ class HeavyJobRunner:
         except tk.TclError:
             self._label.configure(text=message)
         self._busy = False
+        self._strip_mounted = True
         try:
             self.root.configure(cursor="")
         except tk.TclError:
@@ -410,6 +526,7 @@ class HeavyJobRunner:
             on_success(result)
 
     def _finish_busy(self) -> None:
+        self._cancel_debounce_timer()
         if self._success_after_id is not None:
             try:
                 self.root.after_cancel(self._success_after_id)
@@ -428,6 +545,7 @@ class HeavyJobRunner:
         except tk.TclError:
             self._label.configure(text="")
         self._busy = False
+        self._strip_mounted = False
         try:
             self.root.configure(cursor="")
         except tk.TclError:
