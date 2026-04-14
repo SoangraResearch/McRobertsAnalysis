@@ -12,11 +12,11 @@ By default, :meth:`HeavyJobRunner.run` waits :data:`_DEFAULT_SHOW_BUSY_AFTER_MS`
 packing the label and bar (widgets are still disabled and the watch cursor is shown).
 Pass ``show_busy_after_ms=0`` for an immediate strip.
 
-**Cooperative cancel (C1):** Each :meth:`HeavyJobRunner.run` creates a fresh
-:class:`threading.Event` exposed via :meth:`is_cancel_requested`. Call
-:meth:`request_cancel` (e.g. from a future Cancel button) from any thread; the
-worker must **poll** :meth:`is_cancel_requested` and return :data:`HEAVY_JOB_CANCELLED`
-for the UI to clear without an error dialog.
+**Cooperative cancel:** Each :meth:`HeavyJobRunner.run` creates a fresh
+:class:`threading.Event` exposed via :meth:`is_cancel_requested`. A **Cancel**
+button appears with the busy strip; it calls :meth:`request_cancel`. Workers must
+**poll** :meth:`is_cancel_requested` and return :data:`HEAVY_JOB_CANCELLED` for
+the UI to clear without an error dialog.
 """
 
 from __future__ import annotations
@@ -69,8 +69,14 @@ class HeavyJobRunner:
             pass
 
         self._label = ttk.Label(status_frame, text="", style=self._label_style_normal)
+        self._progress_row = ttk.Frame(status_frame)
         self._progress = ttk.Progressbar(
-            status_frame, mode="indeterminate", length=240
+            self._progress_row, mode="indeterminate", length=240
+        )
+        self._cancel_button = ttk.Button(
+            self._progress_row,
+            text="Cancel",
+            command=self.request_cancel,
         )
 
         self._busy = False
@@ -213,7 +219,7 @@ class HeavyJobRunner:
         self._progress_animation_active = False
         self._determinate_job = False
         try:
-            self._progress.pack_forget()
+            self._progress_row.pack_forget()
         except tk.TclError:
             pass
         try:
@@ -295,8 +301,10 @@ class HeavyJobRunner:
         are packed only after that delay (unless the job ends first). Use ``0``
         to show the strip immediately (legacy behavior).
 
-        While a worker runs, :meth:`is_cancel_requested` reflects :meth:`request_cancel`;
-        the worker should return :data:`HEAVY_JOB_CANCELLED` when it stops early.
+        While a worker runs, :meth:`is_cancel_requested` reflects the strip’s
+        **Cancel** button (same as :meth:`request_cancel`); the worker should return
+        :data:`HEAVY_JOB_CANCELLED` when it stops early. For *deferred_finalize*, Cancel
+        is hidden before main-thread *on_success* (it only applies to the worker phase).
         """
         if deferred_finalize and not deferred_finalize_indeterminate:
             determinate = True
@@ -359,6 +367,12 @@ class HeavyJobRunner:
         threading.Thread(target=wrap, daemon=True).start()
         return True
 
+    def _hide_cancel_button(self) -> None:
+        try:
+            self._cancel_button.pack_forget()
+        except tk.TclError:
+            pass
+
     def _finish_worker_deferred(
         self,
         on_success: Optional[Callable[[Any], None]],
@@ -368,6 +382,7 @@ class HeavyJobRunner:
 
         def run_followup() -> None:
             try:
+                self._hide_cancel_button()
                 if on_success is not None:
                     on_success(result)
             except Exception:
@@ -398,7 +413,7 @@ class HeavyJobRunner:
                 pass
             self._success_after_id = None
         try:
-            self._progress.pack_forget()
+            self._progress_row.pack_forget()
         except tk.TclError:
             pass
         try:
@@ -441,7 +456,15 @@ class HeavyJobRunner:
         except tk.TclError:
             return
         try:
-            self._progress.pack(fill=tk.X, padx=6, pady=(0, 4))
+            self._progress_row.pack(fill=tk.X, padx=6, pady=(0, 4))
+        except tk.TclError:
+            return
+        try:
+            self._progress.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 8))
+        except tk.TclError:
+            return
+        try:
+            self._cancel_button.pack(side=tk.RIGHT, padx=(0, 2), pady=2)
         except tk.TclError:
             return
         try:
@@ -471,12 +494,17 @@ class HeavyJobRunner:
             self._progress.stop()
         self._progress_animation_active = False
         self._determinate_job = False
+        self._hide_cancel_button()
         try:
             self._label.pack(fill=tk.X, padx=6, pady=(4, 0))
         except tk.TclError:
             pass
         try:
-            self._progress.pack(fill=tk.X, padx=6, pady=(0, 4))
+            self._progress_row.pack(fill=tk.X, padx=6, pady=(0, 4))
+        except tk.TclError:
+            pass
+        try:
+            self._progress.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 8))
         except tk.TclError:
             pass
         try:
@@ -538,7 +566,15 @@ class HeavyJobRunner:
             self._progress.stop()
         self._progress_animation_active = False
         self._determinate_job = False
-        self._progress.pack_forget()
+        self._hide_cancel_button()
+        try:
+            self._progress.pack_forget()
+        except tk.TclError:
+            pass
+        try:
+            self._progress_row.pack_forget()
+        except tk.TclError:
+            pass
         self._label.pack_forget()
         try:
             self._label.configure(text="", style=self._label_style_normal)
