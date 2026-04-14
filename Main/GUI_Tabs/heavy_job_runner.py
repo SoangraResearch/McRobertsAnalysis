@@ -2,6 +2,11 @@
 
 GUI updates, dialogs, and Matplotlib must run on the main thread; use schedule_main()
 from a worker to post short callbacks to the Tk event loop.
+
+**Single busy UI:** Build the shared status strip once with :func:`create_busy_status_strip`
+from the main window. Long-running work should use the returned :class:`HeavyJobRunner`
+(:meth:`~HeavyJobRunner.run`, :meth:`~HeavyJobRunner.schedule_status_message`, etc.).
+Do not add separate bottom-of-window ``ttk.Progressbar`` widgets for the same purpose.
 """
 
 from __future__ import annotations
@@ -18,6 +23,23 @@ _SUCCESS_FLASH_MS = 3000
 
 # Returned from *worker* to clear the busy UI without treating the job as an error.
 HEAVY_JOB_CANCELLED = object()
+
+
+def create_busy_status_strip(
+    root: tk.Misc,
+    *,
+    pack_side: str = tk.BOTTOM,
+    fill: str = tk.X,
+) -> HeavyJobRunner:
+    """Create the shared status frame (packed on *root*) and its :class:`HeavyJobRunner`.
+
+    Call once during main-window setup, before packing the notebook/content that
+    should fill the rest of the window. Returns the runner used by Tab 1, Tab 3,
+    Tab 4 (``GUI_Main``), and any other heavy job entry points.
+    """
+    status_frame = ttk.Frame(root)
+    status_frame.pack(side=pack_side, fill=fill)
+    return HeavyJobRunner(root, status_frame)
 
 
 class HeavyJobRunner:

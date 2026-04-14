@@ -29,7 +29,7 @@ from Main.GUI_Tabs.gui_style import (
     make_radiobutton,
     restore_main_window_focus,
 )
-from Main.GUI_Tabs.heavy_job_runner import HeavyJobRunner
+from Main.GUI_Tabs.heavy_job_runner import create_busy_status_strip
 from Main.GUI_Tabs.Tab1.Tab1Controller import Tab1Controller
 from Main.GUI_Tabs.Tab2.Tab2Controller import Tab2Controller
 from Main import app_config
@@ -70,10 +70,8 @@ tab_control.add(tab5, text="Settings")
 
 apply_notebook_tab_pointer_cursor(tab_control)
 
-# Status strip for HeavyJobRunner (pack bottom first so the notebook fills the rest).
-heavy_job_status_frame = ttk.Frame(root)
-heavy_job_status_frame.pack(side=tk.BOTTOM, fill=tk.X)
-heavy_job = HeavyJobRunner(root, heavy_job_status_frame)
+# Shared bottom status strip + worker runner (indeterminate/determinate progress).
+heavy_job = create_busy_status_strip(root)
 
 tab1_controller = Tab1Controller(tab1, heavy_job)
 tab1_controller.build_octave_section()
