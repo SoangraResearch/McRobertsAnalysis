@@ -6,7 +6,7 @@ import traceback
 import tkinter as tk
 from tkinter import filedialog, messagebox
 from Main import app_config
-from Main.GUI_Tabs.gui_style import make_action_button, restore_main_window_focus
+from Main.GUI_Tabs.gui_style import restore_main_window_focus
 from Main.GUI_Tabs.heavy_job_runner import HEAVY_JOB_CANCELLED
 from Main.GUI_Tabs.Tab3.Analysis_code import (
     NonlinearAnalysisCancelled,
@@ -16,7 +16,6 @@ from Main.GUI_Tabs.Tab3.Analysis_code import (
 from Main.GUI_Tabs.Tab3.nonlinear_progress_instrument import NonlinearProgressInstrument
 from Main.GUI_Tabs.Tab3.Analysis_Plots import (
     display_combined_plots,
-    get_current_selected_plot,
     nonlinear_plot,
 )
 
@@ -93,7 +92,6 @@ class Tab3Controller:
 
         if combine_with_nonlinear:
             display_combined_plots(self.linear_plots, self.nonlinear_plots, plot_frame)
-        self._load_save_plot_buttons(plot_frame)
         messagebox.showinfo("Linear Analysis", "Linear analysis complete")
         self.plot_frame = plot_frame
 
@@ -206,7 +204,6 @@ class Tab3Controller:
         print("nonlinear plots in main gui: " + str(len(self.nonlinear_plots)))
         if show_combined:
             display_combined_plots(self.linear_plots, self.nonlinear_plots, plot_frame)
-        self._load_save_plot_buttons(plot_frame)
         messagebox.showinfo("Nonlinear Analysis", "Nonlinear analysis complete")
         self.plot_frame = plot_frame
 
@@ -254,7 +251,6 @@ class Tab3Controller:
             )
             self.nonlinear_plots.append(fig)
         display_combined_plots(self.linear_plots, self.nonlinear_plots, plot_frame)
-        self._load_save_plot_buttons(plot_frame)
         self.plot_frame = plot_frame
 
     def save_current_linear_analysis_plot(self, open_prompt_window, plotnum):
@@ -419,13 +415,6 @@ class Tab3Controller:
     def _shorten_filename(self, filename):
         filename = re.sub(r'_from_\d{4}-\d{2}-\d{2}_[0-9\-]+_to_\d{4}-\d{2}-\d{2}_[0-9\-]+', '', filename)
         return filename
-
-    def _load_save_plot_buttons(self, plot_frame):
-        save_current_linear_plot = make_action_button(plot_frame, text="Save Linear Plot", command=lambda: self.save_current_linear_analysis_plot(True, get_current_selected_plot(plot_frame)))
-        save_current_linear_plot.place(x=15, y=-35, anchor="sw", relx=0, rely=1)
-        
-        save_current_nonlinear_plot = make_action_button(plot_frame, text="Save Nonlinear Plot", command=lambda: self.save_current_nonlinear_analysis_plot(True, get_current_selected_plot(plot_frame)))
-        save_current_nonlinear_plot.place(x=-15, y=-35, anchor="se", relx=1, rely=1)
 
     def _get_plot_output_path(self, file_end, output_title):
         output_path=filedialog.asksaveasfilename(

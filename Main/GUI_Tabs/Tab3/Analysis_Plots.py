@@ -1,10 +1,12 @@
 import numpy as np
 import warnings
 from tkinter import ttk
+
+from Main.GUI_Tabs.gui_style import apply_notebook_tab_pointer_cursor
+
 import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-from matplotlib.backends.backend_tkagg import NavigationToolbar2Tk
 
 active_notebook = None
 
@@ -16,6 +18,7 @@ def display_combined_plots(linear_plots, nonlinear_plots, plot_frame):
 
     notebook = ttk.Notebook(plot_frame)
     notebook.pack(fill='both', expand=True)
+    apply_notebook_tab_pointer_cursor(notebook)
     active_notebook = notebook
 
     num_tabs = max(len(linear_plots), len(nonlinear_plots))
@@ -56,30 +59,6 @@ def display_combined_plots(linear_plots, nonlinear_plots, plot_frame):
 
     if num_tabs > 0:
         notebook.select(0)
-
-def get_current_selected_plot(plot_frame=None):
-    global active_notebook, _last_plot_frame
-    
-    try:
-        frame_to_check = plot_frame or _last_plot_frame
-        
-        if active_notebook is not None and active_notebook.winfo_exists():
-            current_selection = active_notebook.select()
-            if current_selection:
-                return active_notebook.index(current_selection)
-        
-        if frame_to_check is not None and hasattr(frame_to_check, 'notebook'):
-            if frame_to_check.notebook.winfo_exists():
-                current_selection = frame_to_check.notebook.select()
-                if current_selection:
-                    return frame_to_check.notebook.index(current_selection)
-        
-        print("No valid notebook found, defaulting to plot 0")
-        return 0
-        
-    except Exception as e:
-        print(f"Error getting current tab index: {e}")
-        return 0
 
 def linear_plot(
     time_vector,
@@ -127,6 +106,7 @@ def linear_plot(
             widget.destroy()
         plot_frame.notebook = ttk.Notebook(plot_frame)
         plot_frame.notebook.pack(fill='both', expand=True)
+        apply_notebook_tab_pointer_cursor(plot_frame.notebook)
 
     active_notebook = plot_frame.notebook
 
@@ -186,6 +166,7 @@ def nonlinear_plot(
             widget.destroy()
         plot_frame.notebook = ttk.Notebook(plot_frame)
         plot_frame.notebook.pack(fill='both', expand=True)
+        apply_notebook_tab_pointer_cursor(plot_frame.notebook)
 
     active_notebook = plot_frame.notebook
 

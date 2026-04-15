@@ -201,10 +201,11 @@ tab2_run_gsd_button = make_action_button(
         force_data_as_walking.get(),
         plot_left_GSD,
         plot_right_GSD,
-        extra_plots=1,
+        extra_plots=0,
     ),
 )
-tab2_run_gsd_button.pack(side="left", padx=10)  # extra_plots=1 to display plots
+# Hilbert pyplot windows must stay off here: GSD runs on a worker thread (macOS requires GUI on main).
+tab2_run_gsd_button.pack(side="left", padx=10)
 
 # Shared with Tab 4 auto analysis so GSD uses the same “force walking” flag as Mobilise-D.
 force_data_as_walking = tk.BooleanVar(value=False)
