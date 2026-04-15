@@ -6,9 +6,17 @@ import csv
 import matplotlib.dates as mdates
 import tkinter as tk
 from tkinter import filedialog, messagebox
-from OMX_To_CSV import process_omx_file, matlab_datenum_to_datetime
+from OMX_To_CSV import (
+    _resolve_octave_executable,
+    matlab_datenum_to_datetime,
+    process_omx_file,
+)
 from Main import app_config
-from Main.GUI_Tabs.gui_style import make_action_button, restore_main_window_focus
+from Main.GUI_Tabs.gui_style import (
+    make_action_button,
+    pointer_cursor,
+    restore_main_window_focus,
+)
 from Main.GUI_Tabs.heavy_job_runner import HEAVY_JOB_CANCELLED
 from Main.GUI_Tabs.Tab1.Acceleration_Plot import PlotOMX
 from datetime import datetime
@@ -46,11 +54,18 @@ class Tab1Controller:
         self.file_stop_time = tk.StringVar()
 
         self._octave_path_var: tk.StringVar | None = None
+        self._octave_label_frame: tk.LabelFrame | None = None
+        self._octave_status_label: tk.Label | None = None
+        self._octave_advanced_frame: tk.Frame | None = None
+        self._octave_disclosure_row: tk.Frame | None = None
+        self._octave_arrow_label: tk.Label | None = None
+        self._octave_disclosure_text: tk.Label | None = None
+        self._oct_manual_panel_open: bool = False
 
 # -------------------------Public Methods---------------------------------
 
     def build_octave_section(self) -> None:
-        """OMX requires GNU Octave; let users persist octave-cli path (frozen .exe / minimal PATH)."""
+        """OMX requires GNU Octave; manual path only when auto-detect fails or user opens it."""
         lf = tk.LabelFrame(
             self.tab,
             text="GNU Octave (required for .OMX)",
@@ -58,21 +73,58 @@ class Tab1Controller:
             pady=6,
         )
         lf.pack(fill=tk.X, padx=10, pady=(6, 4))
+        self._octave_label_frame = lf
+
+        self._octave_status_label = tk.Label(
+            lf,
+            text="",
+            wraplength=900,
+            justify=tk.LEFT,
+        )
+        self._octave_status_label.pack(anchor=tk.W, pady=(0, 2))
+
+        self._octave_disclosure_row = tk.Frame(lf, cursor=pointer_cursor())
+        self._octave_arrow_label = tk.Label(
+            self._octave_disclosure_row,
+            text="▶",
+            fg="#d4dce8",
+            cursor=pointer_cursor(),
+            width=2,
+            anchor="w",
+        )
+        self._octave_arrow_label.pack(side=tk.LEFT)
+        self._octave_disclosure_text = tk.Label(
+            self._octave_disclosure_row,
+            text="Set path manually",
+            fg="#d4dce8",
+            cursor=pointer_cursor(),
+        )
+        self._octave_disclosure_text.pack(side=tk.LEFT, padx=(2, 0))
+        for _w in (
+            self._octave_disclosure_row,
+            self._octave_arrow_label,
+            self._octave_disclosure_text,
+        ):
+            _w.bind("<Button-1>", self._octave_toggle_disclosure)
+
+        self._octave_advanced_frame = tk.Frame(lf)
+        # Disclosure row + advanced frame packing is applied in _octave_apply_manual_panel_visibility().
 
         hint = tk.Label(
-            lf,
+            self._octave_advanced_frame,
             text=(
-                "Leave blank to auto-detect. If OMX fails to load, set the full file path to Octave's "
-                "command-line program: octave-cli on macOS/Linux (often Homebrew: /opt/homebrew/bin or "
-                "/usr/local/bin) or octave-cli.exe inside your GNU Octave installation on Windows "
-                "(typically a mingw64\\bin folder)."
+                "Use this only if Octave was not found automatically. Set the full file path to "
+                "Octave's command-line program: octave-cli on macOS/Linux (often Homebrew: "
+                "/opt/homebrew/bin or /usr/local/bin) or octave-cli.exe inside your GNU Octave "
+                "installation on Windows (typically a mingw64\\bin folder). Leave blank and save "
+                "to clear a saved path and try auto-detect again."
             ),
             wraplength=900,
             justify=tk.LEFT,
         )
-        hint.pack(anchor=tk.W, pady=(0, 4))
+        hint.pack(anchor=tk.W, pady=(4, 4))
 
-        row = tk.Frame(lf)
+        row = tk.Frame(self._octave_advanced_frame)
         row.pack(fill=tk.X)
         tk.Label(row, text="File path:").pack(side=tk.LEFT)
         self._octave_path_var = tk.StringVar(
@@ -81,7 +133,7 @@ class Tab1Controller:
         self._octave_entry = tk.Entry(row, textvariable=self._octave_path_var)
         self._octave_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(6, 0))
 
-        btn_row = tk.Frame(lf)
+        btn_row = tk.Frame(self._octave_advanced_frame)
         btn_row.pack(fill=tk.X, pady=(6, 0))
 
         self._octave_browse_btn = make_action_button(
@@ -99,8 +151,15 @@ class Tab1Controller:
         )
         self._octave_clear_btn.pack(side=tk.LEFT)
 
+        resolved = _resolve_octave_executable()
+        self._oct_manual_panel_open = resolved is None
+        self._octave_apply_manual_panel_visibility()
+
         if self.heavy_job is not None:
             self.heavy_job.register_disable_widgets(
+                self._octave_disclosure_row,
+                self._octave_arrow_label,
+                self._octave_disclosure_text,
                 self._octave_entry,
                 self._octave_browse_btn,
                 self._octave_save_btn,
@@ -163,14 +222,28 @@ class Tab1Controller:
                 except _OmxLoadCancelled:
                     return HEAVY_JOB_CANCELLED
 
+            def on_omx_error(msg: str) -> None:
+                if self._octave_error_suggests_path_issue(msg):
+                    self._oct_manual_panel_open = True
+                    self._octave_apply_manual_panel_visibility()
+                messagebox.showerror("Load OMX failed", msg, parent=self.tab)
+
             self.heavy_job.run(
                 "Loading OMX file…",
                 load_omx_worker,
                 on_success=apply_loaded,
+                on_error=on_omx_error,
                 deferred_finalize=True,
             )
         else:
-            apply_loaded(process_omx_file(file_path))
+            try:
+                apply_loaded(process_omx_file(file_path))
+            except Exception as e:
+                msg = str(e)
+                if self._octave_error_suggests_path_issue(msg):
+                    self._oct_manual_panel_open = True
+                    self._octave_apply_manual_panel_visibility()
+                messagebox.showerror("Load OMX failed", msg, parent=self.tab)
 
     def create_time_labels(self):
         self._create_max_time_labels()
@@ -268,6 +341,86 @@ class Tab1Controller:
     
 # -------------------------Private/Helper Methods---------------------------------
 
+    @staticmethod
+    def _octave_error_suggests_path_issue(msg: str) -> bool:
+        m = msg.lower()
+        return any(
+            k in m
+            for k in (
+                "octave",
+                "oct2py",
+                "octave-cli",
+                "octave_executable",
+                "gnu octave",
+            )
+        )
+
+    def _octave_short_display_path(self, path: str, max_len: int = 88) -> str:
+        p = path.replace("\\", "/")
+        if len(p) <= max_len:
+            return p
+        head = max_len // 2 - 2
+        tail = max_len - head - 3
+        return f"{p[:head]}…{p[-tail:]}"
+
+    def _octave_apply_manual_panel_visibility(self) -> None:
+        if self._octave_status_label is None or self._octave_advanced_frame is None:
+            return
+        resolved = _resolve_octave_executable()
+        show_manual = (resolved is None) or self._oct_manual_panel_open
+
+        if resolved:
+            self._octave_status_label.configure(
+                text=(
+                    "GNU Octave is ready to use.\n"
+                    + self._octave_short_display_path(resolved)
+                )
+            )
+        else:
+            self._octave_status_label.configure(
+                text=(
+                    "GNU Octave was not found automatically. OMX needs Octave — set the full path "
+                    "to octave-cli below, or install Octave (see Main/README.md)."
+                )
+            )
+
+        try:
+            self._octave_advanced_frame.pack_forget()
+        except tk.TclError:
+            pass
+        if self._octave_disclosure_row is not None:
+            try:
+                self._octave_disclosure_row.pack_forget()
+            except tk.TclError:
+                pass
+
+        if resolved is None:
+            if show_manual:
+                try:
+                    self._octave_advanced_frame.pack(fill=tk.X, pady=(4, 0))
+                except tk.TclError:
+                    pass
+            return
+
+        dr = self._octave_disclosure_row
+        ar = self._octave_arrow_label
+        if dr is None or ar is None:
+            return
+
+        ar.configure(text="▼" if self._oct_manual_panel_open else "▶")
+        dr.pack(anchor=tk.W, pady=(2, 0))
+        if show_manual:
+            try:
+                self._octave_advanced_frame.pack(fill=tk.X, pady=(4, 0))
+            except tk.TclError:
+                pass
+
+    def _octave_toggle_disclosure(self, _event=None) -> None:
+        if _resolve_octave_executable() is None:
+            return
+        self._oct_manual_panel_open = not self._oct_manual_panel_open
+        self._octave_apply_manual_panel_visibility()
+
     def _octave_browse(self) -> None:
         if self._octave_path_var is None:
             return
@@ -317,6 +470,9 @@ class Tab1Controller:
             "Saved. OMX will use this path on the next load.",
             parent=self.tab,
         )
+        resolved = _resolve_octave_executable()
+        self._oct_manual_panel_open = resolved is None
+        self._octave_apply_manual_panel_visibility()
 
     def _register_busy_lock_entries(self) -> None:
         if self.heavy_job is None:
