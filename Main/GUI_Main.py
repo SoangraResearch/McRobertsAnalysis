@@ -117,7 +117,7 @@ gsd_frame = tk.Frame(tab2)
 gsd_frame.pack(pady=15)
 
 # button
-tk.Button(gsd_frame, text="Run GSD Detection", command=lambda: tab2_controller.process_GSD(label_var_MobiliseD.get(), force_data_as_walking.get(), plot_left_GSD, plot_right_GSD, extra_plots=1)).pack(side="left", padx=10) #set extra plots to 1 to display plots
+tk.Button(gsd_frame, text="Run GSD Detection", command=lambda: tab2_controller.process_GSD(label_var_MobiliseD.get(), force_data_as_walking.get(), plot_left_GSD, plot_right_GSD, extra_plots=0)).pack(side="left", padx=10) #set extra plots to 1 to display plots
 
 # checkbox
 force_data_as_walking = tk.BooleanVar(value=False)

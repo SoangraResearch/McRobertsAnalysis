@@ -159,7 +159,7 @@ def filter_and_print_long_segments(GS, min_duration=30, original_time_array=None
             start_dt = seconds_to_datetime(segment['Start'], original_time_array, fs)
             end_dt = seconds_to_datetime(segment['End'], original_time_array, fs)
             
-            print(f"Segment {i}: Start={segment['Start']:.3f}s ({start_dt}), End={segment['End']:.3f}s ({end_dt}), Duration={duration:.3f}s")
+            #print(f"Segment {i}: Start={segment['Start']:.3f}s ({start_dt}), End={segment['End']:.3f}s ({end_dt}), Duration={duration:.3f}s")
             
             if duration > min_duration:
                 long_segments.append(segment)

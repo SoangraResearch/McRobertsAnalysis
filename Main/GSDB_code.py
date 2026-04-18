@@ -30,7 +30,7 @@ def groupfind(L):
     return np.column_stack((starts, ends))
 
 # hilbert_envelop.m file
-def hilbert_envelop(y, smooth_window=20, threshold_style=1, duration=20, gr=1):
+def hilbert_envelop(y, smooth_window=20, threshold_style=1, duration=20, gr=0):
     y = np.asarray(y).flatten()
     test = y
     analytic = hilbert(test)
@@ -80,7 +80,7 @@ def hilbert_envelop(y, smooth_window=20, threshold_style=1, duration=20, gr=1):
             THR_SIG = nois + 0.50 * abs(threshold - nois)
         THR_buf[i] = THR_SIG
 
-    if gr:
+    if gr == 1:
         fig, axs = plt.subplots(2, 1, sharex=True)
         axs[0].plot(test, label="Raw Signal")
         axs[0].plot(alarm * np.max(test), 'r', label="Detected Activity")
@@ -378,6 +378,10 @@ def gsd_low_back_acc(imu_acc, fs, plot_results=False, time_vector=None, force_wa
             else:
                 print("No gait sequence(s) detected")
 
+    #stance sequences
+    stance_sequences = find_stance_sequences(GSD_Output, algorithm_target_fs, acc)
+    print("stance sequences:", stance_sequences)
+
     if plot_results:
         plt.plot(sig_det_actv)
         plt.plot(walk_label, 'r', linewidth=2)
@@ -386,3 +390,58 @@ def gsd_low_back_acc(imu_acc, fs, plot_results=False, time_vector=None, force_wa
         plt.show()
 
     return GSD_Output, sig_det_actv, walk_label
+
+
+def find_stance_sequences(gait_sequences, fs, acceleration, min_duration=0.0):
+    maximum_std_val = 0.2
+
+    v_acc = acceleration[:, 0]                          # vertical axis from raw 3-axis acc
+    R_acc = np.linalg.norm(acceleration, axis=1) - 1   # resultant norm minus gravity
+    total_samples = len(v_acc)
+    total_duration = total_samples / fs
+
+    non_walking = []
+
+    if len(gait_sequences) == 0:
+        non_walking.append((0.0, total_duration))
+    else:
+        if gait_sequences[0]['Start'] > 0:
+            non_walking.append((0.0, gait_sequences[0]['Start']))
+
+        for i in range(len(gait_sequences) - 1):
+            gap_start = gait_sequences[i]['End']
+            gap_end = gait_sequences[i + 1]['Start']
+            if gap_end > gap_start:
+                non_walking.append((gap_start, gap_end))
+
+        if gait_sequences[-1]['End'] < total_duration:
+            non_walking.append((gait_sequences[-1]['End'], total_duration))
+
+    # Filter by std < 2 on vertical axis
+    stance_sequences = []
+    for (start_s, end_s) in non_walking:
+        if end_s - start_s < min_duration:
+            continue
+
+        start_idx = int(round(start_s * fs))
+        end_idx = int(round(end_s * fs))
+        start_idx = max(0, start_idx)
+        end_idx = min(total_samples, end_idx)
+
+        segment = v_acc[start_idx:end_idx]
+        if len(segment) == 0:
+            continue
+
+        std_val = np.std(segment)
+        mean_val = np.mean(segment)
+
+        if std_val < maximum_std_val:
+            stance_sequences.append({
+                'Start': start_s,
+                'End': end_s,
+                'Std': float(std_val),
+                'Mean': float(mean_val),
+                'R_acc': float(np.mean(R_acc[start_idx:end_idx]))
+            })
+
+    return stance_sequences
