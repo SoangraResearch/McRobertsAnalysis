@@ -379,7 +379,7 @@ def gsd_low_back_acc(imu_acc, fs, plot_results=False, time_vector=None, force_wa
                 print("No gait sequence(s) detected")
 
     #stance sequences
-    stance_sequences = find_stance_sequences(GSD_Output, algorithm_target_fs, acc)
+    stance_sequences = find_stance_sequences(GSD_Output, fs, acc)
     print("stance sequences:", stance_sequences)
 
     if plot_results:
@@ -389,7 +389,7 @@ def gsd_low_back_acc(imu_acc, fs, plot_results=False, time_vector=None, force_wa
         plt.xlabel('samples (40Hz)')
         plt.show()
 
-    return GSD_Output, sig_det_actv, walk_label
+    return GSD_Output, sig_det_actv, walk_label, stance_sequences
 
 
 def find_stance_sequences(gait_sequences, fs, acceleration):
