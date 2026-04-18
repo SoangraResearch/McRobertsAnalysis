@@ -392,11 +392,17 @@ def gsd_low_back_acc(imu_acc, fs, plot_results=False, time_vector=None, force_wa
     return GSD_Output, sig_det_actv, walk_label
 
 
-def find_stance_sequences(gait_sequences, fs, acceleration, min_duration=0.0):
+def find_stance_sequences(gait_sequences, fs, acceleration):
+    
+    #metrics
     maximum_std_val = 0.2
+    minimum_acc_force = 0.8
+    maximum_acc_force = 1.2
+    min_sequence_duration=60.0 #in seconds
+    sub_segment_duration = 10.0 #in seconds
 
-    v_acc = acceleration[:, 0]                          # vertical axis from raw 3-axis acc
-    R_acc = np.linalg.norm(acceleration, axis=1) - 1   # resultant norm minus gravity
+    v_acc = acceleration[:, 0]                          
+    acc_force_in_Gs = np.linalg.norm(acceleration, axis=1) 
     total_samples = len(v_acc)
     total_duration = total_samples / fs
 
@@ -417,31 +423,64 @@ def find_stance_sequences(gait_sequences, fs, acceleration, min_duration=0.0):
         if gait_sequences[-1]['End'] < total_duration:
             non_walking.append((gait_sequences[-1]['End'], total_duration))
 
-    # Filter by std < 2 on vertical axis
     stance_sequences = []
-    for (start_s, end_s) in non_walking:
-        if end_s - start_s < min_duration:
-            continue
+    sub_len = int(round(sub_segment_duration * fs))
 
-        start_idx = int(round(start_s * fs))
-        end_idx = int(round(end_s * fs))
-        start_idx = max(0, start_idx)
-        end_idx = min(total_samples, end_idx)
+    for (gap_start, gap_end) in non_walking:
+        gap_start_idx = max(0, int(round(gap_start * fs)))
+        gap_end_idx = min(total_samples, int(round(gap_end * fs)))
 
-        segment = v_acc[start_idx:end_idx]
-        if len(segment) == 0:
-            continue
+        current_stance_start = None
 
-        std_val = np.std(segment)
-        mean_val = np.mean(segment)
+        i = gap_start_idx
+        while i < gap_end_idx:
+            seg_end = min(i + sub_len, gap_end_idx)
+            segment_v = v_acc[i:seg_end]
+            segment_acc = acc_force_in_Gs[i:seg_end]
 
-        if std_val < maximum_std_val:
-            stance_sequences.append({
-                'Start': start_s,
-                'End': end_s,
-                'Std': float(std_val),
-                'Mean': float(mean_val),
-                'R_acc': float(np.mean(R_acc[start_idx:end_idx]))
-            })
+            if len(segment_v) == 0:
+                i = seg_end
+                continue
+
+            std_val = np.std(segment_v)
+            mean_acc = np.mean(segment_acc)
+
+            is_stance = (
+                std_val < maximum_std_val and
+                minimum_acc_force <= mean_acc <= maximum_acc_force
+            )
+
+            if is_stance:
+                if current_stance_start is None:
+                    current_stance_start = i
+            else:
+                if current_stance_start is not None:
+                    _close_stance(
+                        current_stance_start, i, fs, min_sequence_duration,
+                        v_acc, acc_force_in_Gs, stance_sequences
+                    )
+                    current_stance_start = None
+
+            i = seg_end
+
+        # close any open stance block at the end of this gap
+        if current_stance_start is not None:
+            _close_stance(
+                current_stance_start, gap_end_idx, fs, min_sequence_duration,
+                v_acc, acc_force_in_Gs, stance_sequences
+            )
 
     return stance_sequences
+
+def _close_stance(start_idx, end_idx, fs, min_duration, v_acc, acc_force_in_Gs, stance_sequences):
+    start_s = start_idx / fs
+    end_s = end_idx / fs
+    if end_s - start_s < min_duration:
+        return
+    stance_sequences.append({
+        'Start': start_s,
+        'End': end_s,
+        'Std': float(np.std(v_acc[start_idx:end_idx])),
+        'Mean': float(np.mean(v_acc[start_idx:end_idx])),
+        'Acc_force_in_Gs': float(np.mean(acc_force_in_Gs[start_idx:end_idx]))
+    })

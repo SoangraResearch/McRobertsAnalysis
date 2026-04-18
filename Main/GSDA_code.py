@@ -46,19 +46,9 @@ def gsd_iluz(imu, time_vector=None, plot_results=False, force_walking = False):
 
         GSD = save_gsd_result(gait_sequences_bool, algorithm_output_fs, time_vector)
 
-        stance_sequences = find_stance_sequences(
-            gait_sequences=GSD,
-            fs=algorithm_target_fs,
-            imu_preprocessed=imu_preprocessed,
-            min_duration = min_stance_duration
-        )
-
-        print("Stance sequences found: ", stance_sequences)
-
     except Exception as e:
         print(f"Warning: GSD algorithm failed: {e}")
         GSD = []
-        stance_sequences = []
 
     return GSD, gait_sequences_bool, v_acc
 
@@ -209,56 +199,6 @@ def WBDet_Sine(imu, sample_rate, win_size, overlap, activity_thresh, plot_result
         plt.show()
 
     return gait_bool, v_acc
-
-def find_stance_sequences(gait_sequences, fs, imu_preprocessed, min_duration=0.0):
-    v_acc = imu_preprocessed[:, 0]
-    total_samples = len(v_acc)
-    total_duration = total_samples / fs
-
-    non_walking = []
-
-    if len(gait_sequences) == 0:
-        non_walking.append((0.0, total_duration))
-    else:
-        if gait_sequences[0]['Start'] > 0:
-            non_walking.append((0.0, gait_sequences[0]['Start']))
-
-        for i in range(len(gait_sequences) - 1):
-            gap_start = gait_sequences[i]['End']
-            gap_end = gait_sequences[i + 1]['Start']
-            if gap_end > gap_start:
-                non_walking.append((gap_start, gap_end))
-
-        if gait_sequences[-1]['End'] < total_duration:
-            non_walking.append((gait_sequences[-1]['End'], total_duration))
-
-    # Filter by std < 2 on vertical axis
-    stance_sequences = []
-    for (start_s, end_s) in non_walking:
-        if end_s - start_s < min_duration:
-            continue
-
-        start_idx = int(round(start_s * fs))
-        end_idx = int(round(end_s * fs))
-        start_idx = max(0, start_idx)
-        end_idx = min(total_samples, end_idx)
-
-        segment = v_acc[start_idx:end_idx]
-        if len(segment) == 0:
-            continue
-
-        std_val = np.std(segment)
-        mean_val = np.mean(segment)
-
-        if std_val < 2.0:
-            stance_sequences.append({
-                'Start': start_s,
-                'End': end_s,
-                'Std': float(std_val),
-                'Mean': float(mean_val)
-            })
-
-    return stance_sequences
     
 
 # driver.m file
