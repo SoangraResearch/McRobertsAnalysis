@@ -554,16 +554,16 @@ def nonlinear_analysis(
         dim = ans[1]  #dimension
         _nonlinear_raise_if_cancelled(cancel_check, progress_instrument)
         _notify(f"Period {i+1}/{num_periods}: Running entropies…")
-        # Approximate entropy
+        # Approximate entropy: embedding dimension from FNN (matches upstream main).
         r = float(ent["r"])
+        m = int(ent["m"])
         try:
             AE = Ent_Ap(data, dim, r, cancel_check=cancel_check)
         except ComputationCancelled:
             _nonlinear_rethrow_computation_cancelled(progress_instrument)
         print("ENT_AP calculated")
         _nonlinear_raise_if_cancelled(cancel_check, progress_instrument)
-        # Sample Entropy
-        m = int(ent["m"])
+        # Sample Entropy (same m, r)
         try:
             Samp_Ent = Ent_Samp(data, m, r, cancel_check=cancel_check)
         except ComputationCancelled:
@@ -604,14 +604,14 @@ def nonlinear_analysis(
         slope = [int(x) for x in ly["rosenstein_slope_periods"]]
         MeanPeriod = int(ly["rosenstein_mean_period"])
         Plot = False
-        # Use dim (FNN-determined embedding dimension), not m (entropy param which is always 2)
+        # Rosenstein LyE: upstream passes entropy order m (not FNN dim).
         try:
             (LyEl, LyEs, out), time, AveLnDiv, LyES, timeS, lyESline, LyEL, timeL, LyELline = LyE_R(
                 data,
                 name,
                 fs_HS_TO,
                 delay,
-                dim,
+                m,
                 slope,
                 MeanPeriod,
                 Plot,
