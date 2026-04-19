@@ -394,15 +394,17 @@ def gsd_low_back_acc(imu_acc, fs, plot_results=False, time_vector=None, force_wa
 
 def find_stance_sequences(gait_sequences, fs, acceleration):
     
-    #metrics
+    # metrics
     maximum_std_val = 0.2
+    minimum_std_val = 0.0025 #empirically derived by comparing known static measurements with stance measurements
     minimum_acc_force = 0.8
     maximum_acc_force = 1.2
-    min_sequence_duration=60.0 #in seconds
-    sub_segment_duration = 10.0 #in seconds
+    max_deviation_from_1g = 0.2
+    min_sequence_duration = 30.0  # seconds
+    sub_segment_duration = 1.0  # seconds
 
-    v_acc = acceleration[:, 0]                          
-    acc_force_in_Gs = np.linalg.norm(acceleration, axis=1) 
+    v_acc = acceleration[:, 0]
+    acc_force_in_Gs = np.linalg.norm(acceleration, axis=1)
     total_samples = len(v_acc)
     total_duration = total_samples / fs
 
@@ -413,13 +415,11 @@ def find_stance_sequences(gait_sequences, fs, acceleration):
     else:
         if gait_sequences[0]['Start'] > 0:
             non_walking.append((0.0, gait_sequences[0]['Start']))
-
         for i in range(len(gait_sequences) - 1):
             gap_start = gait_sequences[i]['End']
             gap_end = gait_sequences[i + 1]['Start']
             if gap_end > gap_start:
                 non_walking.append((gap_start, gap_end))
-
         if gait_sequences[-1]['End'] < total_duration:
             non_walking.append((gait_sequences[-1]['End'], total_duration))
 
@@ -444,26 +444,31 @@ def find_stance_sequences(gait_sequences, fs, acceleration):
 
             std_val = np.std(segment_v)
             mean_acc = np.mean(segment_acc)
+            mean_deviation_from_1g = np.mean(np.abs(segment_acc - 1.0))
 
             is_stance = (
-                std_val < maximum_std_val and
-                minimum_acc_force <= mean_acc <= maximum_acc_force
+                minimum_std_val <= std_val < maximum_std_val and
+                minimum_acc_force <= mean_acc <= maximum_acc_force and
+                mean_deviation_from_1g <= max_deviation_from_1g
             )
+
+            print(f"t={i/fs:.1f}s  std={std_val:.4f}  mean_acc={mean_acc:.4f}  dev_from_1g={mean_deviation_from_1g:.4f}  is_stance={is_stance}")
 
             if is_stance:
                 if current_stance_start is None:
                     current_stance_start = i
             else:
                 if current_stance_start is not None:
+                    # close immediately — no gap tolerance
                     _close_stance(
-                        current_stance_start, i, fs, min_sequence_duration,
+                        current_stance_start, i,
+                        fs, min_sequence_duration,
                         v_acc, acc_force_in_Gs, stance_sequences
                     )
                     current_stance_start = None
 
             i = seg_end
 
-        # close any open stance block at the end of this gap
         if current_stance_start is not None:
             _close_stance(
                 current_stance_start, gap_end_idx, fs, min_sequence_duration,
