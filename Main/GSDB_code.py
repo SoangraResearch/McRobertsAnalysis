@@ -452,14 +452,13 @@ def find_stance_sequences(gait_sequences, fs, acceleration):
                 mean_deviation_from_1g <= max_deviation_from_1g
             )
 
-            print(f"t={i/fs:.1f}s  std={std_val:.4f}  mean_acc={mean_acc:.4f}  dev_from_1g={mean_deviation_from_1g:.4f}  is_stance={is_stance}")
+            #print(f"t={i/fs:.1f}s  std={std_val:.4f}  mean_acc={mean_acc:.4f}  dev_from_1g={mean_deviation_from_1g:.4f}  is_stance={is_stance}")
 
             if is_stance:
                 if current_stance_start is None:
                     current_stance_start = i
             else:
                 if current_stance_start is not None:
-                    # close immediately — no gap tolerance
                     _close_stance(
                         current_stance_start, i,
                         fs, min_sequence_duration,
@@ -485,7 +484,7 @@ def _close_stance(start_idx, end_idx, fs, min_duration, v_acc, acc_force_in_Gs, 
     stance_sequences.append({
         'Start': start_s,
         'End': end_s,
-        'Std': float(np.std(v_acc[start_idx:end_idx])),
-        'Mean': float(np.mean(v_acc[start_idx:end_idx])),
-        'Acc_force_in_Gs': float(np.mean(acc_force_in_Gs[start_idx:end_idx]))
+        'Vertical_acc_std': float(np.std(v_acc[start_idx:end_idx])),
+        'Vertical_acc_mean': float(np.mean(v_acc[start_idx:end_idx])),
+        'Resultant_acc_mean_Gs': float(np.mean(acc_force_in_Gs[start_idx:end_idx]))
     })
