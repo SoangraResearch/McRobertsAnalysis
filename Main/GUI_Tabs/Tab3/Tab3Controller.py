@@ -260,11 +260,15 @@ class Tab3Controller:
                 messagebox.showerror("Error", "No linear analysis plot to save.")
                 return
             if open_prompt_window:
-                output_path = self._get_plot_output_path("_linear_analysis_plot_", "Save linear analysis plot")
+                output_path = self._get_plot_output_path(
+                    "_linear_analysis_plot_",
+                    "Save linear analysis plot",
+                    plot_index=plotnum,
+                )
             else:
                 output_path = os.path.join(
                     self.export_folder,
-                    self._shorten_filename(self.filename) + "_linear_analysis_plot_" + str(plotnum + 1) + ".png"
+                    self._period_prefixed_plot_basename("_linear_analysis_plot_", plotnum),
                 )        
             self.linear_plots[plotnum].savefig(output_path, dpi=300)
             messagebox.showinfo("Saved", f"linear analysis plot saved to: {output_path}")
@@ -278,13 +282,17 @@ class Tab3Controller:
                 messagebox.showerror("Error", "No nonlinear analysis plot to save.")
                 return
             if open_prompt_window:
-                output_path = self._get_plot_output_path("_nonlinear_analysis_plot_", "Save nonlinear analysis plot")
+                output_path = self._get_plot_output_path(
+                    "_nonlinear_analysis_plot_",
+                    "Save nonlinear analysis plot",
+                    plot_index=plotnum,
+                )
                 if not output_path:
                     return False
             else:
                 output_path = os.path.join(
                     self.export_folder,
-                    self._shorten_filename(self.filename) + "_nonlinear_analysis_plot_" + str(plotnum + 1) + ".png"
+                    self._period_prefixed_plot_basename("_nonlinear_analysis_plot_", plotnum),
                 )
             self.nonlinear_plots[plotnum].savefig(output_path, dpi=300)
             messagebox.showinfo("Saved", f"nonlinear analysis plot saved to: {output_path}")
@@ -416,12 +424,23 @@ class Tab3Controller:
         filename = re.sub(r'_from_\d{4}-\d{2}-\d{2}_[0-9\-]+_to_\d{4}-\d{2}-\d{2}_[0-9\-]+', '', filename)
         return filename
 
-    def _get_plot_output_path(self, file_end, output_title):
+    def _period_prefixed_plot_basename(self, file_end: str, plot_index: int) -> str:
+        """Default PNG name: period{n}_<shortname><file_end><n>.png (file_end includes underscores)."""
+        base = self._shorten_filename(self.filename)
+        rest = f"{base}{file_end}{plot_index + 1}.png"
+        return f"period{plot_index + 1}_{rest}"
+
+    def _get_plot_output_path(self, file_end, output_title, plot_index=None):
+        base = self._shorten_filename(self.filename)
+        if plot_index is not None:
+            initialfile = self._period_prefixed_plot_basename(file_end, plot_index)
+        else:
+            initialfile = base + file_end
         output_path=filedialog.asksaveasfilename(
             defaultextension=".png",
             filetypes=[("PNG Image", "*.png"), ("PDF File", "*.pdf"), ("SVG File", "*.svg")],
             initialdir=self.directory_path,
-            initialfile=self._shorten_filename(self.filename) + file_end,
+            initialfile=initialfile,
             title=output_title
         )
         restore_main_window_focus(self.tab)

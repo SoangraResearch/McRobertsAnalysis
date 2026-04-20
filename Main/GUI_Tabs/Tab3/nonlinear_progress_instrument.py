@@ -1,7 +1,7 @@
 """Timing instrument for nonlinear analysis: elapsed stopwatch only.
 
-Displays **Elapsed** (wall time since :meth:`mark_run_start`) and **(step/7)**
-during each walking bout’s nonlinear sub-steps, alongside status messages.
+Displays status as ``… (step/7) | Elapsed …`` during each bout’s nonlinear
+sub-steps (step next to the running-step text, elapsed after ``|``).
 
 When a run finishes, a line is appended to ``~/.mcroberts_nonlinear_run_history.txt``
 with wall-clock timestamp, optional source filename, and elapsed time.
@@ -85,13 +85,22 @@ class NonlinearProgressInstrument:
             return 0.0
         return time.monotonic() - self._run_start_mono
 
-    def _build_suffix(self) -> str:
-        elapsed = self._global_elapsed()
-        parts = [f"Elapsed {_format_hms(elapsed)}"]
-        if self._display_bout_step is not None:
-            step = max(1, min(_STEPS_PER_BOUT, int(self._display_bout_step)))
-            parts.append(f"({step}/{_STEPS_PER_BOUT})")
-        return " | ".join(parts)
+    def _elapsed_fragment(self) -> str:
+        return f"Elapsed {_format_hms(self._global_elapsed())}"
+
+    def _step_fragment(self) -> str:
+        if self._display_bout_step is None:
+            return ""
+        step = max(1, min(_STEPS_PER_BOUT, int(self._display_bout_step)))
+        return f" ({step}/{_STEPS_PER_BOUT})"
+
+    def _status_tail_after_message(self) -> str:
+        """Text appended after the main status message (includes step before elapsed)."""
+        elapsed_f = self._elapsed_fragment()
+        step_f = self._step_fragment()
+        if step_f:
+            return f"{step_f} | {elapsed_f}"
+        return f" | {elapsed_f}"
 
     def _send(self, text: str) -> None:
         if self._user is not None:
@@ -118,9 +127,9 @@ class NonlinearProgressInstrument:
 
         def loop() -> None:
             while not self._tick_stop.wait(_TICK_INTERVAL_S):
-                suffix = self._build_suffix()
+                tail = self._status_tail_after_message()
                 try:
-                    user(f"{base_label} | {suffix}")
+                    user(f"{base_label}{tail}")
                 except Exception:
                     break
 
@@ -145,7 +154,7 @@ class NonlinearProgressInstrument:
 
         display = message
         if self._run_start_mono is not None:
-            display = f"{message} | {self._build_suffix()}"
+            display = f"{message}{self._status_tail_after_message()}"
 
         self.events.append(
             {"t_s": self._elapsed_s(), "kind": "message", "message": display}
@@ -251,7 +260,7 @@ class NonlinearProgressInstrument:
             num_periods=self._num_periods,
             source=source,
         )
-        self._frozen_display = f"Complete | {self._build_suffix()}"
+        self._frozen_display = f"Complete | Elapsed {_format_hms(elapsed)}"
         self._run_start_mono = None
 
     def frozen_status_text(self) -> Optional[str]:

@@ -25,7 +25,7 @@ def display_combined_plots(linear_plots, nonlinear_plots, plot_frame):
 
     for i in range(num_tabs):
         tab = ttk.Frame(notebook)
-        notebook.add(tab, text=f"Plot Set {i + 1}")
+        notebook.add(tab, text=f"Period {i + 1}")
 
         plots_frame = ttk.Frame(tab)
         plots_frame.pack(fill='both', expand=True)
@@ -91,7 +91,7 @@ def linear_plot(
     ax.plot(invalid_hs_times, acc_wave_detrended[invalid_hs_idx], linestyle='None', color='orange', label='HS invalid', marker="*", markersize=10)
 
     ax.set_title("Linear Plot", fontsize=20)
-    ax.set_xlabel('Time [s]', fontsize=16)
+    ax.set_xlabel("Time [s]", fontsize=16)
     ax.legend(loc="upper right")
 
     if not embed:
@@ -111,7 +111,7 @@ def linear_plot(
     active_notebook = plot_frame.notebook
 
     tab = ttk.Frame(plot_frame.notebook)
-    plot_frame.notebook.add(tab, text=f"Plot {plot_num + 1}")
+    plot_frame.notebook.add(tab, text=f"Period {plot_num + 1}")
 
     canvas = FigureCanvasTkAgg(fig, master=tab)
     canvas.draw()
@@ -144,7 +144,7 @@ def nonlinear_plot(
 
     ax.plot(time, AveLnDiv, color="black")
     ax.set_title("LyE", fontsize=20)
-    ax.set_xlabel("Periods (s)", fontsize=16)
+    ax.set_xlabel("Time [s]", fontsize=16)
     ax.set_ylabel("<ln(divergence)>", fontsize=16)
 
     if not np.isnan(LyES):
@@ -171,7 +171,7 @@ def nonlinear_plot(
     active_notebook = plot_frame.notebook
 
     tab = ttk.Frame(plot_frame.notebook)
-    plot_frame.notebook.add(tab, text=f"LyE Plot {plot_num + 1}")
+    plot_frame.notebook.add(tab, text=f"Period {plot_num + 1}")
 
     canvas = FigureCanvasTkAgg(fig, master=tab)
     canvas.draw()

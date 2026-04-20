@@ -334,9 +334,9 @@ def nonlinear_analysis(
         progress_instrument: Optional recorder that forwards messages to the GUI
             callback and logs elapsed wall time (see
             :class:`NonlinearProgressInstrument`). When set, ``progress_callback``
-            is ignored for messages emitted via the instrument. Status lines append
-            **Elapsed** and **(step/7)** suffixes after the run clock starts (during
-            each bout’s ``Period …`` steps).
+            is ignored for messages emitted via the instrument. After the run clock
+            starts, status lines append ``(step/7) | Elapsed …`` (step beside the
+            running-step text) during each bout’s ``Period …`` steps.
         settings: Optional settings dict (defaults to :data:`Main.app_config.current`).
         long_run_confirm: If set, called with ``(longest_bout_duration_s, num_periods,
             assume_walking)`` when the longest single walking bout exceeds
@@ -621,11 +621,26 @@ def nonlinear_analysis(
             _nonlinear_rethrow_computation_cancelled(progress_instrument)
         print("LYE_R calculated")
         _nonlinear_raise_if_cancelled(cancel_check, progress_instrument)
+        # LyE_R returns ``time`` in (sample index / Fs / MeanPeriod); multiply by
+        # MeanPeriod so the horizontal axis is true time in seconds for plotting.
+        _mp = max(float(MeanPeriod), 1e-9)
+        time_s = np.asarray(time, dtype=float) * _mp
+        timeS_s = (
+            np.asarray(timeS, dtype=float) * _mp if np.size(timeS) else timeS
+        )
+        timeL_s = (
+            np.asarray(timeL, dtype=float) * _mp if np.size(timeL) else timeL
+        )
         # Store raw plot data — figures are built on the main thread by Tab3Controller
         plot_data = {
-            'time': time, 'AveLnDiv': AveLnDiv,
-            'LyES': LyES, 'timeS': timeS, 'lyESline': lyESline,
-            'LyEL': LyEL, 'timeL': timeL, 'LyELline': LyELline
+            "time": time_s,
+            "AveLnDiv": AveLnDiv,
+            "LyES": LyES,
+            "timeS": timeS_s,
+            "lyESline": lyESline,
+            "LyEL": LyEL,
+            "timeL": timeL_s,
+            "LyELline": LyELline,
         }
         plots.append(plot_data)
         _notify(f"Period {i+1}/{num_periods}: Running LyE_W…")
