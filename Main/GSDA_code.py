@@ -26,6 +26,7 @@ def gsd_iluz(imu, time_vector=None, plot_results=False, force_walking = False):
     WinS = algorithm_target_fs * 3  # window size
     OL = WinS // 2                  # overlap
     activity_thresh = 0.01
+    min_stance_duration = 3.0
 
     try:
         imu_preprocessed = preprocessing_standardized(imu, algorithm_target_fs)
@@ -44,6 +45,7 @@ def gsd_iluz(imu, time_vector=None, plot_results=False, force_walking = False):
             gait_sequences_bool = np.ones(len(gait_sequences_bool), dtype=int)
 
         GSD = save_gsd_result(gait_sequences_bool, algorithm_output_fs, time_vector)
+
     except Exception as e:
         print(f"Warning: GSD algorithm failed: {e}")
         GSD = []
@@ -197,6 +199,7 @@ def WBDet_Sine(imu, sample_rate, win_size, overlap, activity_thresh, plot_result
         plt.show()
 
     return gait_bool, v_acc
+    
 
 # driver.m file
 import os

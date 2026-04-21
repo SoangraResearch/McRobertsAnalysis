@@ -30,7 +30,7 @@ def groupfind(L):
     return np.column_stack((starts, ends))
 
 # hilbert_envelop.m file
-def hilbert_envelop(y, smooth_window=20, threshold_style=1, duration=20, gr=1):
+def hilbert_envelop(y, smooth_window=20, threshold_style=1, duration=20, gr=0):
     y = np.asarray(y).flatten()
     test = y
     analytic = hilbert(test)
@@ -80,7 +80,7 @@ def hilbert_envelop(y, smooth_window=20, threshold_style=1, duration=20, gr=1):
             THR_SIG = nois + 0.50 * abs(threshold - nois)
         THR_buf[i] = THR_SIG
 
-    if gr:
+    if gr == 1:
         fig, axs = plt.subplots(2, 1, sharex=True)
         axs[0].plot(test, label="Raw Signal")
         axs[0].plot(alarm * np.max(test), 'r', label="Detected Activity")
@@ -378,6 +378,10 @@ def gsd_low_back_acc(imu_acc, fs, plot_results=False, time_vector=None, force_wa
             else:
                 print("No gait sequence(s) detected")
 
+    #stance sequences
+    stance_sequences = find_stance_sequences(GSD_Output, fs, acc)
+    print("stance sequences:", stance_sequences)
+
     if plot_results:
         plt.plot(sig_det_actv)
         plt.plot(walk_label, 'r', linewidth=2)
@@ -385,4 +389,102 @@ def gsd_low_back_acc(imu_acc, fs, plot_results=False, time_vector=None, force_wa
         plt.xlabel('samples (40Hz)')
         plt.show()
 
-    return GSD_Output, sig_det_actv, walk_label
+    return GSD_Output, sig_det_actv, walk_label, stance_sequences
+
+
+def find_stance_sequences(gait_sequences, fs, acceleration):
+    
+    # metrics
+    maximum_std_val = 0.2
+    minimum_std_val = 0.0025 #empirically derived by comparing known static measurements with stance measurements
+    minimum_acc_force = 0.8
+    maximum_acc_force = 1.2
+    max_deviation_from_1g = 0.2
+    min_sequence_duration = 30.0  # seconds
+    sub_segment_duration = 1.0  # seconds
+
+    v_acc = acceleration[:, 0]
+    acc_force_in_Gs = np.linalg.norm(acceleration, axis=1)
+    total_samples = len(v_acc)
+    total_duration = total_samples / fs
+
+    non_walking = []
+
+    if len(gait_sequences) == 0:
+        non_walking.append((0.0, total_duration))
+    else:
+        if gait_sequences[0]['Start'] > 0:
+            non_walking.append((0.0, gait_sequences[0]['Start']))
+        for i in range(len(gait_sequences) - 1):
+            gap_start = gait_sequences[i]['End']
+            gap_end = gait_sequences[i + 1]['Start']
+            if gap_end > gap_start:
+                non_walking.append((gap_start, gap_end))
+        if gait_sequences[-1]['End'] < total_duration:
+            non_walking.append((gait_sequences[-1]['End'], total_duration))
+
+    stance_sequences = []
+    sub_len = int(round(sub_segment_duration * fs))
+
+    for (gap_start, gap_end) in non_walking:
+        gap_start_idx = max(0, int(round(gap_start * fs)))
+        gap_end_idx = min(total_samples, int(round(gap_end * fs)))
+
+        current_stance_start = None
+
+        i = gap_start_idx
+        while i < gap_end_idx:
+            seg_end = min(i + sub_len, gap_end_idx)
+            segment_v = v_acc[i:seg_end]
+            segment_acc = acc_force_in_Gs[i:seg_end]
+
+            if len(segment_v) == 0:
+                i = seg_end
+                continue
+
+            std_val = np.std(segment_v)
+            mean_acc = np.mean(segment_acc)
+            mean_deviation_from_1g = np.mean(np.abs(segment_acc - 1.0))
+
+            is_stance = (
+                minimum_std_val <= std_val < maximum_std_val and
+                minimum_acc_force <= mean_acc <= maximum_acc_force and
+                mean_deviation_from_1g <= max_deviation_from_1g
+            )
+
+            #print(f"t={i/fs:.1f}s  std={std_val:.4f}  mean_acc={mean_acc:.4f}  dev_from_1g={mean_deviation_from_1g:.4f}  is_stance={is_stance}")
+
+            if is_stance:
+                if current_stance_start is None:
+                    current_stance_start = i
+            else:
+                if current_stance_start is not None:
+                    _close_stance(
+                        current_stance_start, i,
+                        fs, min_sequence_duration,
+                        v_acc, acc_force_in_Gs, stance_sequences
+                    )
+                    current_stance_start = None
+
+            i = seg_end
+
+        if current_stance_start is not None:
+            _close_stance(
+                current_stance_start, gap_end_idx, fs, min_sequence_duration,
+                v_acc, acc_force_in_Gs, stance_sequences
+            )
+
+    return stance_sequences
+
+def _close_stance(start_idx, end_idx, fs, min_duration, v_acc, acc_force_in_Gs, stance_sequences):
+    start_s = start_idx / fs
+    end_s = end_idx / fs
+    if end_s - start_s < min_duration:
+        return
+    stance_sequences.append({
+        'Start': start_s,
+        'End': end_s,
+        'Vertical_acc_std': float(np.std(v_acc[start_idx:end_idx])),
+        'Vertical_acc_mean': float(np.mean(v_acc[start_idx:end_idx])),
+        'Resultant_acc_mean_Gs': float(np.mean(acc_force_in_Gs[start_idx:end_idx]))
+    })

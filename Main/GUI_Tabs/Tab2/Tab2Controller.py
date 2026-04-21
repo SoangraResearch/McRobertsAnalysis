@@ -44,6 +44,7 @@ class Tab2Controller:
         self.gsd_plot = None
         self.step_result_df = None
         self.steps_plot = None
+        self.stance_sequences = None
 
 # -------------------------Public Methods---------------------------------
 
@@ -180,7 +181,14 @@ class Tab2Controller:
                 output_path = os.path.join(self.directory_path, self.filename + "_GSD_results.csv")
 
             self.sd_result_df.to_csv(output_path, index=False)
-            messagebox.showinfo("Saved", f"GSD result saved to: {output_path}")
+
+            if hasattr(self, 'stance_sequences') and self.stance_sequences:
+                stance_path = output_path.replace("_GSD_results", "_stance_sequences")
+                pd.DataFrame(self.stance_sequences).to_csv(stance_path, index=False)
+                messagebox.showinfo("Saved", f"GSD result saved to:\n{output_path}\n\nStance sequences saved to:\n{stance_path}")
+            else:
+                messagebox.showinfo("Saved", f"GSD result saved to: {output_path}")
+
         except Exception as e:
             messagebox.showerror("Save Error", str(e))
 
@@ -282,13 +290,15 @@ class Tab2Controller:
                 "v_acc": v_acc_for_plot,
             }
         if GSDType == "Patient(GSDB)":
-            gsd_result, sig_det_act_for_plot, walk_label_for_plot = gsd_low_back_acc(
-                acc,
-                fs,
-                plot_results=False,
-                time_vector=original_time_array,
-                force_walking=self.force_data_as_walking,
-                extra_plots=extra_plots,
+            gsd_result, sig_det_act_for_plot, walk_label_for_plot, stance_sequences = (
+                gsd_low_back_acc(
+                    acc,
+                    fs,
+                    plot_results=False,
+                    time_vector=original_time_array,
+                    force_walking=self.force_data_as_walking,
+                    extra_plots=extra_plots,
+                )
             )
             v_acc_for_plot = np.linalg.norm(acc, axis=1)
             filter_and_print_long_segments(
@@ -299,6 +309,7 @@ class Tab2Controller:
                 "gsd_result": gsd_result,
                 "sig_det": sig_det_act_for_plot,
                 "walk_label": walk_label_for_plot,
+                "stance_sequences": stance_sequences,
                 "v_acc": v_acc_for_plot,
             }
         return {"kind": "invalid"}
@@ -306,13 +317,20 @@ class Tab2Controller:
     def _apply_gsd_plots(self, payload):
         """Build Matplotlib / Tk plots on the main thread."""
         fs = 100
+        self.stance_sequences = None
         if payload["kind"] == "GSDA":
             self.gsd_plot = plot_GSDA(
                 payload["gait_bool"], payload["v_acc"], self.left_frame
             )
         elif payload["kind"] == "GSDB":
+            stance_sequences = payload.get("stance_sequences") or []
+            self.stance_sequences = stance_sequences
             self.gsd_plot = plot_GSDB(
-                payload["sig_det"], payload["walk_label"], self.left_frame
+                payload["sig_det"],
+                payload["walk_label"],
+                stance_sequences,
+                payload["gsd_result"],
+                self.left_frame,
             )
         gsd_result = payload["gsd_result"]
         self.sd_result_df = pd.DataFrame(gsd_result)

@@ -32,29 +32,40 @@ def plot_GSDA(gait_bool, v_acc, plot_frame):
 
     return fig
 
-def plot_GSDB(sig_det_actv, walk_label, plot_frame):
+def plot_GSDB(sig_det_actv, walk_label, stance_sequences, gsd_result, plot_frame):
     for w in plot_frame.winfo_children():
         w.destroy()
-    
-    # build the figure
+
     fig = Figure(figsize=(3.5, 3), dpi=100)
     ax = fig.add_subplot(111)
-    
-    # Create time axis for proper scaling
-    time_axis = np.arange(len(sig_det_actv)) / 40.0  # 40Hz sampling rate
-    
+
+    time_axis = np.arange(len(sig_det_actv)) / 40.0
+
     ax.plot(time_axis, sig_det_actv, label='filtered accNorm')
-    ax.plot(time_axis, walk_label, 'r', linewidth=2, label='Walking')
+
+    for i, seq in enumerate(gsd_result):
+        ax.axvspan(
+            seq['Start'], seq['End'],
+            alpha=0.2, color='red',
+            label='Walking' if i == 0 else None
+        )
+
+    for i, seq in enumerate(stance_sequences):
+        ax.axvspan(
+            seq['Start'], seq['End'],
+            alpha=0.2, color='blue',
+            label='Stance' if i == 0 else None
+        )
+
     ax.set_xlabel('Time (seconds)')
     ax.set_title("Gait Sequence Detection (GSDB)")
-    ax.legend()
+    ax.legend(loc='upper left')
     fig.tight_layout()
-    
-    # embed into Tk frame
+
     canvas = FigureCanvasTkAgg(fig, master=plot_frame)
     canvas.draw()
     canvas.get_tk_widget().pack(fill='both', expand=True)
-    
+
     return fig
 
 def plot_steps(GS, fs, acc_v, plot_frame):
