@@ -118,6 +118,7 @@ a = Analysis(
         'Main.GUI_Tabs.Tab3.Analysis_Plots',
         'Main.GUI_Tabs.Tab4.Auto_analysis_code',
         'Main.GUI_Tabs.Tab4.auto_analysis_progress',
+        'Main.GUI_Tabs.Tab4.Tab4Controller',
         'Non_GUI.Analysis_Code.gait_functions.walking',
         'Non_GUI.Analysis_Code.gait_functions.hs_to_detection',
         'Non_GUI.Analysis_Code.non_linear_functions.ami_stergio',
