@@ -53,6 +53,8 @@ class Tab1Controller:
         self.file_start_time = tk.StringVar()
         self.file_stop_time = tk.StringVar()
 
+        self._time_var_programmatic = False
+
         self._octave_path_var: tk.StringVar | None = None
         self._octave_label_frame: tk.LabelFrame | None = None
         self._octave_status_label: tk.Label | None = None
@@ -193,11 +195,21 @@ class Tab1Controller:
             self.acceleration_plot = PlotOMX(
                 self.data, self.filename, plot_frame_OMX, **plot_kw
             )
+            for name in ("_current_start_entry", "_current_stop_entry"):
+                w = getattr(self, name, None)
+                if w is not None:
+                    try:
+                        w.configure(state="normal")
+                    except tk.TclError:
+                        pass
             self._update_time_vars()
             start_dt, stop_dt = self.acceleration_plot.get_current_bounds()
             self.file_start_time.set(start_dt.strftime("%Y-%m-%d %H:%M:%S"))
             self.file_stop_time.set(stop_dt.strftime("%Y-%m-%d %H:%M:%S"))
             self.acceleration_plot.register_view_change_callback(self._update_time_vars)
+            self.acceleration_plot.register_highlight_change_callback(
+                self._on_highlight_export_range_changed
+            )
 
             if self.heavy_job is not None:
                 self.heavy_job.release_success(
@@ -485,14 +497,61 @@ class Tab1Controller:
         )
 
     def _update_time_vars(self):
-        if self.acceleration_plot is not None:
-            start_dt, stop_dt = self.acceleration_plot.get_current_bounds()
-            start_str = start_dt.strftime('%Y-%m-%d %H:%M:%S')
-            stop_str = stop_dt.strftime('%Y-%m-%d %H:%M:%S')
-            
+        if self.acceleration_plot is None:
+            return
+        if self.acceleration_plot.get_highlight_range() is not None:
+            return
+        start_dt, stop_dt = self.acceleration_plot.get_current_bounds()
+        start_str = start_dt.strftime('%Y-%m-%d %H:%M:%S')
+        stop_str = stop_dt.strftime('%Y-%m-%d %H:%M:%S')
+
+        self.current_start_time.set(start_str)
+        self.current_stop_time.set(stop_str)
+
+    def _on_highlight_export_range_changed(self):
+        if self.acceleration_plot is None:
+            return
+        r = self.acceleration_plot.get_highlight_range()
+        if r is None:
+            for name in ("_current_start_entry", "_current_stop_entry"):
+                w = getattr(self, name, None)
+                if w is not None:
+                    try:
+                        w.configure(state="normal")
+                    except tk.TclError:
+                        pass
+            self._update_time_vars()
+            return
+
+        start_dt, stop_dt = r
+        if start_dt.tzinfo is not None:
+            start_dt = start_dt.replace(tzinfo=None)
+        if stop_dt.tzinfo is not None:
+            stop_dt = stop_dt.replace(tzinfo=None)
+
+        fmt = "%Y-%m-%d %H:%M:%S"
+        start_str = start_dt.strftime(fmt)
+        stop_str = stop_dt.strftime(fmt)
+
+        self._time_var_programmatic = True
+        try:
             self.current_start_time.set(start_str)
             self.current_stop_time.set(stop_str)
-        
+        finally:
+            self._time_var_programmatic = False
+
+        start_num = mdates.date2num(start_dt)
+        stop_num = mdates.date2num(stop_dt)
+        self.acceleration_plot.zoom_to_bounds(start_num, stop_num)
+
+        for name in ("_current_start_entry", "_current_stop_entry"):
+            w = getattr(self, name, None)
+            if w is not None:
+                try:
+                    w.configure(state="readonly")
+                except tk.TclError:
+                    pass
+
     def _create_max_time_labels(self):
         # Outer frame to hold min start and stop time
         time_frame = tk.Frame(self.tab)
@@ -546,6 +605,8 @@ class Tab1Controller:
         self._register_busy_lock_entries()
 
     def _on_time_var_changed(self, *args):
+        if self._time_var_programmatic:
+            return
         if self.acceleration_plot is not None:
             start_val = self.current_start_time.get()
             stop_val = self.current_stop_time.get()

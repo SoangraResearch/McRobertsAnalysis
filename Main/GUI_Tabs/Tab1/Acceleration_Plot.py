@@ -1,7 +1,7 @@
 import tkinter as tk
 from typing import Callable, Optional
 
-from Main.GUI_Tabs.gui_style import make_action_button
+from Main.GUI_Tabs.gui_style import make_action_button, make_radiobutton
 import numpy as np
 import matplotlib.ticker as mticker
 import matplotlib.dates as mdates
@@ -23,6 +23,7 @@ class PlotOMX:
         self.filename = filename
         self.parent = parent_widget
         self.view_change_callbacks = []
+        self.highlight_change_callbacks = []
 
         print("plotting acceleration plot")
 
@@ -86,40 +87,115 @@ class PlotOMX:
         self.ax.set_xlim(self.initial_xlim)
         self.y_limits = self.ax.get_ylim()
 
-        # Embed canvas
+        # Pan path reads these before the first wheel zoom; match zoom_to_bounds caches
+        self.current_x = np.asarray(x_mpl_nums, dtype=float)
+        self.current_y = y_columns
+        self.current_view = tuple(float(x) for x in self.ax.get_xlim())
+
+        self.tool_mode = tk.StringVar(value="browse")
+        self._region_anchor = None
+        self._region_preview = None
+        self._highlight_span = None
+        self._highlight_range_mpl = None
+
+        toolbar = tk.Frame(self.container)
+        toolbar.pack(side=tk.TOP, fill=tk.X, padx=4, pady=(0, 2))
+
+        row1 = tk.Frame(toolbar)
+        row1.pack(side=tk.TOP, fill=tk.X)
+
+        btn_row = tk.Frame(row1)
+        btn_row.pack(side=tk.RIGHT)
+        make_action_button(btn_row, text="Clear highlight", command=self._on_clear_highlight_clicked).pack(
+            side=tk.RIGHT, padx=(4, 0)
+        )
+        make_action_button(btn_row, text="⟳ Reset View", command=self._reset_view).pack(
+            side=tk.RIGHT, padx=(4, 0)
+        )
+
+        left = tk.Frame(row1)
+        left.pack(side=tk.LEFT)
+        tk.Label(left, text="Plot tool:").pack(side=tk.LEFT, padx=(0, 4))
+        make_radiobutton(
+            left,
+            text="Browse (pan & wheel)",
+            variable=self.tool_mode,
+            value="browse",
+        ).pack(side=tk.LEFT, padx=2)
+        make_radiobutton(
+            left,
+            text="Zoom to rectangle",
+            variable=self.tool_mode,
+            value="zoom_rect",
+        ).pack(side=tk.LEFT, padx=2)
+        make_radiobutton(
+            left,
+            text="Highlight range",
+            variable=self.tool_mode,
+            value="highlight",
+        ).pack(side=tk.LEFT, padx=2)
+
+        row2 = tk.Frame(toolbar)
+        row2.pack(side=tk.TOP, fill=tk.X, pady=(4, 0))
+        self._highlight_time_label = tk.Label(
+            row2,
+            text="Highlight: —",
+            anchor=tk.NW,
+            justify=tk.LEFT,
+        )
+        self._highlight_time_label.pack(side=tk.LEFT, fill=tk.X, anchor=tk.W)
+
+        def _on_highlight_row_configure(event):
+            if event.widget is row2 and event.width > 24:
+                self._highlight_time_label.configure(wraplength=event.width - 8)
+
+        row2.bind("<Configure>", _on_highlight_row_configure)
+
+        self.tool_mode.trace_add("write", self._on_tool_mode_changed)
+
         self.canvas = FigureCanvasTkAgg(self.fig, master=self.container)
         self.canvas.draw()
         self.canvas_widget = self.canvas.get_tk_widget()
         self.canvas_widget.pack(fill="both", expand=False)
 
-        # Pan tracking
+        self._sync_plot_tool_cursor()
+
         self.pan_start = {"x": None}
 
-        # Bind events
         self.fig.canvas.mpl_connect("scroll_event", self._on_scroll)
         self.fig.canvas.mpl_connect("button_press_event", self._on_button_press)
         self.fig.canvas.mpl_connect("motion_notify_event", self._on_mouse_drag)
         self.fig.canvas.mpl_connect("button_release_event", self._on_button_release)
+        self.fig.canvas.mpl_connect("key_press_event", self._on_key_press)
 
-        # Initialize edge labels
         self.edge_labels = []
         self._update_edge_labels()
         self.fig.canvas.mpl_connect('draw_event', self._update_edge_labels)
         self.fig.canvas.mpl_connect('button_release_event', self._update_edge_labels)
         self.fig.canvas.mpl_connect('scroll_event', self._update_edge_labels)
 
-        # Reset view button
-        reset_button = make_action_button(self.container, text="⟳ Reset View", command=self._reset_view)
-        reset_button.place(x=10, y=10)
-
     # -------------------------Public Methods---------------------------------
     
     def register_view_change_callback(self, callback):
         self.view_change_callbacks.append(callback)
 
+    def register_highlight_change_callback(self, callback):
+        self.highlight_change_callbacks.append(callback)
+
+    def _notify_highlight_changed(self):
+        for cb in self.highlight_change_callbacks:
+            cb()
+
     def get_current_bounds(self):
         x_min, x_max = self.ax.get_xlim()
         return mdates.num2date(x_min), mdates.num2date(x_max)
+
+    def get_highlight_range(self):
+        """Naive datetimes for the current highlight, or None. For a single export window."""
+        if self._highlight_range_mpl is None:
+            return None
+        lo, hi = self._highlight_range_mpl
+        return mdates.num2date(lo), mdates.num2date(hi)
 
     def zoom_to_bounds(self, xmin, xmax):
         xmin, xmax = self._clamp_xlim(xmin, xmax)
@@ -186,10 +262,10 @@ class PlotOMX:
         return np.array(x_down), np.vstack(y_down)
     
     def _reset_view(self):
-        self.ax.set_xlim(self.initial_xlim)
-        self.ax.set_ylim(self.y_limits)
-        self.canvas.draw_idle()
-        self._update_edge_labels()
+        # Must refresh downsampled line data, not only xlim — otherwise after a
+        # narrow zoom (e.g. highlight) the lines still cover a tiny x span and
+        # the rest of the plot looks blank until another zoom reloads data.
+        self.zoom_to_bounds(self.initial_xlim[0], self.initial_xlim[1])
         self._notify_view_change()
 
     def _get_raw_bounds(self):
@@ -199,6 +275,70 @@ class PlotOMX:
     def _notify_view_change(self):
         for cb in self.view_change_callbacks:
             cb()
+
+    def _on_tool_mode_changed(self, *_args):
+        self._cancel_region_interaction()
+        self.pan_start["x"] = None
+        self._sync_plot_tool_cursor()
+
+    def _sync_plot_tool_cursor(self):
+        try:
+            if self.tool_mode.get() == "browse":
+                self.canvas_widget.configure(cursor="")
+            else:
+                self.canvas_widget.configure(cursor="crosshair")
+        except tk.TclError:
+            pass
+
+    def _clear_region_preview(self):
+        if self._region_preview is not None:
+            self._region_preview.remove()
+            self._region_preview = None
+
+    def _cancel_region_interaction(self):
+        self._region_anchor = None
+        self._clear_region_preview()
+        self._update_highlight_time_label()
+
+    def _update_highlight_time_label(self, preview_lo=None, preview_hi=None):
+        lab = getattr(self, "_highlight_time_label", None)
+        if lab is None:
+            return
+        fmt = "%Y-%m-%d %H:%M:%S"
+        if preview_lo is not None and preview_hi is not None:
+            lo, hi = (preview_lo, preview_hi) if preview_lo <= preview_hi else (preview_hi, preview_lo)
+            a = mdates.num2date(lo).strftime(fmt)
+            b = mdates.num2date(hi).strftime(fmt)
+            lab.configure(text=f"Highlight: {a} → {b}")
+            return
+        r = self.get_highlight_range()
+        if r is None:
+            lab.configure(text="Highlight: —")
+        else:
+            a, b = r
+            lab.configure(text=f"Highlight: {a.strftime(fmt)} → {b.strftime(fmt)}")
+
+    def _clear_highlight(self):
+        if self._highlight_span is not None:
+            try:
+                self._highlight_span.remove()
+            except ValueError:
+                pass
+            self._highlight_span = None
+        self._highlight_range_mpl = None
+        self._update_highlight_time_label()
+        self.canvas.draw_idle()
+
+    def _on_clear_highlight_clicked(self):
+        self._clear_highlight()
+        self._notify_highlight_changed()
+
+    def _on_key_press(self, event):
+        if event.key != "escape":
+            return
+        self._cancel_region_interaction()
+        self.pan_start["x"] = None
+        self.canvas.draw_idle()
 
     def _update_edge_labels(self, event=None):
         for label in getattr(self, 'edge_labels', []):
@@ -255,10 +395,42 @@ class PlotOMX:
         self.scroll_timer = self.container.after(100, self._notify_view_change)
 
     def _on_button_press(self, event):
-        if event.button == 1:
-            self.pan_start["x"] = event.xdata
+        if event.button != 1:
+            return
+        try:
+            self.canvas_widget.focus_set()
+        except tk.TclError:
+            pass
+
+        mode = self.tool_mode.get()
+        if mode in ("zoom_rect", "highlight"):
+            if event.inaxes != self.ax or event.xdata is None:
+                return
+            self.pan_start["x"] = None
+            self._region_anchor = float(event.xdata)
+            self._clear_region_preview()
+            return
+
+        self._cancel_region_interaction()
+        self.pan_start["x"] = event.xdata
 
     def _on_mouse_drag(self, event):
+        mode = self.tool_mode.get()
+        if mode in ("zoom_rect", "highlight") and self._region_anchor is not None:
+            if event.xdata is None:
+                return
+            self._clear_region_preview()
+            lo = min(self._region_anchor, float(event.xdata))
+            hi = max(self._region_anchor, float(event.xdata))
+            color = (0.2, 0.55, 0.95, 0.28) if mode == "zoom_rect" else (0.95, 0.75, 0.1, 0.35)
+            self._region_preview = self.ax.axvspan(lo, hi, facecolor=color, edgecolor="none", zorder=10)
+            if mode == "highlight":
+                self._update_highlight_time_label(self._region_anchor, float(event.xdata))
+            self.canvas.draw_idle()
+            return
+
+        if mode != "browse":
+            return
         if self.pan_start["x"] is None or event.xdata is None:
             return
 
@@ -343,9 +515,47 @@ class PlotOMX:
         self.canvas.draw_idle()
 
     def _on_button_release(self, event):
-        if event.button == 1:
-            self.pan_start["x"] = None
-            self._notify_view_change()
+        if event.button != 1:
+            return
+
+        mode = self.tool_mode.get()
+        if self._region_anchor is not None and mode in ("zoom_rect", "highlight"):
+            anchor = self._region_anchor
+            self._region_anchor = None
+            self._clear_region_preview()
+            x1 = event.xdata
+            if x1 is None:
+                self._update_highlight_time_label()
+                self.canvas.draw_idle()
+                return
+            lo = self._snap_to_seconds(min(anchor, float(x1)))
+            hi = self._snap_to_seconds(max(anchor, float(x1)))
+            if hi - lo <= 1e-12:
+                self._update_highlight_time_label()
+                self.canvas.draw_idle()
+                return
+            if mode == "zoom_rect":
+                self.zoom_to_bounds(lo, hi)
+                self._notify_view_change()
+            else:
+                self._clear_highlight()
+                span = self.ax.axvspan(
+                    lo,
+                    hi,
+                    facecolor=(0.95, 0.8, 0.15, 0.28),
+                    edgecolor=(0.7, 0.55, 0.05, 0.9),
+                    linewidth=0.8,
+                    zorder=1,
+                )
+                self._highlight_span = span
+                self._highlight_range_mpl = (lo, hi)
+                self._update_highlight_time_label()
+                self.canvas.draw_idle()
+                self._notify_highlight_changed()
+            return
+
+        self.pan_start["x"] = None
+        self._notify_view_change()
 
     def _snap_to_seconds(self, matplotlib_date):
         dt = mdates.num2date(matplotlib_date)
