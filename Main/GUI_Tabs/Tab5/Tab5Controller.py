@@ -485,7 +485,7 @@ class Tab5Controller:
             )
             row += 1
 
-        add_entry("Embedding order m (SampEn / PermEn / MSE)", "m")
+        add_entry("Embedding order m (ApEn / SampEn / PermEn / MSE)", "m")
         add_entry("Tolerance r (ApEn / SampEn / MSE)", "r")
         add_entry("Symbolic entropy L (symbol count)", "symbolic_L")
         add_entry("MSE max scale (τ max)", "mse_max_scale")

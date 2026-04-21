@@ -232,13 +232,10 @@ for i in range(len(walking)):
     Atol = 2
     speed = 0
     ans = FNN(data, delay, MaxDim, Rtol, Atol, speed)
-    dim = ans[1]  #dimension
-    # Approximate entropy
-    r = 0.2 #tolerance
-    AE = Ent_Ap(data, dim, r)
-    # Sample Entropy
-    m = 2 # - m is generally recommendation as 2
-    #  - R is generally recommendation as 0.2
+    dim = ans[1]  #dimension (LyE, RQA, etc.); ApEn uses fixed pattern length m below
+    m = 2  # ApEn / SampEn embedding order (literature default)
+    r = 0.2  # tolerance as fraction of SD; common choice 0.2
+    AE = Ent_Ap(data, m, r)
     Samp_Ent = Ent_Samp(data, m, r)
     #Symbolic Entropy
     L = 2 #assuming
