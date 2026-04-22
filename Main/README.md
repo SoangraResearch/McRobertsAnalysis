@@ -48,7 +48,8 @@ Workflow: **`.github/workflows/build-desktop-apps.yml`** (“Build desktop apps�
 - **When it runs:** On **push** to `main` or `master`, and when triggered manually (**Actions** → workflow → **Run workflow**).
 - **Artifacts:** After a successful run, open the run in the **Actions** tab and download:
   - **McRoberts-Analysis-Windows** — Windows build folder (as uploaded from `dist/McRoberts Analysis/`).
-  - **McRoberts-Analysis-macOS** — **ZIP** of the `.app` (zip keeps the bundle intact when unzipping).
+  - **McRoberts-Analysis-macOS** — **ZIP** of the **Apple Silicon** `.app` (zip keeps the bundle intact when unzipping).
+  - **McRoberts-Analysis-macOS-Intel** — **ZIP** of the **Intel (x86_64)** `.app` for older Macs.
 
 **Note:** Workflow artifacts use GitHub’s **retention limit** (they expire after a set period).
 
@@ -70,7 +71,7 @@ Use the **same interpreter** (venv or conda env) that can run `Main/GUI_Main.py`
 
 ### macOS notes
 
-- CI builds on **Apple Silicon** runners; the `.app` matches that architecture (see the workflow step that prints `file` on the binary). Intel-only Macs need a build produced on Intel hardware or a universal/fat binary workflow, which this repo does not configure by default.
+- CI produces **two** macOS bundles: **McRoberts-Analysis-macOS** (Apple Silicon, `macos-latest`) and **McRoberts-Analysis-macOS-Intel** (`macos-15-intel`). The workflow prints `uname -m` and `file` on the main binary so you can confirm `arm64` vs `x86_64`.
 - If Gatekeeper blocks the app, use **System Settings → Privacy & Security** or right-click → Open, as usual for unsigned local builds.
 
 ## Program Instructions

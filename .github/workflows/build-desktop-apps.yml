@@ -1,5 +1,6 @@
 # Windows: dist/McRoberts Analysis/ (exe + _internal). macOS: dist/McRoberts Analysis.app (see spec BUNDLE on darwin).
-# Trigger from Actions, or push to main/master — both jobs run from the same commit.
+# Artifacts: Windows folder, macOS Apple Silicon .zip, macOS Intel (x86_64) .zip — three upload-artifact bundles per run.
+# Trigger from Actions, or push to main/master — jobs run from the same commit.
 name: Build desktop apps
 
 on:
@@ -59,19 +60,56 @@ jobs:
       - name: PyInstaller
         run: python -m PyInstaller "McRoberts Analysis.spec" --clean
 
-      # Confirms runner arch vs app binary (arm64-only CI builds do not run on Intel Macs).
+      # Apple Silicon runner → arm64 binary (does not run natively on Intel-only Macs).
       - name: Show macOS binary architecture
         run: |
           uname -m
           file "dist/McRoberts Analysis.app/Contents/MacOS/McRoberts Analysis"
 
       # Keeps the outer .app bundle when users unzip the artifact (plain folder upload can look like "just Contents/").
-      - name: Zip macOS app
+      - name: Zip macOS app (Apple Silicon)
         run: ditto -c -k --keepParent "dist/McRoberts Analysis.app" "dist/McRoberts-Analysis-macOS.zip"
 
-      - name: Upload macOS build
+      - name: Upload macOS build (Apple Silicon)
         uses: actions/upload-artifact@v4
         with:
           name: McRoberts-Analysis-macOS
           path: dist/McRoberts-Analysis-macOS.zip
+          if-no-files-found: error
+
+  pyinstaller-macos-intel:
+    runs-on: macos-15-intel
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pyinstaller numpy scipy matplotlib pandas pywavelets scikit-learn scikit-image oct2py octave_kernel ssqueezepy
+
+      - name: PyInstaller
+        run: python -m PyInstaller "McRoberts Analysis.spec" --clean
+
+      - name: Show macOS binary architecture
+        run: |
+          uname -m
+          file "dist/McRoberts Analysis.app/Contents/MacOS/McRoberts Analysis"
+
+      - name: Zip macOS app (Intel)
+        run: ditto -c -k --keepParent "dist/McRoberts Analysis.app" "dist/McRoberts-Analysis-macOS-intel.zip"
+
+      - name: Upload macOS build (Intel)
+        uses: actions/upload-artifact@v4
+        with:
+          name: McRoberts-Analysis-macOS-Intel
+          path: dist/McRoberts-Analysis-macOS-intel.zip
           if-no-files-found: error
