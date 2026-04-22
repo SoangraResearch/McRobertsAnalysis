@@ -135,22 +135,6 @@ class PlotOMX:
             value="highlight",
         ).pack(side=tk.LEFT, padx=2)
 
-        row2 = tk.Frame(toolbar)
-        row2.pack(side=tk.TOP, fill=tk.X, pady=(4, 0))
-        self._highlight_time_label = tk.Label(
-            row2,
-            text="Highlight: —",
-            anchor=tk.NW,
-            justify=tk.LEFT,
-        )
-        self._highlight_time_label.pack(side=tk.LEFT, fill=tk.X, anchor=tk.W)
-
-        def _on_highlight_row_configure(event):
-            if event.widget is row2 and event.width > 24:
-                self._highlight_time_label.configure(wraplength=event.width - 8)
-
-        row2.bind("<Configure>", _on_highlight_row_configure)
-
         self.tool_mode.trace_add("write", self._on_tool_mode_changed)
 
         self.canvas = FigureCanvasTkAgg(self.fig, master=self.container)
@@ -298,25 +282,6 @@ class PlotOMX:
     def _cancel_region_interaction(self):
         self._region_anchor = None
         self._clear_region_preview()
-        self._update_highlight_time_label()
-
-    def _update_highlight_time_label(self, preview_lo=None, preview_hi=None):
-        lab = getattr(self, "_highlight_time_label", None)
-        if lab is None:
-            return
-        fmt = "%Y-%m-%d %H:%M:%S"
-        if preview_lo is not None and preview_hi is not None:
-            lo, hi = (preview_lo, preview_hi) if preview_lo <= preview_hi else (preview_hi, preview_lo)
-            a = mdates.num2date(lo).strftime(fmt)
-            b = mdates.num2date(hi).strftime(fmt)
-            lab.configure(text=f"Highlight: {a} → {b}")
-            return
-        r = self.get_highlight_range()
-        if r is None:
-            lab.configure(text="Highlight: —")
-        else:
-            a, b = r
-            lab.configure(text=f"Highlight: {a.strftime(fmt)} → {b.strftime(fmt)}")
 
     def _clear_highlight(self):
         if self._highlight_span is not None:
@@ -326,7 +291,6 @@ class PlotOMX:
                 pass
             self._highlight_span = None
         self._highlight_range_mpl = None
-        self._update_highlight_time_label()
         self.canvas.draw_idle()
 
     def _on_clear_highlight_clicked(self):
@@ -424,8 +388,6 @@ class PlotOMX:
             hi = max(self._region_anchor, float(event.xdata))
             color = (0.2, 0.55, 0.95, 0.28) if mode == "zoom_rect" else (0.95, 0.75, 0.1, 0.35)
             self._region_preview = self.ax.axvspan(lo, hi, facecolor=color, edgecolor="none", zorder=10)
-            if mode == "highlight":
-                self._update_highlight_time_label(self._region_anchor, float(event.xdata))
             self.canvas.draw_idle()
             return
 
@@ -525,13 +487,11 @@ class PlotOMX:
             self._clear_region_preview()
             x1 = event.xdata
             if x1 is None:
-                self._update_highlight_time_label()
                 self.canvas.draw_idle()
                 return
             lo = self._snap_to_seconds(min(anchor, float(x1)))
             hi = self._snap_to_seconds(max(anchor, float(x1)))
             if hi - lo <= 1e-12:
-                self._update_highlight_time_label()
                 self.canvas.draw_idle()
                 return
             if mode == "zoom_rect":
@@ -549,7 +509,6 @@ class PlotOMX:
                 )
                 self._highlight_span = span
                 self._highlight_range_mpl = (lo, hi)
-                self._update_highlight_time_label()
                 self.canvas.draw_idle()
                 self._notify_highlight_changed()
             return
