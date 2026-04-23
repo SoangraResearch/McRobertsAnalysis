@@ -57,7 +57,7 @@ Workflow: **`.github/workflows/build-desktop-apps.yml`** (â€œBuild desktop appsâ
 
 For **stable download links** that do not auto-expire like Actions artifacts, publish a **[GitHub Release](https://docs.github.com/en/repositories/releasing-projects-on-github/about-releases)** and attach the same build outputs (Windows folder zipped if needed, macOS `.zip` of the `.app`). Point collaborators and manuals to the **Releases** page instead of asking them to dig through **Actions** history.
 
-The CI jobs use **Python 3.11** and install PyInstaller plus the Python dependencies listed in that workflow file (they must stay in sync with what the GUI needs).
+The CI jobs use **Python 3.11** and install from **`requirements.txt`** at the repository root (same list you should use locally so CI and the GUI stay aligned).
 
 ### Local build (developers)
 

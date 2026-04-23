@@ -1,0 +1,25 @@
+# McRoberts Analysis — Python dependencies (app + desktop packaging)
+# Install: pip install -r requirements.txt
+#
+# Python 3.11+ is used in CI; newer 3.x generally works.
+# GNU Octave must be installed separately for .OMX conversion (oct2py); see Main/README.md.
+# Set OCTAVE_EXECUTABLE to your octave-cli if auto-detection fails.
+
+# --- Application ---
+numpy
+scipy
+matplotlib
+pandas
+PyWavelets
+python-dateutil
+scikit-learn
+scikit-image
+oct2py
+ssqueezepy
+
+# --- Desktop app build (PyInstaller; matches CI) ---
+pyinstaller
+octave_kernel
+
+# --- Optional scripts ---
+# h5py  # Non_GUI/h5_to_csv(nonGUI).py
