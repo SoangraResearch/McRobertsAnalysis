@@ -15,6 +15,11 @@ python-dateutil
 scikit-learn
 scikit-image
 oct2py
+# ssqueezepy → numba → llvmlite. llvmlite 0.46+ has no macosx_x86_64 wheels on PyPI (Intel Mac
+# only gets a source build, which needs LLVM tooling and fails in CI). Keep numba/llvmlite on a
+# pair that still publishes cp311 wheels for darwin x86_64 (and arm64 / win / linux unchanged).
+numba>=0.61.2,<0.62
+llvmlite>=0.44.0,<0.45
 ssqueezepy
 
 # --- Desktop app build (PyInstaller; matches CI) ---
