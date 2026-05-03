@@ -154,7 +154,7 @@ class Tab3Controller:
             self._on_nonlinear_complete(plot_frame, df, plot_data_list)
 
         def on_error(msg):
-            messagebox.showerror("Analysis Error", msg)
+            messagebox.showerror("Gait Analysis Error", msg)
 
         if self.heavy_job:
             if not self.heavy_job.run(
