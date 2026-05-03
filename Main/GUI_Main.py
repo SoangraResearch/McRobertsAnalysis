@@ -22,6 +22,7 @@ from Main.GUI_Tabs.Tab1.Tab1Controller import Tab1Controller
 from Main.GUI_Tabs.Tab2.Tab2Controller import Tab2Controller
 from Main import app_config
 from Main.GUI_Tabs.Tab3.Tab3Controller import Tab3Controller
+from Main.GUI_Tabs.Tab4.Tab4Controller import Tab4Controller
 from Main.GUI_Tabs.Tab5.Tab5Controller import Tab5Controller
 from Main.GUI_Tabs.Tab6.Tab6Controller import Tab6Controller
 
@@ -51,6 +52,9 @@ tab_control.add(tab2, text="Mobilise-D")
 tab3 = tk.Frame(tab_control)
 tab_control.add(tab3, text="Gait Analysis")
 
+tab4 = tk.Frame(tab_control)
+tab_control.add(tab4, text="Stance Analysis")
+
 tab5 = tk.Frame(tab_control)
 tab_control.add(tab5, text="Auto-Analysis")
 
@@ -66,6 +70,7 @@ tab1_controller = Tab1Controller(tab1, heavy_job)
 tab1_controller.build_octave_section()
 tab2_controller = Tab2Controller(tab2, heavy_job)
 tab3_controller = Tab3Controller(tab3, heavy_job)
+tab4_controller = Tab4Controller(tab4, heavy_job)
 tab5_controller = Tab5Controller(tab5, heavy_job)
 tab6_controller = Tab6Controller(tab6)
 
@@ -77,7 +82,7 @@ acceleration_plot = None
 mobiliseD_file = None
 mobiliseD_directory_path = None
 mobilised_path_var = tk.StringVar()
-analysis_code_path_var = tk.StringVar()
+gait_analysis_code_path_var = tk.StringVar()
 linear_plots = None
 nonlinear_plots = None
 exported_csv_path = "None"
@@ -99,7 +104,7 @@ def export_csv():
                 tab1_controller.export_filename + ".csv",
             )
         )
-        analysis_code_path_var.set(f"File loaded: {tab1_controller.export_filename}")
+        gait_analysis_code_path_var.set(f"File loaded: {tab1_controller.export_filename}")
         tab3_controller.set_file(
             os.path.join(
                 tab1_controller.export_folder,
@@ -244,50 +249,50 @@ tab2_save_all_button.pack(pady=5)
 # -------------------------Tab 3 Methods---------------------------------
 
 def load_analysis_code_file():
-    analysis_code_path_var.set(tab3_controller.load_file())
+    gait_analysis_code_path_var.set(tab3_controller.load_file())
 
-# -------------------------Tab 3 Analysis---------------------------------
+# -------------------------Tab 3 Gait Analysis---------------------------------
 
 tab3_load_csv_button = make_action_button(
     tab3, text="Load CSV File", command=load_analysis_code_file
 )
 tab3_load_csv_button.pack(pady=10)
 
-analysis_code_path_var = tk.StringVar(value="File loaded: (none)")
-analysis_file_label = tk.Label(tab3, textvariable=analysis_code_path_var)
-analysis_file_label.pack()
+gait_analysis_code_path_var = tk.StringVar(value="File loaded: (none)")
+gait_analysis_file_label = tk.Label(tab3, textvariable=gait_analysis_code_path_var)
+gait_analysis_file_label.pack()
 
-analysis_frame = tk.Frame(tab3)
-analysis_frame.pack(pady=5)
+gait_analysis_frame = tk.Frame(tab3)
+gait_analysis_frame.pack(pady=5)
 
-assume_walking_var = tk.BooleanVar(value=False)
-plot_frame_analysis = tk.Frame(tab3, height=300)
+gait_assume_walking_var = tk.BooleanVar(value=False)
+plot_frame_gait_analysis = tk.Frame(tab3, height=300)
 
 tab3_linear_button = make_action_button(
-    analysis_frame,
+    gait_analysis_frame,
     text="Linear Analysis",
     width=15,
     command=lambda: tab3_controller.do_linear_analysis(
-        plot_frame_analysis, assume_walking_var
+        plot_frame_gait_analysis, gait_assume_walking_var
     ),
 )
 tab3_linear_button.pack(side="left", padx=10)
 tab3_nonlinear_button = make_action_button(
-    analysis_frame,
+    gait_analysis_frame,
     text="Non-Linear Analysis",
     width=15,
     command=lambda: tab3_controller.do_nonlinear_analysis(
-        plot_frame_analysis, assume_walking_var
+        plot_frame_gait_analysis, gait_assume_walking_var
     ),
 )
 tab3_nonlinear_button.pack(side="left", padx=10)
 
 tab3_assume_walking_check = make_checkbutton(
-    analysis_frame, text="Assume data is walking", variable=assume_walking_var
+    gait_analysis_frame, text="Assume data is walking", variable=gait_assume_walking_var
 )
 tab3_assume_walking_check.pack(side="left", padx=(12, 12), pady=6, ipadx=4, ipady=4)
 
-plot_frame_analysis.pack(fill="both", expand=True)
+plot_frame_gait_analysis.pack(fill="both", expand=True)
 
 tab3_save_button_frame = tk.Frame(tab3)
 tab3_save_button_frame.pack(pady=5)
@@ -322,6 +327,66 @@ tab3_save_all_output_button = make_action_button(
 )
 tab3_save_all_output_button.pack(pady=5)
 
+# -------------------------Tab 4 Methods---------------------------------
+
+# -------------------------Tab 4 Stance Analysis---------------------------------
+
+tab4_load_csv_button = make_action_button(
+    tab4, text="Load CSV File"
+)
+tab4_load_csv_button.pack(pady=10)
+
+stance_analysis_code_path_var = tk.StringVar(value="File loaded: (none)")
+stance_analysis_file_label = tk.Label(tab4, textvariable=stance_analysis_code_path_var)
+stance_analysis_file_label.pack()
+
+stance_analysis_frame = tk.Frame(tab4)
+stance_analysis_frame.pack(pady=5)
+
+stance_assume_walking_var = tk.BooleanVar(value=False)
+plot_frame_stance_analysis = tk.Frame(tab4, height=300)
+
+tab4_analysis_button = make_action_button(
+    stance_analysis_frame,
+    text="Run Analysis",
+    width=15,
+    #command=lambda: tab3_controller.do_linear_analysis(
+        #plot_frame_gait_analysis, gait_assume_walking_var
+    #),
+)
+tab4_analysis_button.pack(side="left", padx=10)
+
+tab4_assume_walking_check = make_checkbutton(
+    stance_analysis_frame, text="Assume data is walking", variable=stance_assume_walking_var
+)
+
+tab4_assume_walking_check.pack(side="left", padx=(12, 12), pady=6, ipadx=4, ipady=4)
+
+plot_frame_stance_analysis.pack(fill="both", expand=True)
+
+tab4_save_button_frame = tk.Frame(tab4)
+tab4_save_button_frame.pack(pady=5)
+
+tab4_save_csv_button = make_action_button(
+    tab4_save_button_frame,
+    text="Save Analysis",
+    #command=lambda: tab4_controller.save_linear_analysis(True),
+)
+tab4_save_csv_button.pack(side="left", padx=5)
+
+tab4_save_plot_button = make_action_button(
+    tab4_save_button_frame,
+    text="Save Plot",
+    #command=lambda: tab4_controller.save_plot(True),
+)
+tab4_save_plot_button.pack(side="left", padx=5)
+
+tab4_save_all_output_button = make_action_button(
+    tab4, text="Save All", #command=lambda: tab4_controller.save_all_output()
+)
+tab4_save_all_output_button.pack(pady=5)
+
+# -------------------------Extra---------------------------------
 heavy_job.register_disable_widgets(
     tab_control,
     tab1_load_file_button,
