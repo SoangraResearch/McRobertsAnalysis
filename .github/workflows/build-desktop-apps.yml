@@ -1,6 +1,7 @@
 # Windows: dist/McRoberts Analysis/ (exe + _internal). macOS: dist/McRoberts Analysis.app (see spec BUNDLE on darwin).
 # Artifacts: Windows folder, macOS Apple Silicon .zip, macOS Intel (x86_64) .zip — three upload-artifact bundles per run.
 # Trigger: Actions → Run workflow, or push a version tag matching v* (e.g. v1.2.0). Jobs use the commit that tag points to.
+# Tag runs: also create/update a GitHub Release with generated notes and attach build assets (not on manual runs from a branch).
 name: Build desktop apps
 
 on:
@@ -8,6 +9,9 @@ on:
   push:
     tags:
       - "v*"
+
+permissions:
+  contents: read
 
 jobs:
   pyinstaller-windows:
@@ -117,3 +121,58 @@ jobs:
           path: dist/McRoberts-Analysis-macOS-intel.zip
           if-no-files-found: error
           retention-days: 14
+
+  publish-github-release:
+    needs: [pyinstaller-windows, pyinstaller-macos, pyinstaller-macos-intel]
+    runs-on: ubuntu-latest
+    if: github.ref_type == 'tag' && startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download Windows build
+        uses: actions/download-artifact@v4
+        with:
+          name: McRoberts-Analysis-Windows
+          path: release-assets/windows-dist
+
+      - name: Download macOS (Apple Silicon) zip
+        uses: actions/download-artifact@v4
+        with:
+          name: McRoberts-Analysis-macOS
+          path: release-assets/macos-arm
+
+      - name: Download macOS (Intel) zip
+        uses: actions/download-artifact@v4
+        with:
+          name: McRoberts-Analysis-macOS-Intel
+          path: release-assets/macos-intel
+
+      - name: Pack Windows folder as zip for release
+        run: |
+          set -euxo pipefail
+          cd release-assets/windows-dist
+          zip -r ../McRoberts-Analysis-Windows.zip .
+
+      - name: Stage release assets
+        run: |
+          set -euxo pipefail
+          mkdir -p publish
+          cp -f release-assets/McRoberts-Analysis-Windows.zip publish/
+          ARM="$(find release-assets/macos-arm -name 'McRoberts-Analysis-macOS.zip' -type f | head -1)"
+          INTEL="$(find release-assets/macos-intel -name 'McRoberts-Analysis-macOS-intel.zip' -type f | head -1)"
+          test -n "$ARM" && test -f "$ARM"
+          test -n "$INTEL" && test -f "$INTEL"
+          cp -f "$ARM" publish/McRoberts-Analysis-macOS.zip
+          cp -f "$INTEL" publish/McRoberts-Analysis-macOS-intel.zip
+          ls -la publish
+
+      - name: Create GitHub Release with assets
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            publish/McRoberts-Analysis-Windows.zip
+            publish/McRoberts-Analysis-macOS.zip
+            publish/McRoberts-Analysis-macOS-intel.zip
+          fail_on_unmatched_files: true
