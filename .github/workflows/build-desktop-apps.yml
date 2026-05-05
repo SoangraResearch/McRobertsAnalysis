@@ -1,12 +1,13 @@
 # Windows: dist/McRoberts Analysis/ (exe + _internal). macOS: dist/McRoberts Analysis.app (see spec BUNDLE on darwin).
 # Artifacts: Windows folder, macOS Apple Silicon .zip, macOS Intel (x86_64) .zip — three upload-artifact bundles per run.
-# Trigger from Actions, or push to main/master — jobs run from the same commit.
+# Trigger: Actions → Run workflow, or push a version tag matching v* (e.g. v1.2.0). Jobs use the commit that tag points to.
 name: Build desktop apps
 
 on:
   workflow_dispatch:
   push:
-    branches: [main, master]
+    tags:
+      - "v*"
 
 jobs:
   pyinstaller-windows:
@@ -37,6 +38,7 @@ jobs:
           name: McRoberts-Analysis-Windows
           path: dist/McRoberts Analysis/
           if-no-files-found: error
+          retention-days: 14
 
   pyinstaller-macos:
     runs-on: macos-latest
@@ -76,6 +78,7 @@ jobs:
           name: McRoberts-Analysis-macOS
           path: dist/McRoberts-Analysis-macOS.zip
           if-no-files-found: error
+          retention-days: 14
 
   pyinstaller-macos-intel:
     runs-on: macos-15-intel
@@ -113,3 +116,4 @@ jobs:
           name: McRoberts-Analysis-macOS-Intel
           path: dist/McRoberts-Analysis-macOS-intel.zip
           if-no-files-found: error
+          retention-days: 14
