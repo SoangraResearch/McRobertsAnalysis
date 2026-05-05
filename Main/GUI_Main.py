@@ -22,8 +22,8 @@ from Main.GUI_Tabs.Tab1.Tab1Controller import Tab1Controller
 from Main.GUI_Tabs.Tab2.Tab2Controller import Tab2Controller
 from Main import app_config
 from Main.GUI_Tabs.Tab3.Tab3Controller import Tab3Controller
+from Main.GUI_Tabs.Tab4.Tab4Controller import Tab4Controller
 from Main.GUI_Tabs.Tab5.Tab5Controller import Tab5Controller
-from Main.GUI_Tabs.Tab6.Tab6Controller import Tab6Controller
 
 # OMX paths and local imports (GSDA_code, etc.) assume the working directory is Main/.
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
@@ -51,11 +51,11 @@ tab_control.add(tab2, text="Mobilise-D")
 tab3 = tk.Frame(tab_control)
 tab_control.add(tab3, text="Gait Analysis")
 
-tab5 = tk.Frame(tab_control)
-tab_control.add(tab5, text="Auto-Analysis")
+tab4 = tk.Frame(tab_control)
+tab_control.add(tab4, text="Auto-Analysis")
 
-tab6 = tk.Frame(tab_control)
-tab_control.add(tab6, text="Settings")
+tab5 = tk.Frame(tab_control)
+tab_control.add(tab5, text="Settings")
 
 apply_notebook_tab_pointer_cursor(tab_control)
 
@@ -66,8 +66,8 @@ tab1_controller = Tab1Controller(tab1, heavy_job)
 tab1_controller.build_octave_section()
 tab2_controller = Tab2Controller(tab2, heavy_job)
 tab3_controller = Tab3Controller(tab3, heavy_job)
-tab5_controller = Tab5Controller(tab5, heavy_job)
-tab6_controller = Tab6Controller(tab6)
+tab4_controller = Tab4Controller(tab4, heavy_job)
+tab5_controller = Tab5Controller(tab5)
 
 tab_control.pack(expand=1, fill="both")
 
@@ -344,7 +344,7 @@ heavy_job.register_disable_widgets(
     tab3_save_all_linear_plots_button,
     tab3_save_all_nonlinear_plots_button,
     tab3_save_all_output_button,
-    *tab5_controller.heavy_job_disable_widgets(),
+    *tab4_controller.heavy_job_disable_widgets(),
     *tab2_gsd_algorithm_radios,
 )
 
