@@ -49,7 +49,7 @@ tab2 = tk.Frame(tab_control)
 tab_control.add(tab2, text="Mobilise-D")
 
 tab3 = tk.Frame(tab_control)
-tab_control.add(tab3, text="Gait Analysis")
+tab_control.add(tab3, text="Analysis")
 
 tab4 = tk.Frame(tab_control)
 tab_control.add(tab4, text="Auto-Analysis")
