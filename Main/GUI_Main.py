@@ -248,13 +248,13 @@ tab2_save_all_button.pack(pady=5)
 
 # -------------------------Tab 3 Methods---------------------------------
 
-def load_gait_analysis_code_file():
+def load_analysis_code_file():
     gait_analysis_code_path_var.set(tab3_controller.load_file())
 
 # -------------------------Tab 3 Gait Analysis---------------------------------
 
 tab3_load_csv_button = make_action_button(
-    tab3, text="Load CSV File", command=load_gait_analysis_code_file
+    tab3, text="Load CSV File", command=load_analysis_code_file
 )
 tab3_load_csv_button.pack(pady=10)
 
@@ -329,13 +329,10 @@ tab3_save_all_output_button.pack(pady=5)
 
 # -------------------------Tab 4 Methods---------------------------------
 
-def load_stance_analysis_code_file():
-    stance_analysis_code_path_var.set(tab4_controller.load_file())
-
 # -------------------------Tab 4 Stance Analysis---------------------------------
 
 tab4_load_csv_button = make_action_button(
-    tab4, text="Load CSV File", command=load_stance_analysis_code_file
+    tab4, text="Load CSV File"
 )
 tab4_load_csv_button.pack(pady=10)
 
