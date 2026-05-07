@@ -11,6 +11,7 @@ from Main.GUI_Tabs.Tab4.Auto_analysis_code import (
     SegmentBatchCancelled,
     combine_segment_batch_results_to_tables,
     combine_tab2_per_chunk_export_tables,
+    count_steps_per_chunk,
     run_segment_batch_analysis,
     run_sequence_detection_per_chunk,
     select_one_segment_per_chunk,
@@ -187,6 +188,9 @@ class Tab4Controller:
                 combine_segment_batch_results_to_tables(batch_results)
             )
 
+            steps_per_chunk = count_steps_per_chunk(per_chunk)
+            total_steps = sum(steps_per_chunk)
+
             if save_tab2:
                 gsd_all_df, step_all_df = combine_tab2_per_chunk_export_tables(per_chunk)
                 tab2_empty = gsd_all_df.empty and step_all_df.empty
@@ -203,6 +207,8 @@ class Tab4Controller:
                 "n_ok": n_ok,
                 "n_fail": n_fail,
                 "sample_seconds": sample_seconds,
+                "steps_per_chunk": steps_per_chunk,
+                "total_steps": total_steps,
                 "linear_all_df": linear_all_df,
                 "nonlinear_all_df": nonlinear_all_df,
                 "base_dir": os.path.dirname(file_path),
@@ -226,6 +232,8 @@ class Tab4Controller:
             data_chunks_len = payload["n_chunks"]
             sample_seconds = payload["sample_seconds"]
             selection_records = payload["selection_records"]
+            steps_per_chunk = payload["steps_per_chunk"]
+            total_steps = payload["total_steps"]
             base_dir = payload["base_dir"]
             base_name = payload["base_name"]
             save_tab2 = payload["save_tab2"]
@@ -298,6 +306,16 @@ class Tab4Controller:
                     except OSError as e:
                         messagebox.showerror("Save Error", str(e))
 
+            step_lines = [
+                f"  Day {i + 1}: {steps_per_chunk[i]}"
+                for i in range(len(steps_per_chunk))
+            ]
+            step_block = (
+                f"Total steps detected: {total_steps}\n"
+                + "\n".join(step_lines)
+                + "\n\n"
+            )
+
             chunk_lines = []
             for rec in selection_records:
                 day_num = rec["chunk_index"] + 1
@@ -313,7 +331,7 @@ class Tab4Controller:
                     )
 
             all_skipped = n_ok_chunks == 0
-            summary_msg = tab2_export_note + (
+            summary_msg = step_block + tab2_export_note + (
                 f"Day chunks: {data_chunks_len}\n"
                 f"Chunks with sample: {n_ok_chunks}\n"
                 f"Analyzed OK: {n_ok}, failed: {n_fail}\n"

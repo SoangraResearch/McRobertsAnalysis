@@ -521,6 +521,32 @@ def combine_segment_batch_results_to_tables(batch_results):
     return linear_all, nonlinear_all, failures
 
 
+def count_steps_per_chunk(per_chunk_results) -> list:
+    """Return the number of detected initial-contact events per 24-hour chunk.
+
+    ``step_detection`` mutates each GSD bout dict in-place, adding an ``'IC'``
+    key whose value is a list of initial-contact times (one entry per step).
+    Summing ``len(bout['IC'])`` across all bouts in a chunk gives the total
+    step count for that chunk.
+
+    Args:
+        per_chunk_results: Output of :func:`run_sequence_detection_per_chunk`.
+
+    Returns:
+        List of ints, length == ``len(per_chunk_results)``. Skipped or empty
+        chunks contribute ``0``.
+    """
+    counts = []
+    for entry in per_chunk_results or []:
+        if not entry or entry.get("skipped"):
+            counts.append(0)
+            continue
+        step_result = entry.get("step_result") or []
+        total = sum(len(bout.get("IC", [])) for bout in step_result)
+        counts.append(total)
+    return counts
+
+
 def combine_tab2_per_chunk_export_tables(per_chunk_results):
     """Stack Tab 2–style tables from each day chunk for export.
 
