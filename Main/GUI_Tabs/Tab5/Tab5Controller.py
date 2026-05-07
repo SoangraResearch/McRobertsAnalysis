@@ -26,6 +26,7 @@ class Tab5Controller:
         self._entropy_vars: Dict[str, tk.StringVar] = {}
         self._lyapunov_vars: Dict[str, tk.StringVar] = {}
         self._rqa_vars: Dict[str, tk.StringVar] = {}
+        self._auto_analysis_vars: Dict[str, tk.StringVar] = {}
         self._build_ui()
 
     def _build_ui(self) -> None:
@@ -92,6 +93,7 @@ class Tab5Controller:
         self._build_entropy_section(outer)
         self._build_lyapunov_section(outer)
         self._build_rqa_section(outer)
+        self._build_auto_analysis_section(outer)
 
         def _bind_wheel_recursive(widget: tk.Misc) -> None:
             widget.bind("<MouseWheel>", _wheel)
@@ -180,6 +182,10 @@ class Tab5Controller:
         rq = app_config.current["rqa"]
         for key in rq:
             self._rqa_vars[key].set(str(rq[key]))
+
+        aa = app_config.current["auto_analysis"]
+        for key in aa:
+            self._auto_analysis_vars[key].set(str(aa[key]))
 
     @staticmethod
     def _parse_float(label: str, raw: str) -> float:
@@ -383,6 +389,25 @@ class Tab5Controller:
             "set_value": sv,
         }
 
+    def _parse_auto_analysis(self) -> Dict[str, Any]:
+        def g(key: str) -> str:
+            return self._auto_analysis_vars[key].get()
+
+        sample_seconds = self._parse_int(
+            "Auto-Analysis / Sample length (s)", g("sample_seconds")
+        )
+        if sample_seconds < 5:
+            raise ValueError("Auto-Analysis / Sample length (s): must be >= 5.")
+
+        random_seed = self._parse_int(
+            "Auto-Analysis / Random seed", g("random_seed")
+        )
+
+        return {
+            "sample_seconds": sample_seconds,
+            "random_seed": random_seed,
+        }
+
     def _parse_all(self) -> Dict[str, Any]:
         return {
             "walking": self._parse_walking(),
@@ -390,6 +415,7 @@ class Tab5Controller:
             "entropy": self._parse_entropy(),
             "lyapunov": self._parse_lyapunov(),
             "rqa": self._parse_rqa(),
+            "auto_analysis": self._parse_auto_analysis(),
         }
 
     def _build_walking_section(self, outer: tk.Frame) -> None:
@@ -574,4 +600,26 @@ class Tab5Controller:
 
         add_combo("Distance norm", "norm", self._RQA_NORM_CHOICES)
         add_combo("Threshold mode", "set_para", self._RQA_SETPARA_CHOICES)
+        lf.columnconfigure(1, weight=1)
+
+    def _build_auto_analysis_section(self, outer: tk.Frame) -> None:
+        lf = tk.LabelFrame(outer, text="Auto-Analysis", padx=10, pady=10)
+        lf.pack(fill=tk.X, pady=(0, 8))
+        curr = copy.deepcopy(app_config.current["auto_analysis"])
+        row = 0
+
+        def add_entry(label: str, key: str) -> None:
+            nonlocal row
+            tk.Label(lf, text=label).grid(
+                row=row, column=0, sticky=tk.W, padx=(0, 10), pady=4
+            )
+            var = tk.StringVar(value=str(curr[key]))
+            self._auto_analysis_vars[key] = var
+            tk.Entry(lf, textvariable=var, width=16).grid(
+                row=row, column=1, sticky=tk.W, pady=4
+            )
+            row += 1
+
+        add_entry("Sample length (s)", "sample_seconds")
+        add_entry("Random seed", "random_seed")
         lf.columnconfigure(1, weight=1)
