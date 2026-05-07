@@ -4,6 +4,7 @@ import os
 import tkinter as tk
 from tkinter import filedialog, messagebox
 
+from Main import app_config
 from OMX_To_CSV import process_omx_file
 from Main.GUI_Tabs.Tab4.auto_analysis_progress import auto_analysis_progress
 from Main.GUI_Tabs.Tab4.Auto_analysis_code import (
@@ -12,7 +13,7 @@ from Main.GUI_Tabs.Tab4.Auto_analysis_code import (
     combine_tab2_per_chunk_export_tables,
     run_segment_batch_analysis,
     run_sequence_detection_per_chunk,
-    select_segments_for_auto_analysis,
+    select_one_segment_per_chunk,
     split_data_by_day,
 )
 from Main.GUI_Tabs.gui_style import (
@@ -121,6 +122,11 @@ class Tab4Controller:
         def worker():
             if heavy_job.is_cancel_requested():
                 return HEAVY_JOB_CANCELLED
+
+            cfg = app_config.current["auto_analysis"]
+            sample_seconds = cfg["sample_seconds"]
+            random_seed = cfg["random_seed"]
+
             sync_tab4_canvas("Reading Data")
             notify_status("Reading OMX file…")
             try:
@@ -145,13 +151,16 @@ class Tab4Controller:
                 data_chunks,
                 gsd_type,
                 force_walk,
+                min_segment_seconds=sample_seconds,
             )
             if heavy_job.is_cancel_requested():
                 return HEAVY_JOB_CANCELLED
 
             sync_tab4_canvas("Segment Selection")
-            notify_status("Selecting long segments…")
-            selected = select_segments_for_auto_analysis(per_chunk)
+            notify_status("Selecting random sample per day…")
+            selection_records = select_one_segment_per_chunk(
+                per_chunk, sample_seconds, random_seed
+            )
             if heavy_job.is_cancel_requested():
                 return HEAVY_JOB_CANCELLED
 
@@ -159,7 +168,7 @@ class Tab4Controller:
             try:
                 batch_results = run_segment_batch_analysis(
                     data_chunks,
-                    selected,
+                    selection_records,
                     assume_walking=True,
                     progress_callback=notify_status,
                     cancel_check=heavy_job.is_cancel_requested,
@@ -171,7 +180,7 @@ class Tab4Controller:
 
             sync_tab4_canvas("Output")
             notify_status("Combining results…")
-            n_sel = len(selected)
+            n_ok_chunks = sum(1 for r in selection_records if r["reason"] == "ok")
             n_ok = sum(1 for r in batch_results if r.get("error") is None)
             n_fail = len(batch_results) - n_ok
             linear_all_df, nonlinear_all_df, _failures = (
@@ -187,12 +196,13 @@ class Tab4Controller:
 
             return {
                 "per_chunk": per_chunk,
-                "selected": selected,
+                "selection_records": selection_records,
                 "batch_results": batch_results,
                 "n_chunks": len(data_chunks),
-                "n_sel": n_sel,
+                "n_ok_chunks": n_ok_chunks,
                 "n_ok": n_ok,
                 "n_fail": n_fail,
+                "sample_seconds": sample_seconds,
                 "linear_all_df": linear_all_df,
                 "nonlinear_all_df": nonlinear_all_df,
                 "base_dir": os.path.dirname(file_path),
@@ -205,15 +215,17 @@ class Tab4Controller:
 
         def on_success(payload):
             self.auto_analysis_per_chunk_results = payload["per_chunk"]
-            self.auto_analysis_selected_segments = payload["selected"]
+            self.auto_analysis_selected_segments = payload["selection_records"]
             self.auto_analysis_batch_results = payload["batch_results"]
 
             linear_all_df = payload["linear_all_df"]
             nonlinear_all_df = payload["nonlinear_all_df"]
-            n_sel = payload["n_sel"]
+            n_ok_chunks = payload["n_ok_chunks"]
             n_ok = payload["n_ok"]
             n_fail = payload["n_fail"]
             data_chunks_len = payload["n_chunks"]
+            sample_seconds = payload["sample_seconds"]
+            selection_records = payload["selection_records"]
             base_dir = payload["base_dir"]
             base_name = payload["base_name"]
             save_tab2 = payload["save_tab2"]
@@ -286,17 +298,40 @@ class Tab4Controller:
                     except OSError as e:
                         messagebox.showerror("Save Error", str(e))
 
+            chunk_lines = []
+            for rec in selection_records:
+                day_num = rec["chunk_index"] + 1
+                if rec["reason"] == "ok":
+                    seg = rec["segment"]
+                    chunk_lines.append(
+                        f"  Day {day_num}: {sample_seconds} s sample"
+                        f" @ {seg['Start']:.1f}\u2013{seg['End']:.1f} s"
+                    )
+                else:
+                    chunk_lines.append(
+                        f"  Day {day_num}: skipped ({rec['reason']})"
+                    )
+
+            all_skipped = n_ok_chunks == 0
             summary_msg = tab2_export_note + (
                 f"Day chunks: {data_chunks_len}\n"
-                f"Long segments selected: {n_sel}\n"
+                f"Chunks with sample: {n_ok_chunks}\n"
                 f"Analyzed OK: {n_ok}, failed: {n_fail}\n"
             )
+            if chunk_lines:
+                summary_msg += "\n".join(chunk_lines) + "\n"
+
             if saved_any:
-                summary_msg += "Saved to folder:\n" + output_dir + "\n\nFiles:\n" + "\n".join(
+                summary_msg += "\nSaved to folder:\n" + output_dir + "\n\nFiles:\n" + "\n".join(
                     os.path.basename(p) for p in saved_paths
                 )
             else:
-                if not anything_to_save:
+                if all_skipped:
+                    summary_msg += (
+                        "\nNo walking samples found in any day chunk"
+                        f" (no bouts \u2265 {sample_seconds} s)."
+                    )
+                elif not anything_to_save:
                     summary_msg += "\nNo CSV outputs to write (all tables empty)."
                 elif not output_dir:
                     summary_msg += "\nNo CSVs saved (output location cancelled)."

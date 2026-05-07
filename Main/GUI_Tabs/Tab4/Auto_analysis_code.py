@@ -1,5 +1,6 @@
 """Tab 4 helpers: split OMX acceleration into day-sized windows, then run GSD per window."""
 import os
+import random
 import shutil
 import tempfile
 from typing import Callable, Optional
@@ -92,11 +93,15 @@ def split_data_by_day(data, timestamps):
     return chunks
 
 
-def run_sequence_detection_per_chunk(data_chunks, gsd_type, force_walking):
+def run_sequence_detection_per_chunk(
+    data_chunks, gsd_type, force_walking, min_segment_seconds=60
+):
     """Run GSD, long-segment filtering, and step detection on each day chunk.
 
-    Parameters match Tab 2: GSDA uses ``min_duration=30`` for long segments;
-    GSDB uses the default filter; both pass ``force_walking`` into the GSD call.
+    ``min_segment_seconds`` sets the minimum bout duration passed to
+    ``filter_and_print_long_segments`` for both GSDA and GSDB paths; it comes
+    from ``app_config.current["auto_analysis"]["sample_seconds"]`` so that the
+    eligibility threshold matches the requested sample length.
 
     Returns:
         One dict per chunk with ``gsd_result``, ``long_segments``, step output,
@@ -143,11 +148,10 @@ def run_sequence_detection_per_chunk(data_chunks, gsd_type, force_walking):
                     plot_results=False,
                     force_walking=force_walking,
                 )
-                # Tab 2 uses 30 s minimum bout length for GSDA when listing “long” segments.
                 long_segments = filter_and_print_long_segments(
                     gsd_result,
                     original_time_array=original_time_array,
-                    min_duration=30,
+                    min_duration=min_segment_seconds,
                 )
             elif gsd_type == "Patient(GSDB)":
                 gsd_result, _, _ = gsd_low_back_acc(
@@ -158,10 +162,10 @@ def run_sequence_detection_per_chunk(data_chunks, gsd_type, force_walking):
                     force_walking=force_walking,
                     extra_plots=0,
                 )
-                # Default threshold in ICDA matches Tab 2’s GSDB path (no custom min_duration).
                 long_segments = filter_and_print_long_segments(
                     gsd_result,
                     original_time_array=original_time_array,
+                    min_duration=min_segment_seconds,
                 )
             else:
                 raise ValueError(f"Unknown GSD type: {gsd_type!r}")
@@ -200,52 +204,89 @@ def run_sequence_detection_per_chunk(data_chunks, gsd_type, force_walking):
     return results
 
 
-def select_segments_for_auto_analysis(per_chunk_results):
-    """Build the list of walking bouts to analyze next (Tab 4 segment-selection step).
+def select_one_segment_per_chunk(per_chunk_results, sample_seconds, base_seed):
+    """Pick one random walking sample per 24-hour chunk for Tab 4 auto-analysis.
 
-    Each chunk already applied ``filter_and_print_long_segments`` during sequence
-    detection (same rules as Tab 2). This step only **collects** those bouts into
-    one list and sorts them so later code can iterate in a stable order.
+    Eligible bouts are those whose duration is >= ``sample_seconds``. One bout is
+    chosen weighted by duration; a random start offset is picked uniformly in
+    ``[0, bout_duration - sample_seconds]``. The resulting slice is exactly
+    ``sample_seconds`` long.
 
-    ``segment['Start']`` / ``segment['End']`` are in **seconds from the start of
-    that day chunk**, not from the beginning of the full OMX file.
+    The RNG for chunk ``i`` is seeded from ``(base_seed, chunk_index)`` so each
+    chunk is independent, and re-running with the same seed produces identical
+    picks. Changing the seed in Tab 5 produces a different but shape-identical
+    sample.
 
     Args:
-        per_chunk_results: Output of ``run_sequence_detection_per_chunk`` (list of dicts).
+        per_chunk_results: Output of :func:`run_sequence_detection_per_chunk`.
+        sample_seconds: Required sample duration (seconds); must match the value
+            passed to ``run_sequence_detection_per_chunk`` as ``min_segment_seconds``.
+        base_seed: Integer seed from ``app_config.current["auto_analysis"]["random_seed"]``.
 
     Returns:
-        List of dicts with ``chunk_index``, ``segment_index`` (nth long bout in
-        that chunk), and ``segment`` (the original GSD segment dict).
-    """
-    if not per_chunk_results:
-        return []
+        One record per chunk (whether or not a sample was drawn)::
 
-    selected = []
-    for entry in per_chunk_results:
-        if not entry or entry.get("skipped"):
-            continue
+            {
+                "chunk_index": int,
+                "segment_index": int | None,
+                "segment": {"Start": float, "End": float} | None,
+                "reason": "ok" | "empty chunk" | "no walking >= N s",
+            }
+    """
+    records = []
+    for entry in per_chunk_results or []:
         chunk_idx = entry["chunk_index"]
-        long_segs = entry.get("long_segments") or []
-        # Each item is a gait bout dict (Start/End in seconds within this chunk).
-        for seg_i, segment in enumerate(long_segs):
-            if not isinstance(segment, dict):
-                continue
-            selected.append(
+
+        if not entry or entry.get("skipped") or not entry.get("long_segments"):
+            records.append(
                 {
                     "chunk_index": chunk_idx,
-                    "segment_index": seg_i,
-                    "segment": segment,
+                    "segment_index": None,
+                    "segment": None,
+                    "reason": "empty chunk",
                 }
             )
+            continue
 
-    # Day order, then earlier bouts first within the same day (reproducible runs).
-    selected.sort(
-        key=lambda r: (
-            r["chunk_index"],
-            float(r["segment"].get("Start", 0.0)),
+        eligible = [
+            (i, seg)
+            for i, seg in enumerate(entry["long_segments"])
+            if isinstance(seg, dict)
+            and (float(seg.get("End", 0)) - float(seg.get("Start", 0))) >= sample_seconds
+        ]
+
+        if not eligible:
+            records.append(
+                {
+                    "chunk_index": chunk_idx,
+                    "segment_index": None,
+                    "segment": None,
+                    "reason": f"no walking \u2265 {sample_seconds} s",
+                }
+            )
+            continue
+
+        rng = random.Random(f"{int(base_seed)}:{int(chunk_idx)}")
+        weights = [
+            float(seg.get("End", 0)) - float(seg.get("Start", 0))
+            for _, seg in eligible
+        ]
+        seg_i, bout = rng.choices(eligible, weights=weights, k=1)[0]
+        bout_duration = float(bout["End"]) - float(bout["Start"])
+        start_offset = rng.uniform(0.0, bout_duration - sample_seconds)
+        start_s = float(bout["Start"]) + start_offset
+        end_s = start_s + sample_seconds
+
+        records.append(
+            {
+                "chunk_index": chunk_idx,
+                "segment_index": seg_i,
+                "segment": {"Start": start_s, "End": end_s},
+                "reason": "ok",
+            }
         )
-    )
-    return selected
+
+    return records
 
 
 def _write_segment_analysis_csv(chunk_df, start_s, end_s, csv_path):
@@ -301,14 +342,14 @@ def run_segment_batch_analysis(
         List of dicts: ``chunk_index``, ``segment_index``, ``segment``, optional
         ``error`` (str if failed), else ``linear_df`` and ``nonlinear_df``.
     """
-    if not selected_segments:
+    active_segments = [s for s in (selected_segments or []) if s.get("segment") is not None]
+    if not active_segments:
         return []
-
     results = []
     tmpdir = tempfile.mkdtemp(prefix="mcroberts_tab4_")
-    nseg = len(selected_segments)
+    nseg = len(active_segments)
     try:
-        for k, sel in enumerate(selected_segments):
+        for k, sel in enumerate(active_segments):
             if cancel_check and cancel_check():
                 raise SegmentBatchCancelled()
             if progress_callback:
