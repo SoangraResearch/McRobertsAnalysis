@@ -52,6 +52,10 @@ DEFAULTS: JsonDict = {
         "set_para": "radius",
         "set_value": 1,
     },
+    "auto_analysis": {
+        "sample_seconds": 60,
+        "random_seed": 42,
+    },
     # Full path to octave-cli; persisted for frozen apps with minimal PATH.
     "octave_executable": "",
 }
