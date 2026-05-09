@@ -301,9 +301,8 @@ class Tab2Controller:
                 )
             )
             v_acc_for_plot = np.linalg.norm(acc, axis=1)
-            filter_and_print_long_segments(
-                gsd_result, original_time_array=original_time_array
-            )
+            filter_and_print_long_segments(gsd_result, original_time_array=original_time_array, SS=stance_sequences)
+            
             return {
                 "kind": "GSDB",
                 "gsd_result": gsd_result,
