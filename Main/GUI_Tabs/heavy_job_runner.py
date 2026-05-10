@@ -397,10 +397,6 @@ class HeavyJobRunner:
             determinate = True
 
         if self._busy:
-            messagebox.showwarning(
-                "Busy",
-                "Another operation is already running. Please wait for it to finish.",
-            )
             return False
 
         self._freeze_progress_on_success = bool(freeze_progress_on_success)

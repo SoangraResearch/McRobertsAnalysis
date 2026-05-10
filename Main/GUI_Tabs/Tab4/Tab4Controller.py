@@ -10,7 +10,6 @@ from Main.GUI_Tabs.Tab4.auto_analysis_progress import auto_analysis_progress
 from Main.GUI_Tabs.Tab4.Auto_analysis_code import (
     SegmentBatchCancelled,
     combine_segment_batch_results_to_tables,
-    combine_tab2_per_chunk_export_tables,
     count_steps_per_chunk,
     run_segment_batch_analysis,
     run_sequence_detection_per_chunk,
@@ -38,7 +37,8 @@ class Tab4Controller:
 
         self.load_omx_button = None
         self.force_walking_check = None
-        self.save_tab2_results_check = None
+        self.run_linear_check = None
+        self.run_nonlinear_check = None
         self.run_analysis_button = None
         self.gsd_algorithm_radios = []
 
@@ -48,7 +48,8 @@ class Tab4Controller:
         return (
             self.load_omx_button,
             self.force_walking_check,
-            self.save_tab2_results_check,
+            self.run_linear_check,
+            self.run_nonlinear_check,
             self.run_analysis_button,
             *self.gsd_algorithm_radios,
         )
@@ -97,10 +98,17 @@ class Tab4Controller:
             messagebox.showerror("Error", "GSD algorithm not set")
             return
 
+        do_linear = self.run_linear_var.get()
+        do_nonlinear = self.run_nonlinear_var.get()
+        if not do_linear and not do_nonlinear:
+            messagebox.showerror(
+                "Error", "Select at least one analysis to run (Linear or Nonlinear)."
+            )
+            return
+
         file_path = self.auto_analysis_file
         gsd_type = self.label_var_auto_analysis.get()
         force_walk = self.force_data_as_walking_tab4.get()
-        save_tab2 = self.save_tab2_auto_results.get()
 
         self.progress_text.clear()
 
@@ -171,6 +179,8 @@ class Tab4Controller:
                     data_chunks,
                     selection_records,
                     assume_walking=True,
+                    do_linear=do_linear,
+                    do_nonlinear=do_nonlinear,
                     progress_callback=notify_status,
                     cancel_check=heavy_job.is_cancel_requested,
                 )
@@ -191,13 +201,6 @@ class Tab4Controller:
             steps_per_chunk = count_steps_per_chunk(per_chunk)
             total_steps = sum(steps_per_chunk)
 
-            if save_tab2:
-                gsd_all_df, step_all_df = combine_tab2_per_chunk_export_tables(per_chunk)
-                tab2_empty = gsd_all_df.empty and step_all_df.empty
-            else:
-                gsd_all_df, step_all_df = None, None
-                tab2_empty = False
-
             return {
                 "per_chunk": per_chunk,
                 "selection_records": selection_records,
@@ -213,10 +216,6 @@ class Tab4Controller:
                 "nonlinear_all_df": nonlinear_all_df,
                 "base_dir": os.path.dirname(file_path),
                 "base_name": os.path.splitext(os.path.basename(file_path))[0],
-                "save_tab2": save_tab2,
-                "gsd_all_df": gsd_all_df,
-                "step_all_df": step_all_df,
-                "tab2_empty": tab2_empty,
             }
 
         def on_success(payload):
@@ -236,27 +235,10 @@ class Tab4Controller:
             total_steps = payload["total_steps"]
             base_dir = payload["base_dir"]
             base_name = payload["base_name"]
-            save_tab2 = payload["save_tab2"]
-            gsd_all_df = payload["gsd_all_df"]
-            step_all_df = payload["step_all_df"]
 
-            tab2_export_note = ""
-            if save_tab2 and payload["tab2_empty"]:
-                tab2_export_note = (
-                    "Tab 2 export: no GSD/step rows (all day chunks empty or skipped).\n\n"
-                )
-
-            want_tab2_gsd = (
-                save_tab2 and gsd_all_df is not None and not gsd_all_df.empty
-            )
-            want_tab2_steps = (
-                save_tab2 and step_all_df is not None and not step_all_df.empty
-            )
             want_linear = not linear_all_df.empty
             want_nonlinear = not nonlinear_all_df.empty
-            anything_to_save = (
-                want_tab2_gsd or want_tab2_steps or want_linear or want_nonlinear
-            )
+            anything_to_save = want_linear or want_nonlinear
 
             saved_any = False
             saved_paths = []
@@ -275,20 +257,6 @@ class Tab4Controller:
                 if output_dir:
                     try:
                         os.makedirs(output_dir, exist_ok=True)
-                        if want_tab2_gsd:
-                            p = os.path.join(
-                                output_dir, f"{base_name}_tab4_GSD_results.csv"
-                            )
-                            gsd_all_df.to_csv(p, index=False)
-                            saved_any = True
-                            saved_paths.append(p)
-                        if want_tab2_steps:
-                            p = os.path.join(
-                                output_dir, f"{base_name}_tab4_step_counts.csv"
-                            )
-                            step_all_df.to_csv(p, index=False)
-                            saved_any = True
-                            saved_paths.append(p)
                         if want_linear:
                             p = os.path.join(
                                 output_dir, f"{base_name}_tab4_linear_segments.csv"
@@ -331,7 +299,7 @@ class Tab4Controller:
                     )
 
             all_skipped = n_ok_chunks == 0
-            summary_msg = step_block + tab2_export_note + (
+            summary_msg = step_block + (
                 f"Day chunks: {data_chunks_len}\n"
                 f"Chunks with sample: {n_ok_chunks}\n"
                 f"Analyzed OK: {n_ok}, failed: {n_fail}\n"
@@ -403,13 +371,17 @@ class Tab4Controller:
         )
         self.force_walking_check.pack(pady=(10, 6), ipadx=4, ipady=4)
 
-        self.save_tab2_auto_results = tk.BooleanVar(value=False)
-        self.save_tab2_results_check = make_checkbutton(
-            self.tab,
-            text="Save Tab 2 results (GSD + step counts CSV)",
-            variable=self.save_tab2_auto_results,
+        self.run_linear_var = tk.BooleanVar(value=True)
+        self.run_linear_check = make_checkbutton(
+            self.tab, text="Run Linear analysis", variable=self.run_linear_var
         )
-        self.save_tab2_results_check.pack(pady=(4, 6), ipadx=4, ipady=4)
+        self.run_linear_check.pack(pady=(2, 2), ipadx=4, ipady=4)
+
+        self.run_nonlinear_var = tk.BooleanVar(value=True)
+        self.run_nonlinear_check = make_checkbutton(
+            self.tab, text="Run Nonlinear analysis", variable=self.run_nonlinear_var
+        )
+        self.run_nonlinear_check.pack(pady=(2, 6), ipadx=4, ipady=4)
 
         self.run_analysis_button = make_action_button(
             self.tab, text="Run Auto Analysis", command=self.run_auto_analysis

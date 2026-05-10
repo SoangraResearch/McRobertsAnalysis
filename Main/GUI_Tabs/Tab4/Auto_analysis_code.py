@@ -321,6 +321,8 @@ def run_segment_batch_analysis(
     data_chunks,
     selected_segments,
     assume_walking=True,
+    do_linear: bool = True,
+    do_nonlinear: bool = True,
     progress_callback: Optional[Callable[[str], None]] = None,
     cancel_check: Optional[Callable[[], bool]] = None,
 ):
@@ -394,13 +396,16 @@ def run_segment_batch_analysis(
                 continue
 
             try:
-                lin_df, _plots = linear_analysis(
-                    path,
-                    None,
-                    assume_walking,
-                    build_plots=False,
-                    settings=app_config.current,
-                )
+                if do_linear:
+                    lin_df, _plots = linear_analysis(
+                        path,
+                        None,
+                        assume_walking,
+                        build_plots=False,
+                        settings=app_config.current,
+                    )
+                else:
+                    lin_df = None
 
                 def _nlin_progress(msg: str) -> None:
                     if progress_callback:
@@ -408,13 +413,16 @@ def run_segment_batch_analysis(
                             f"Segment {k + 1}/{nseg}: {msg}"
                         )
 
-                nlin_df, _raw = nonlinear_analysis(
-                    path,
-                    assume_walking,
-                    progress_callback=_nlin_progress if progress_callback else None,
-                    settings=app_config.current,
-                    cancel_check=cancel_check,
-                )
+                if do_nonlinear:
+                    nlin_df, _raw = nonlinear_analysis(
+                        path,
+                        assume_walking,
+                        progress_callback=_nlin_progress if progress_callback else None,
+                        settings=app_config.current,
+                        cancel_check=cancel_check,
+                    )
+                else:
+                    nlin_df = None
             except NonlinearAnalysisUserCancelled:
                 raise SegmentBatchCancelled()
             except Exception as ex:
