@@ -65,7 +65,7 @@ class Tab3Controller:
         self.filename = os.path.splitext(os.path.basename(file_path))[0]
         self._reset_tab()
 
-    def do_linear_analysis(self, plot_frame, assume_walking):
+    def do_linear_analysis(self, plot_frame, skip_sequence_detection):
         """Linear analysis on the main thread (fast); no HeavyJobRunner / indeterminate bar."""
         if self.file is None:
             messagebox.showerror("Error", "No file loaded.")
@@ -80,7 +80,7 @@ class Tab3Controller:
             self.linear_df, self.linear_plots = linear_analysis(
                 self.file,
                 plot_frame,
-                assume_walking.get(),
+                skip_sequence_detection.get(),
                 build_plots=True,
                 embed_plots=not combine_with_nonlinear,
                 settings=app_config.current,
@@ -95,7 +95,7 @@ class Tab3Controller:
         messagebox.showinfo("Linear Analysis", "Linear analysis complete")
         self.plot_frame = plot_frame
 
-    def do_nonlinear_analysis(self, plot_frame, assume_walking):
+    def do_nonlinear_analysis(self, plot_frame, skip_sequence_detection):
         """Run nonlinear analysis on a background thread; status in the bottom bar."""
         if self.file is None:
             messagebox.showerror("Error", "No file loaded.")
@@ -125,7 +125,7 @@ class Tab3Controller:
                     instrument = NonlinearProgressInstrument(update_progress)
                 result = nonlinear_analysis(
                     self.file,
-                    assume_walking.get(),
+                    skip_sequence_detection.get(),
                     progress_callback=None
                     if instrument
                     else (update_progress if can_status else None),
@@ -207,11 +207,11 @@ class Tab3Controller:
         messagebox.showinfo("Nonlinear Analysis", "Nonlinear analysis complete")
         self.plot_frame = plot_frame
 
-    def analyze_data(self, plot_frame, assume_walking):
+    def analyze_data(self, plot_frame, skip_sequence_detection):
         self.linear_df, self.linear_plots = linear_analysis(
             self.file,
             plot_frame,
-            assume_walking,
+            skip_sequence_detection,
             build_plots=True,
             embed_plots=False,
             settings=app_config.current,
@@ -224,7 +224,7 @@ class Tab3Controller:
         try:
             self.nonlinear_df, plot_data_list = nonlinear_analysis(
                 self.file,
-                assume_walking,
+                skip_sequence_detection,
                 settings=app_config.current,
                 long_run_confirm=long_run_confirm,
                 cancel_check=None,
@@ -359,13 +359,13 @@ class Tab3Controller:
 # -------------------------Private/Helper Methods---------------------------------
 
     def _nonlinear_long_run_confirm_ui(
-        self, longest_bout_duration_s: float, num_periods: int, assume_walking: bool
+        self, longest_bout_duration_s: float, num_periods: int, skip_sequence_detection: bool
     ) -> bool:
         parent = self.tab.winfo_toplevel()
         mins = longest_bout_duration_s / 60.0
-        if assume_walking:
+        if skip_sequence_detection:
             msg = (
-                f"'Assume walking' is enabled: the full recording (~{mins:.1f} minutes "
+                f"'Skip sequence detection' is enabled: the full recording (~{mins:.1f} minutes "
                 "of data) is analyzed as a single bout.\n\n"
                 "Nonlinear analysis may take a long time. Continue?"
             )
@@ -383,11 +383,11 @@ class Tab3Controller:
         heavy,
         longest_bout_duration_s: float,
         num_periods: int,
-        assume_walking: bool,
+        skip_sequence_detection: bool,
     ) -> bool:
         if threading.current_thread() is threading.main_thread():
             return self._nonlinear_long_run_confirm_ui(
-                longest_bout_duration_s, num_periods, assume_walking
+                longest_bout_duration_s, num_periods, skip_sequence_detection
             )
         if heavy is None:
             return True
@@ -397,7 +397,7 @@ class Tab3Controller:
         def run_dialog() -> None:
             try:
                 choice[0] = self._nonlinear_long_run_confirm_ui(
-                    longest_bout_duration_s, num_periods, assume_walking
+                    longest_bout_duration_s, num_periods, skip_sequence_detection
                 )
             finally:
                 done.set()

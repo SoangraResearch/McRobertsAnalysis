@@ -260,7 +260,7 @@ analysis_file_label.pack()
 analysis_frame = tk.Frame(tab3)
 analysis_frame.pack(pady=5)
 
-assume_walking_var = tk.BooleanVar(value=False)
+skip_sequence_detection_var = tk.BooleanVar(value=False)
 plot_frame_analysis = tk.Frame(tab3, height=300)
 
 tab3_linear_button = make_action_button(
@@ -268,7 +268,7 @@ tab3_linear_button = make_action_button(
     text="Linear Analysis",
     width=15,
     command=lambda: tab3_controller.do_linear_analysis(
-        plot_frame_analysis, assume_walking_var
+        plot_frame_analysis, skip_sequence_detection_var
     ),
 )
 tab3_linear_button.pack(side="left", padx=10)
@@ -277,15 +277,15 @@ tab3_nonlinear_button = make_action_button(
     text="Non-Linear Analysis",
     width=15,
     command=lambda: tab3_controller.do_nonlinear_analysis(
-        plot_frame_analysis, assume_walking_var
+        plot_frame_analysis, skip_sequence_detection_var
     ),
 )
 tab3_nonlinear_button.pack(side="left", padx=10)
 
-tab3_assume_walking_check = make_checkbutton(
-    analysis_frame, text="Assume data is walking", variable=assume_walking_var
+tab3_skip_sequence_detection_check = make_checkbutton(
+    analysis_frame, text="Skip sequence detection", variable=skip_sequence_detection_var
 )
-tab3_assume_walking_check.pack(side="left", padx=(12, 12), pady=6, ipadx=4, ipady=4)
+tab3_skip_sequence_detection_check.pack(side="left", padx=(12, 12), pady=6, ipadx=4, ipady=4)
 
 plot_frame_analysis.pack(fill="both", expand=True)
 
@@ -338,7 +338,7 @@ heavy_job.register_disable_widgets(
     tab3_load_csv_button,
     tab3_linear_button,
     tab3_nonlinear_button,
-    tab3_assume_walking_check,
+    tab3_skip_sequence_detection_check,
     tab3_save_linear_csv_button,
     tab3_save_nonlinear_csv_button,
     tab3_save_all_linear_plots_button,
