@@ -169,44 +169,48 @@ def seconds_to_datetime(seconds_offset, time_array, sampling_rate):
     except Exception as e:
         return f"Error converting time: {e}"
 
-#TODO: get working for GSDA
-def filter_and_print_long_segments(GS, min_duration=30, original_time_array=None, fs=100):
+def filter_and_print_long_segments(GS, min_duration=30, original_time_array=None, fs=100, SS=None):
     print(f"\n--- Filtering segments longer than {min_duration} seconds ---")
     
-    if not isinstance(GS, list) or len(GS) == 0:
-        print("No segments to filter")
-        return []
-    
-    long_segments = []
-    
-    for i, segment in enumerate(GS):
-        if 'Start' in segment and 'End' in segment:
-            duration = segment['End'] - segment['Start']
-            
-            start_dt = seconds_to_datetime(segment['Start'], original_time_array, fs)
-            end_dt = seconds_to_datetime(segment['End'], original_time_array, fs)
-            
-            #print(f"Segment {i}: Start={segment['Start']:.3f}s ({start_dt}), End={segment['End']:.3f}s ({end_dt}), Duration={duration:.3f}s")
-            
-            if duration > min_duration:
-                long_segments.append(segment)
-                print(f"  -> LONG SEGMENT: Duration {duration:.3f}s > {min_duration}s threshold")
-        else:
-            print(f"Segment {i}: Missing Start/End keys")
-    
-    print(f"\nTotal segments: {len(GS)}")
-    print(f"Long segments (>{min_duration}s): {len(long_segments)}")
-    
-    if long_segments:
-        print("\nLong segments details:")
-        for i, segment in enumerate(long_segments):
-            duration = segment['End'] - segment['Start']
-            start_dt = seconds_to_datetime(segment['Start'], original_time_array, fs)
-            end_dt = seconds_to_datetime(segment['End'], original_time_array, fs)
-            print(f"  Long segment {i+1}: {duration:.3f}s")
-            print(f"    Start: {segment['Start']:.3f}s ({start_dt})")
-            print(f"    End: {segment['End']:.3f}s ({end_dt})")
+    has_stance = SS is not None and isinstance(SS, list) and len(SS) > 0
+
+    def process_segments(segments, label):
+        if not isinstance(segments, list) or len(segments) == 0:
+            print(f"No {label} segments to filter")
+            return []
+        
+        long_segs = []
+        for i, segment in enumerate(segments):
+            if 'Start' in segment and 'End' in segment:
+                duration = segment['End'] - segment['Start']
+                if duration > min_duration:
+                    long_segs.append(segment)
+            else:
+                print(f"{label} segment {i}: Missing Start/End keys")
+        return long_segs
+
+    long_gait = process_segments(GS, "Gait")
+    long_stance = process_segments(SS, "Stance") if has_stance else []
+
+    print(f"\nGait  — Total: {len(GS)}, Long (>{min_duration}s): {len(long_gait)}")
+    if has_stance:
+        print(f"Stance — Total: {len(SS)}, Long (>{min_duration}s): {len(long_stance)}")
+
+    all_long = (
+        [("GAIT",   seg) for seg in long_gait] +
+        [("STANCE", seg) for seg in long_stance]
+    )
+    all_long.sort(key=lambda x: x[1]['Start'])
+
+    if all_long:
+        print("\nLong segments:")
+        for i, (kind, seg) in enumerate(all_long):
+            dur = seg['End'] - seg['Start']
+            st  = seconds_to_datetime(seg['Start'], original_time_array, fs)
+            en  = seconds_to_datetime(seg['End'],   original_time_array, fs)
+            tag = "LONG GAIT SEGMENT  " if kind == "GAIT" else "LONG STANCE SEGMENT"
+            print(f"  [{tag}] {dur:.3f}s | {seg['Start']:.3f}s ({st}) → {seg['End']:.3f}s ({en})")
     else:
-        print(f"No segments longer than {min_duration} seconds found")
-    
-    return long_segments
+        print(f"\nNo segments longer than {min_duration} seconds found")
+
+    return long_gait, long_stance

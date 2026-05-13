@@ -380,7 +380,6 @@ def gsd_low_back_acc(imu_acc, fs, plot_results=False, time_vector=None, force_wa
 
     #stance sequences
     stance_sequences = find_stance_sequences(GSD_Output, fs, acc)
-    print("stance sequences:", stance_sequences)
 
     if plot_results:
         plt.plot(sig_det_actv)
