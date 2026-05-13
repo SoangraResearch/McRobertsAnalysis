@@ -148,13 +148,13 @@ def run_sequence_detection_per_chunk(
                     plot_results=False,
                     force_walking=force_walking,
                 )
-                long_segments = filter_and_print_long_segments(
+                long_segments, _long_stance = filter_and_print_long_segments(
                     gsd_result,
                     original_time_array=original_time_array,
                     min_duration=min_segment_seconds,
                 )
             elif gsd_type == "Patient(GSDB)":
-                gsd_result, _, _ = gsd_low_back_acc(
+                gsd_result, _, _, stance_sequences = gsd_low_back_acc(
                     acc,
                     _FS,
                     plot_results=False,
@@ -162,10 +162,11 @@ def run_sequence_detection_per_chunk(
                     force_walking=force_walking,
                     extra_plots=0,
                 )
-                long_segments = filter_and_print_long_segments(
+                long_segments, _long_stance = filter_and_print_long_segments(
                     gsd_result,
                     original_time_array=original_time_array,
                     min_duration=min_segment_seconds,
+                    SS=stance_sequences,
                 )
             else:
                 raise ValueError(f"Unknown GSD type: {gsd_type!r}")
