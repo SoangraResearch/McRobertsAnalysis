@@ -10,8 +10,11 @@ from __future__ import annotations
 import copy
 import json
 import os
+import sys
 from pathlib import Path
 from typing import Any, Dict, Optional, Union
+
+BUNDLED_TEST_SAMPLE_OMX = "Test_Sample_Data.OMX"
 
 JsonDict = Dict[str, Any]
 
@@ -66,6 +69,15 @@ current: JsonDict = copy.deepcopy(DEFAULTS)
 def default_settings_path() -> Path:
     """User config file path (macOS and Windows via Path.home())."""
     return Path.home() / ".mcroberts_analysis" / "settings.json"
+
+
+def bundled_test_sample_omx() -> Optional[Path]:
+    """Path to the small OMX shipped inside PyInstaller builds (and in dev from ``Data/OMX_Files``)."""
+    if getattr(sys, "frozen", False):
+        p = Path(sys._MEIPASS) / "Data" / "OMX_Files" / BUNDLED_TEST_SAMPLE_OMX
+    else:
+        p = Path(__file__).resolve().parent.parent / "Data" / "OMX_Files" / BUNDLED_TEST_SAMPLE_OMX
+    return p if p.is_file() else None
 
 
 def _deep_merge(base: JsonDict, overrides: JsonDict) -> JsonDict:

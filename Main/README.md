@@ -69,6 +69,8 @@ python -m PyInstaller "McRoberts Analysis.spec" --clean
 
 Use the **same interpreter** (venv or conda env) that can run `Main/GUI_Main.py`; the spec resolves package data from that environment.
 
+**Bundled sample OMX:** `Data/OMX_Files/Test_Sample_Data.OMX` (~2 MB) is copied into the app via `McRoberts Analysis.spec`. The file must exist at build time and be **committed to git** so CI can include it. In the packaged app, use **Load sample OMX** on the Select Data tab (same Octave requirement as **Load OMX File**). Large multi-day recordings stay in a separate zip on the release page, not inside the app.
+
 ### macOS notes
 
 - CI produces **two** macOS bundles: **McRoberts-Analysis-macOS** (Apple Silicon, `macos-latest`) and **McRoberts-Analysis-macOS-Intel** (`macos-15-intel`). The workflow prints `uname -m` and `file` on the main binary so you can confirm `arm64` vs `x86_64`.

@@ -116,10 +116,22 @@ def export_csv():
 # it stays visible when the window is minimized or resized.
 plot_frame_OMX = tk.Frame(tab1, height=300)
 
+tab1_load_row = tk.Frame(tab1)
+tab1_load_row.pack(pady=10)
 tab1_load_file_button = make_action_button(
-    tab1, text="Load OMX File", command=lambda: tab1_controller.load_file(plot_frame_OMX)
+    tab1_load_row,
+    text="Load OMX File",
+    command=lambda: tab1_controller.load_file(plot_frame_OMX),
 )
-tab1_load_file_button.pack(pady=10)
+tab1_load_file_button.pack(side=tk.LEFT, padx=(0, 6))
+tab1_load_sample_button = None
+if tab1_controller.bundled_sample_available():
+    tab1_load_sample_button = make_action_button(
+        tab1_load_row,
+        text="Load Sample OMX",
+        command=lambda: tab1_controller.load_bundled_sample(plot_frame_OMX),
+    )
+    tab1_load_sample_button.pack(side=tk.LEFT)
 
 tab1_controller.create_time_labels()
 
@@ -325,6 +337,7 @@ tab3_save_all_output_button.pack(pady=5)
 heavy_job.register_disable_widgets(
     tab_control,
     tab1_load_file_button,
+    *([tab1_load_sample_button] if tab1_load_sample_button is not None else []),
     tab1_export_csv_button,
     tab1_export_plot_button,
     tab2_load_csv_button,

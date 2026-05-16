@@ -168,12 +168,29 @@ class Tab1Controller:
                 self._octave_clear_btn,
             )
 
+    def bundled_sample_available(self) -> bool:
+        return app_config.bundled_test_sample_omx() is not None
+
     def load_file(self, plot_frame_OMX):
         file_path = filedialog.askopenfilename(filetypes=[("OMX file", "*.OMX")])
         restore_main_window_focus(self.tab)
         if not file_path:
             return
+        self._load_omx_at_path(plot_frame_OMX, file_path)
 
+    def load_bundled_sample(self, plot_frame_OMX) -> None:
+        sample = app_config.bundled_test_sample_omx()
+        if sample is None:
+            messagebox.showerror(
+                "Sample OMX missing",
+                "Bundled sample file was not found. Reinstall the application, or use "
+                "Load OMX File and choose your own recording.",
+                parent=self.tab,
+            )
+            return
+        self._load_omx_at_path(plot_frame_OMX, str(sample))
+
+    def _load_omx_at_path(self, plot_frame_OMX, file_path: str) -> None:
         def apply_loaded(result):
             self.data, self.filename = result
             n_samples = len(self.data["ACC"])

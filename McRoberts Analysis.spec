@@ -78,6 +78,10 @@ a = Analysis(
         # Data files the app needs at runtime
         ('Mobilise-D-TVS-Recommended-Algorithms-master/ICDA/Library/FIR-2-3Hz-40.mat',
          'Mobilise-D-TVS-Recommended-Algorithms-master/ICDA/Library'),
+        (
+            os.path.join(PROJECT_ROOT, 'Data/OMX_Files/Test_Sample_Data.OMX'),
+            'Data/OMX_Files',
+        ),
         ('DynaportCompany_Codes_new/source', 'DynaportCompany_Codes_new/source'),
         # Only the two gait modules are used; gait_functions/forest-develop is an unused vendored
         # tree that also triggered shutil copy failures (errno 89) on some macOS setups.
