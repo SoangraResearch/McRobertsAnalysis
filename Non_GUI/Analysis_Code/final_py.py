@@ -276,7 +276,7 @@ for i in range(len(walking)):
     MaxL= rqa_RESULTS[0]['MaxL']
     EntrL= rqa_RESULTS[0]['EntrL']
     LAM= rqa_RESULTS[0]['LAM']
-    MeanV= rqa_RESULTS[0]['MeanL']
+    MeanV= rqa_RESULTS[0]['MeanV']
     MaxV= rqa_RESULTS[0]['MaxV']
     EntrV=rqa_RESULTS[0]['EntrV']
     EntrW=rqa_RESULTS[0]['EntrW']
